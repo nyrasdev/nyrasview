@@ -137,10 +137,12 @@ def _():
     toml = (HOME / ".codex/config.toml").read_text(encoding="utf-8")
     assert "[mcp_servers.fake]" in toml, toml
     gem = json.loads((HOME / ".gemini/settings.json").read_text(encoding="utf-8"))
-    assert "fake" in gem["mcpServers"]
-    assert "fake" in run("mcp")
-    run("mcp", "rm", "fake", "--to", "codex,gemini,opencode")
-    assert "[mcp_servers.fake]" not in (HOME / ".codex/config.toml").read_text(encoding="utf-8")
+    assert "fake" in gem["mcpServers"], gem
+    listing = run("mcp")
+    assert "fake" in listing, listing
+    out = run("mcp", "rm", "fake", "--to", "codex,gemini,opencode")
+    toml = (HOME / ".codex/config.toml").read_text(encoding="utf-8")
+    assert "[mcp_servers.fake]" not in toml, out + "\n" + toml
 
 
 @step("alerts inbox")
