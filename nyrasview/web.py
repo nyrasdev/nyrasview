@@ -14,6 +14,17 @@ from . import collab, obsidian
 from .registry import BY_KEY
 
 STATIC = Path(__file__).with_name("static")
+
+
+class Server(ThreadingHTTPServer):
+    daemon_threads = True
+
+    def server_bind(self):
+        import socketserver
+        socketserver.TCPServer.server_bind(self)
+        host, port = self.server_address[:2]
+        self.server_name = host
+        self.server_port = port
 PKG = Path(__file__).parent
 
 
@@ -477,7 +488,7 @@ def make_handler(collector, token, port, phone=False):
 
 def make_server(collector, port=0, token=None):
     token = token or secrets.token_urlsafe(24)
-    srv = ThreadingHTTPServer(("127.0.0.1", port), None)
+    srv = Server(("127.0.0.1", port), None)
     real = srv.server_address[1]
     srv.RequestHandlerClass = make_handler(collector, token, real)
     srv.daemon_threads = True
@@ -487,12 +498,12 @@ def make_server(collector, port=0, token=None):
 
 def start_phone(collector, port, token):
     try:
-        srv = ThreadingHTTPServer(("0.0.0.0", port), None)
+        srv = Server(("0.0.0.0", port), None)
     except OSError:
         if _takeover(port):
-            srv = ThreadingHTTPServer(("0.0.0.0", port), None)
+            srv = Server(("0.0.0.0", port), None)
         else:
-            srv = ThreadingHTTPServer(("0.0.0.0", 0), None)
+            srv = Server(("0.0.0.0", 0), None)
     real = srv.server_address[1]
     srv.RequestHandlerClass = make_handler(collector, token, real, phone=True)
     srv.daemon_threads = True
