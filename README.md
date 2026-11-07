@@ -17,9 +17,14 @@ Works with Claude Code, Codex, Gemini CLI, opencode, Kimi CLI, Antigravity, Curs
 | | |
 |---|---|
 | ![Overview](docs/media/overview.png) **Overview:** every agent, session, limit, alert and token at a glance | ![Watch](docs/media/watch.png) **Watch:** the file and the part of the page an agent is editing, with its cursor; hover to leave a note |
-| ![Compare](docs/media/prompt-compare.png) **Prompt and compare:** ask several agents at once and watch them answer side by side | ![MCP manager](docs/media/mcp.png) **MCP manager:** every server against every agent, one click to add or remove |
-| ![Collab](docs/media/collab.png) **Collab:** different AIs writing different sections of one document | ![Usage](docs/media/usage.png) **Usage:** 14 days of tokens per agent and model |
-| ![Agent](docs/media/agent.png) **Agent page:** sessions, limits, processes, MCP and network | ![Terminal UI](docs/media/tui.png) **Terminal UI:** the same data in your terminal |
+| ![Compare](docs/media/prompt-compare.png) **Prompt and compare:** ask several agents at once and watch them answer side by side | ![Self-heal](docs/media/self-heal.png) **Self-heal:** a check fails, an agent fixes it, the check passes |
+| ![Hand off](docs/media/handoff.png) **Hand off:** pass the work to another agent, or keep the same session going on an API key | ![MCP manager](docs/media/mcp.png) **MCP manager:** every server against every agent, one click to add or remove |
+| ![Collab](docs/media/collab.png) **Collab:** different AIs writing different sections of one document | ![Settings](docs/media/settings.png) **Settings:** everything in one place, plus the raw config |
+| ![Usage](docs/media/usage.png) **Usage:** 14 days of tokens per agent and model | ![Terminal UI](docs/media/tui.png) **Terminal UI:** the same data in your terminal |
+
+![On a phone](docs/media/mobile.png)
+
+**On your phone:** scan a QR code and you have it in your pocket.
 
 ## Install
 

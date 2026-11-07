@@ -32,7 +32,7 @@ class B:
 
 
 async def main():
-    async with websockets.connect("ws://127.0.0.1:9333/session", max_size=200_000_000, ping_interval=None) as ws:
+    async with websockets.connect("ws://127.0.0.1:9334/session", max_size=200_000_000, ping_interval=None) as ws:
         b = B(ws)
         await b.cmd("session.new", {"capabilities": {}})
         ctx = (await b.cmd("browsingContext.create", {"type": "tab"}))["context"]
@@ -106,6 +106,8 @@ async def main():
             await asyncio.sleep(wait)
 
         if MODE == "stills":
+            await go("overview", 2)
+            await ev("localStorage.setItem('nyra.gsdone','1')")
             await go("overview", 5)
             await shot("overview.png")
             await go("agent:claude", 3)
@@ -127,8 +129,19 @@ async def main():
             await shot("usage.png")
             await go("doc:" + os.environ["DOC"], 3.5)
             await shot("collab.png")
-            await go("local", 3)
-            await shot("local-ai.png")
+            await go("settings", 3.5)
+            await shot("settings.png")
+            await go("heal", 3.5)
+            await shot("self-heal.png")
+            await go("agent:claude", 3)
+            await ev("openHandoff('claude'," + json.dumps(os.environ["WEB"]) + ")")
+            await asyncio.sleep(3)
+            await shot("handoff.png")
+            await b.cmd("browsingContext.setViewport", {"context": ctx, "viewport": {"width": 390, "height": 844}, "devicePixelRatio": 3})
+            await go("overview", 4)
+            await shot("mobile-overview.png")
+            await go("agent:claude", 3.5)
+            await shot("mobile-agent.png")
             return
 
         frames = []

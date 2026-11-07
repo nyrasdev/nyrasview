@@ -376,6 +376,15 @@ def build():
         (runs.DIR / meta["id"] / "out.log").write_text(r.stdout)
         runs._finish(runs.load(meta["id"]))
 
+    hj = STATE / "heal"
+    hj.mkdir(parents=True, exist_ok=True)
+    tail = ("src/pricing.tsx:42:7 - error TS2322: Type 'string' is not assignable to type 'number'.\n\n42       price={plan.price}\n"
+            "         ~~~~~\n\nFound 1 error in src/pricing.tsx:42")
+    (hj / "demoheal.json").write_text(json.dumps({"id": "demoheal", "cwd": str(WEB), "cmd": "npm run typecheck && npm test", "agent": "claude",
+        "tries": 3, "mode": "edit", "status": "passed", "created": now - 900, "finished": now - 820, "attempts": [
+            {"n": 1, "check": {"ok": False, "code": 2, "tail": tail, "lines": 7, "dur": 6.4}, "run": "runcla01", "fix": "done",
+             "said": "price came in as a string from the CMS; parse it with Number() in PlanCard and type the prop as number.", "at": now - 900},
+            {"n": 2, "check": {"ok": True, "code": 0, "tail": "", "lines": 0, "dur": 11.2}, "run": None, "at": now - 830}]}))
     lim = STATE / "limits.json"
     lim.write_text(json.dumps({"claude": {"five_hour": {"utilization": 0.58, "resets": now + 7400, "status": "allowed", "seen": now - 300},
                                           "seven_day": {"utilization": 0.29, "resets": now + 400000, "status": "allowed", "seen": now - 300}}, "_scanned": now}))
