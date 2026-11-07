@@ -206,8 +206,10 @@ def cmd_agents(a):
 def cmd_gui(a):
     from . import web
     from .collector import Collector
-    c = Collector(interval=a.interval, relay=a.relay)
-    web.serve(c, a.port, not a.no_open)
+    from .util import config as _cfg
+    g = _cfg().get("gui", {})
+    c = Collector(interval=a.interval if a.interval != 1.5 else float(g.get("interval", 1.5)), relay=a.relay)
+    web.serve(c, a.port if a.port != 7341 else int(g.get("port", 7341)), not a.no_open)
 
 
 def cmd_tui(a):
@@ -336,7 +338,7 @@ def cmd_ask(a):
         if g not in BY_KEY:
             sys.exit(f"unknown agent {g}; see: nyrasview agents")
     group = os.urandom(3).hex() if len(ags) > 1 else None
-    started = [runs.start(g, a.prompt, a.dir, a.mode, a.model, group, a.cont) for g in ags]
+    started = [runs.start(g, a.prompt, a.dir, a.mode, a.model, group, a.cont, sandboxed=True if a.sandbox else None) for g in ags]
     seen = {m["id"]: 0 for m in started}
     tools = {}
     try:
@@ -487,6 +489,20 @@ def cmd_plan(a):
     if a.planner:
         ag, _, model = a.planner.partition(":")
         who = {"agent": ag, "model": model or None, "where": "chosen", "size": None}
+    elif sys.stdin.isatty() and not a.yes and not a.dry:
+        name = lambda w: (BY_KEY[w["agent"]].name if w["agent"] in BY_KEY else w["agent"]) + (f" · {w['model']}" if w.get("model") else "")
+        print(dim(planner.ROLE) + "\n")
+        print(f"Best planner we found: {col('#22c55e', name(who))} " + dim(f"({who['where']})"))
+        ans = input("Use it? [Enter = yes · l = pick another] ").strip().lower()
+        if ans.startswith("l") or ans.startswith("n"):
+            opts = planner.options()
+            for i, o in enumerate(opts, 1):
+                print(f"  {i:>2}. {name(o)} " + dim(f"({o['where']})"))
+            sel = input("number: ").strip()
+            if sel.isdigit() and 1 <= int(sel) <= len(opts):
+                who = opts[int(sel) - 1]
+                if input("remember this choice? [y/N] ").strip().lower() == "y":
+                    planner.remember(who["agent"], who.get("model"))
     print(dim("planner: ") + col(BY_KEY[who["agent"]].hex if who["agent"] in BY_KEY else None, BY_KEY[who["agent"]].name if who["agent"] in BY_KEY else who["agent"])
           + (f" · {who['model']}" if who.get("model") else "") + dim(f"  ({who['where']})"), flush=True)
     if a.dry:
@@ -514,6 +530,38 @@ def cmd_keys(a):
         print(f"{s['name']:<11} {st}  " + dim(f"→ {s['for']}"))
     print(dim("\nconnect:  nyrasview keys anthropic   (prompts for the key; stored in your config file, readable only by you)"))
     print(dim("with a key, relay continues the same Claude Code / Codex session on API billing when the plan limit hits"))
+
+
+def cmd_skill(a):
+    from . import skillman
+    to = [x for x in (getattr(a, "to", "") or "").split(",") if x]
+    if to == ["all"]:
+        to = [t["key"] for t in skillman.targets() if t["installed"]]
+    if a.skill_cmd == "add":
+        r = skillman.fetch(a.source)
+        names = [x for x in (a.only or "").split(",") if x] or None
+        if len(r["skills"]) > 1 and not names and not a.all:
+            for s in r["skills"]:
+                print(f"  {s['folder']:<28} " + dim(s["description"][:90]))
+            sys.exit(dim(f"\n{len(r['skills'])} skills found: pick some with --only a,b or install everything with --all"))
+        for d in skillman.install(r["id"], names, to):
+            print("installed " + d.replace(os.path.expanduser("~"), "~"))
+    elif a.skill_cmd == "new":
+        body = sys.stdin.read() if not sys.stdin.isatty() else (a.body or "")
+        for d in skillman.create(a.name, a.description or "", body, to):
+            print("created " + d.replace(os.path.expanduser("~"), "~"))
+    elif a.skill_cmd == "copy":
+        for d in skillman.copy(a.folder, a.src, to):
+            print("copied to " + d.replace(os.path.expanduser("~"), "~"))
+    elif a.skill_cmd == "rm":
+        tg = to or list(skillman.TARGETS)
+        for d in skillman.remove(a.folder, tg):
+            print("removed " + d.replace(os.path.expanduser("~"), "~"))
+    else:
+        m = skillman.installed()
+        cols = [t["key"] for t in m["targets"] if t["installed"] or any(t["key"] in s["agents"] for s in m["skills"])]
+        table(["SKILL", *[c.upper() for c in cols], "DESCRIPTION"],
+              [[s["folder"], *[col("#22c55e", "✓") if c in s["agents"] else dim("·") for c in cols], s["description"][:60]] for s in m["skills"]])
 
 
 def money(c):
@@ -707,6 +755,26 @@ def main():
     x.add_argument("-j", "--parallel", type=int, default=4)
     sp.add_parser("obsidian", help="list Obsidian vaults")
     sp.add_parser("now", help="what each running agent is working on")
+    sk = sp.add_parser("skill", help="add, create, copy or remove skills for your agents")
+    sks = sk.add_subparsers(dest="skill_cmd")
+    x = sks.add_parser("add", help="install skills from a GitHub URL, a folder or a SKILL.md URL")
+    x.add_argument("source")
+    x.add_argument("--to", required=True, help="claude,codex,opencode,… or all")
+    x.add_argument("--only", help="comma separated skill folders to install")
+    x.add_argument("--all", action="store_true")
+    x = sks.add_parser("new", help="create a skill (instructions from --body or stdin)")
+    x.add_argument("name")
+    x.add_argument("-d", "--description")
+    x.add_argument("--body")
+    x.add_argument("--to", required=True)
+    x = sks.add_parser("copy")
+    x.add_argument("folder")
+    x.add_argument("--from", dest="src", required=True)
+    x.add_argument("--to", required=True)
+    x = sks.add_parser("rm")
+    x.add_argument("folder")
+    x.add_argument("--to", default="", help="agents to remove it from (default: all)")
+    sks.add_parser("list")
     x = sp.add_parser("keys", help="connect API keys to keep working when plan limits run out")
     x.add_argument("provider", nargs="?", choices=["anthropic", "openai", "openrouter"])
     x.add_argument("value", nargs="?")
@@ -718,6 +786,7 @@ def main():
     x.add_argument("--run", action="store_true", help="start the agents right away")
     x.add_argument("--no-review", action="store_true")
     x.add_argument("--dry", action="store_true", help="only show which planner and workers would be used")
+    x.add_argument("-y", "--yes", action="store_true", help="use the best planner without asking")
     x = sp.add_parser("limits", help="usage limit gauges and forecast")
     x.add_argument("--json", action="store_true")
     x = sp.add_parser("inbox", help="recent alerts")
@@ -736,6 +805,7 @@ def main():
     x.add_argument("--mode", choices=["ask", "edit", "auto"], default="ask")
     x.add_argument("-m", "--model")
     x.add_argument("-c", "--continue", dest="cont", metavar="RUN", help="follow up on an earlier run")
+    x.add_argument("--sandbox", action="store_true", help="run inside your Docker sandbox image")
     x = sp.add_parser("runs", help="recent prompts started from nyrasview")
     x.add_argument("-n", "--limit", type=int, default=20)
     sp.add_parser("hook", help=argparse.SUPPRESS)
@@ -763,7 +833,7 @@ def main():
     x.add_argument("-m", "--model")
     a = ap.parse_args()
     fn = {"tui": cmd_tui, "gui": cmd_gui, "status": cmd_status, "ps": cmd_ps, "mcp": cmd_mcp,
-          "skills": cmd_skills, "usage": cmd_usage, "agents": cmd_agents, "collab": cmd_collab, "obsidian": cmd_obsidian, "now": cmd_now, "keys": cmd_keys, "plan": cmd_plan, "limits": cmd_limits, "inbox": cmd_events, "notify-test": cmd_notify_test,
+          "skills": cmd_skills, "usage": cmd_usage, "agents": cmd_agents, "collab": cmd_collab, "obsidian": cmd_obsidian, "now": cmd_now, "skill": cmd_skill, "keys": cmd_keys, "plan": cmd_plan, "limits": cmd_limits, "inbox": cmd_events, "notify-test": cmd_notify_test,
           "daemon": cmd_daemon, "service": cmd_service, "ask": cmd_ask, "runs": cmd_runs, "hook": cmd_hook, "hooks": cmd_hooks, "say": cmd_say, "handoff": cmd_handoff, "relay": cmd_relay, "local": cmd_local,
           None: cmd_tui}[a.cmd]
     if a.relay and a.cmd in (None, "tui", "gui"):

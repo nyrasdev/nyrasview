@@ -374,7 +374,7 @@ textarea{width:100%;min-height:70px;resize:vertical}
     <div class="sys" id="sys"></div>
     <button class="newp" data-act="go" data-v="prompt">✦ New prompt <span class="kbd">Ctrl K</span></button>
     <nav class="bm" id="nav"></nav>
-    <div class="foot"><button class="btn sm" id="theme" title="theme">◐ theme</button><span id="ver"></span></div>
+    <div class="foot"><button class="btn sm" id="theme" title="theme">◐ theme</button><button class="btn sm" data-act="go" data-v="settings" title="settings">⚙</button><span id="ver"></span></div>
   </aside>
   <main id="main"><div id="stale"></div><div id="view"></div></main>
 </div>
@@ -382,12 +382,14 @@ textarea{width:100%;min-height:70px;resize:vertical}
 <script>
 const TOKEN="__NYRA_TOKEN__";
 const STALE_RAW="__NYRA_STALE__";const STALE=STALE_RAW==="true"||STALE_RAW.startsWith("__");
+let FORCE=false;
 const quiet=new Set(),seenTask=new Set();let handT=[];
-const loadTargets=()=>fetch("/api/handoff/targets").then(r=>r.json()).then(l=>{handT=l;paint(handT)}).catch(()=>{});loadTargets();setInterval(loadTargets,30000);
+const loadTargets=()=>getJSON("/api/handoff/targets",[]).then(l=>{handT=l;paint(handT)});loadTargets();setInterval(loadTargets,30000);
 const canHand=k=>k==="claude"||k==="codex";
 function limitBar(a,w){const t=w.activity||{},l=t.limit||{};const tg=handT.filter(x=>x.key!==a.key);
   return `<div class="lim">⚠ <span><b>Limit reached</b> · ${esc(l.message||"")}${l.reset?" · resets "+esc(l.reset):""}</span>${tg.length?`<button class="btn sm" data-act="handoff" data-agent="${a.key}" data-cwd="${esc(w.cwd)}" data-to="${tg[0].key}">Hand off to ${esc(tg[0].name)} →</button>`:""}</div>`}
 let S=__NYRA_SNAP__, view=localGet("view")||"overview", skillQ="", docData=null, agentsList=[], open=new Set(JSON.parse(localGet("open")||'["agents","toolbox","insights","prompt","collab"]'));
+async function getJSON(url,fallback,opts){try{const r=await fetch(url,opts);if(!r.ok)return fallback;const j=await r.json();return (Array.isArray(fallback)?Array.isArray(j):j&&typeof j==="object")?j:fallback}catch(e){return fallback}}
 function localGet(k){try{return localStorage.getItem("nyra."+k)}catch(e){return null}}
 function localSet(k,v){try{localStorage.setItem("nyra."+k,v)}catch(e){}}
 const $=s=>document.querySelector(s);
@@ -421,6 +423,7 @@ const I={
   undo:'<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>',
   wand:'<path d="M15 4V2M15 10V8M11 6H9M21 6h-2M18 3l-1 1M18 9l-1-1M4 20L14 10"/>',
   chip:'<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
   loader:'<path d="M12 3a9 9 0 1 0 9 9"/>',
 };
 const ic=(n,s=16)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${I[n]}</svg>`;
@@ -450,7 +453,7 @@ paint(S&&S.agents);
 document.addEventListener("mousemove",e=>{const t=$("#tip");const el=e.target.closest&&e.target.closest("[data-tip]");if(!el){t.classList.remove("on");return}
   t.innerHTML=el.dataset.tip;t.classList.add("on");const w=t.offsetWidth,h=t.offsetHeight;let x=e.clientX+14,y=e.clientY-h-10;if(x+w>innerWidth-8)x=e.clientX-w-14;if(y<8)y=e.clientY+16;t.style.left=x+"px";t.style.top=y+"px"});
 let EVS=[],EVSEEN=+(localGet("evseen")||0),EVINIT=false;
-async function loadEvents(){try{const r=await fetch("/api/events?since="+(Date.now()/1000-86400));if(!r.ok)return;EVS=await r.json();
+async function loadEvents(){try{const ev=await getJSON("/api/events?since="+(Date.now()/1000-86400),null);if(!Array.isArray(ev))return;EVS=ev;
   const fresh=EVS.filter(e=>e.at>EVSEEN);if(EVINIT&&fresh.length&&"Notification" in window&&Notification.permission==="granted"&&localGet("bnotify")==="1")fresh.slice(-3).forEach(e=>{try{new Notification(e.title,{body:e.body,tag:e.id})}catch(x){}});
   if(EVS.length){EVSEEN=Math.max(EVSEEN,...EVS.map(e=>e.at));localSet("evseen",EVSEEN)}EVINIT=true}catch(e){}}
 const LWIN={five_hour:"5-hour",seven_day:"weekly"};
@@ -468,7 +471,7 @@ function limitBlock(agentKey,wins){
 let RUNS=[],RUNV={},P=(()=>{try{return JSON.parse(localStorage.getItem("nyra.p"))||{}}catch(e){return {}}})();
 P.agents=P.agents||["claude"];P.mode=P.mode||"ask";P.cwd=P.cwd||"";
 const saveP=()=>localSet("p",JSON.stringify(P));
-async function loadRuns(){try{const r=await fetch("/api/runs",{headers:{"X-Nyra-Token":TOKEN}});if(r.ok)RUNS=await r.json()}catch(e){}}
+async function loadRuns(){RUNS=await getJSON("/api/runs",RUNS,{headers:{"X-Nyra-Token":TOKEN}})}
 function md(t){
   const parts=String(t||"").split(/```[\w-]*\n?/);
   return parts.map((p,i)=>{if(i%2)return `<pre><code>${esc(p.replace(/\n$/,""))}</code></pre>`;
@@ -485,7 +488,7 @@ function vPrompt(){
     <div class="agc" id="pag"></div>
     <div class="row"><input id="pcwd" list="pdirs" placeholder="folder (default: home)" style="flex:1;min-width:220px"><datalist id="pdirs"></datalist>
       <div class="seg2" id="pmode">${["ask","edit","auto"].map(m=>`<button data-act="pmode" data-m="${m}" class="${m}">${m[0].toUpperCase()+m.slice(1)}</button>`).join("")}</div>
-      <input id="pmodel" placeholder="model (optional)" style="width:160px"><label id="papi" class="muted" style="font-size:12.5px;display:none;gap:6px;align-items:center" title="bill this run to your connected API key instead of the plan"><input type="checkbox" id="papic"> on API key</label></div>
+      <input id="pmodel" placeholder="model (optional)" style="width:160px"><label id="papi" class="muted" style="font-size:12.5px;display:none;gap:6px;align-items:center" title="bill this run to your connected API key instead of the plan"><input type="checkbox" id="papic"> on API key</label><label id="psb" class="muted" style="font-size:12.5px;display:none;gap:6px;align-items:center" title="run inside your Docker sandbox image"><input type="checkbox" id="psbc"> in sandbox</label></div>
     <div class="row" style="margin-top:10px"><span class="muted" id="pdesc" style="font-size:12px;flex:1"></span>
       <span id="plive"></span><button class="btn" data-act="pterm" title="open the first selected agent in a terminal with this prompt">${ic("term",14)} Terminal</button><button class="btn pri" data-act="prun">${ic("play",13)} Run</button></div></div>`;
   h+=`<div class="hd2" style="display:flex;align-items:baseline;gap:8px;margin:6px 0 10px"><h2 style="margin:0">Recent</h2><span class="muted" style="font-size:12px">${RUNS.length}</span></div>`;
@@ -504,6 +507,7 @@ function syncComposer(){
   const html=list.map(a=>{const ok=okk.has(a.key);return `<button data-act="pag" data-k="${a.key}" class="${P.agents.includes(a.key)?"on":""} ${ok?"":"na"}" style="--c:${colorOf(a.key)}" title="${ok?"":"not installed / not running"}"><i></i>${esc(a.name)}</button>`}).join("")+(hidden||P.more?`<button data-act="pmore" style="--c:var(--dim)">${P.more?"fewer":"+"+hidden+" more"}</button>`:"");
   if(box._h!==html){box.innerHTML=html;box._h=html}
   document.querySelectorAll("#pmode button").forEach(b=>b.classList.toggle("on",b.dataset.m===P.mode));
+  const sb=$("#psb");if(sb){const on=!!(SET0&&SET0.sandbox&&SET0.sandbox.image);sb.style.display=on?"flex":"none";if(on&&!sb._i){$("#psbc").checked=!!SET0.sandbox.default;sb._i=1}}
   const pa=$("#papi");if(pa){const can=P.agents.some(k=>(k==="claude"&&KEYS.some(x=>x.provider==="anthropic"&&x.connected))||(k==="codex"&&KEYS.some(x=>x.provider==="openai"&&x.connected))||(k==="opencode"&&KEYS.some(x=>x.provider==="openrouter"&&x.connected)));pa.style.display=can?"flex":"none"}
   const d=$("#pdesc");if(d)d.textContent=(P.agents.length>1?`Compare · ${P.agents.length} agents in parallel · `:"")+MODEDESC[P.mode];
   const dl=$("#pdirs");if(dl){const o=knownDirs().map(x=>`<option value="${esc(x)}">`).join("");if(dl._h!==o){dl.innerHTML=o;dl._h=o}}
@@ -558,7 +562,7 @@ function navModel(){
   return [
     {id:"agents",label:"Agents",items:[{v:"overview",label:"Overview",icon:"grid",badge:ag.filter(a=>a.running).length+" live"},
       ...ag.map(a=>({v:"agent:"+a.key,label:a.name,dot:a.hex,live:a.running,badge:a.running?a.cpu.toFixed(0)+"%":""}))]},
-    {id:"toolbox",label:"Toolbox",items:[{v:"mcp",label:"MCP servers",icon:"plug",badge:(S.mcp||[]).length||""},{v:"skills",label:"Skills",icon:"spark",badge:(S.skills||[]).length||""},{v:"keys",label:"API keys",icon:"plug",badge:KEYS.filter(k=>k.connected).length?KEYS.filter(k=>k.connected).length+" on":""}]},
+    {id:"toolbox",label:"Toolbox",items:[{v:"mcp",label:"MCP servers",icon:"plug",badge:(S.mcp||[]).length||""},{v:"skills",label:"Skills",icon:"spark",badge:(S.skills||[]).length||""},{v:"settings",label:"Settings",icon:"gear"},{v:"keys",label:"API keys",icon:"plug",badge:KEYS.filter(k=>k.connected).length?KEYS.filter(k=>k.connected).length+" on":""}]},
     {id:"insights",label:"Insights",items:[{v:"usage",label:"Usage",icon:"chart"},{v:"network",label:"Network",icon:"globe"},{v:"local",label:"Local AI",icon:"chip",badge:(S.local||[]).filter(x=>x.up).length?(S.local||[]).filter(x=>x.up).length+" up":""}]},
     {id:"prompt",label:"Prompts",items:[{v:"prompt",label:"New prompt",icon:"wand"},...(()=>{const out=[],sg={};RUNS.forEach(r=>{if(r.group){if(sg[r.group])return;sg[r.group]=1}out.push(r)});return out.slice(0,5)})().map(r=>({v:"run:"+r.id,label:r.prompt,dot:colorOf(r.agent),live:r.status==="running",badge:r.status==="running"?"…":r.status==="failed"?"✗":""}))]},
     {id:"collab",label:"Collab",items:[...(S.collab||[]).map(d=>{const run=d.tasks.filter(t=>t.status==="running").length;return {v:"doc:"+d.doc,label:d.name.replace(/\.md$/,""),icon:"doc",badge:run?"✎ "+run:d.tasks.length?d.tasks.filter(t=>t.status==="done").length+"/"+d.tasks.length:""}}),{v:"new",label:"New document",icon:"plus"}]},
@@ -837,18 +841,37 @@ function vAgent(k){
   if(u.models&&u.models.length) h+=`<div class="panel"><h2>Models</h2><table><tbody>${u.models.map(m=>`<tr><td class="m">${esc(m.model)}</td><td class="r m">${hn(m.tokens)} tok</td><td class="r m muted">${m.msgs} msgs</td></tr>`).join("")}</tbody></table></div>`;
   return h}
 
-let MX=null,MSEL=null,KEYS=[];
-async function loadKeys(){try{KEYS=await (await fetch("/api/keys")).json()}catch(e){}}
+let MX=null,MSEL=null,KEYS=[],SET=null,SET0=null;
+getJSON("/api/settings",null).then(v=>{if(v){SET0={};v.sections.forEach(sec=>{SET0[sec.id]={};sec.fields.forEach(f=>SET0[sec.id][f.name]=f.value)})}});
+async function loadSettings(){SET=await getJSON("/api/settings",null);if(view==="settings"){FORCE=true;render()}}
+function field(sec,f){const id=`set-${sec}-${f.name}`;const v=f.value;
+  let inp;if(f.type==="bool")inp=`<input type="checkbox" id="${id}" ${v?"checked":""}>`;
+  else if(f.type==="list")inp=`<input type="text" id="${id}" value="${esc((v||[]).join(", "))}" style="width:100%">`;
+  else inp=`<input type="${f.type==="int"||f.type==="float"?"number":"text"}" ${f.type==="float"?'step="0.1"':""} id="${id}" value="${esc(v??"")}" style="width:100%;${f.type==="secret"?"font-family:var(--mono);font-size:12px":""}" spellcheck="false">`;
+  return `<label style="display:grid;grid-template-columns:${f.type==="bool"?"auto 1fr":"1fr"};gap:4px 10px;align-items:center;font-size:13px"><span style="${f.type==="bool"?"order:2":""}"><b style="font-weight:600">${esc(f.name.replace(/_/g," "))}</b><br><span class="muted" style="font-size:12px">${esc(f.help)}</span></span>${inp}</label>`}
+function vSettings(){
+  let h=`<div class="ph"><h1>Settings</h1><span class="sub">${SET?esc(SET.path):""}</span><div class="grow"></div><button class="btn pri" data-act="setsave">Save settings</button></div>`;
+  if(!SET)return h+`<div class="empty">loading…</div>`;
+  h+=`<div class="panel" data-static data-key="integr-${SET.hooks}"><h2>Integrations</h2><div class="row" style="gap:18px">
+    <span>Claude Code live notes and instant alerts: <b>${SET.hooks?"on":"off"}</b> <button class="btn sm" data-act="sethooks" data-on="${SET.hooks?0:1}">${SET.hooks?"Turn off":"Turn on"}</button></span>
+    <span>Run alerts and relay at login: <button class="btn sm" data-act="setauto" data-on="1">Turn on</button> <button class="btn sm" data-act="setauto" data-on="0">Turn off</button></span>
+    <span>Browser alerts: <button class="btn sm" data-act="bnotify">Allow</button></span></div></div>`;
+  h+=`<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(360px,1fr))" data-static data-key="setform-${SET.raw.length}">`+SET.sections.map(sec=>`<div class="panel" style="margin:0"><h2>${esc(sec.title)}</h2><div style="display:grid;gap:12px">${sec.fields.map(f=>field(sec.id,f)).join("")}</div></div>`).join("")+`</div>`;
+  h+=`<div class="panel" style="margin-top:16px"><div class="hd2"><h2>Sandbox check</h2><span class="muted" style="font-size:12px">starts your image and lists the agent CLIs inside it</span><a data-act="sbtest">run test</a></div><div class="tres" id="sbres" style="margin:0"></div></div>`;
+  h+=`<div class="panel" style="margin-top:16px" data-static data-key="setraw-${SET.raw.length}"><div class="hd2"><h2>config.toml</h2><span class="muted" style="font-size:12px">everything, including custom agents and [[local]] servers</span><a data-act="setraw">save raw file</a></div>
+    <textarea id="setrawt" spellcheck="false" style="min-height:280px;font-family:var(--mono);font-size:12.5px">${esc(SET.raw)}</textarea></div>`;
+  return h}
+async function loadKeys(){KEYS=await getJSON("/api/keys",[])}
 loadKeys();
 function vKeys(){
   let h=`<div class="ph"><h1>API keys</h1><span class="sub">keep working when a plan's limit runs out</span></div>
   <div class="panel"><div class="muted" style="font-size:13px;line-height:1.7">With a key connected, <b>relay</b> continues the <i>same</i> Claude Code or Codex session on API billing the moment the plan limit hits (<code>claude --continue</code>), and prompt runs that fail on a limit retry on the key automatically. Keys are stored in your nyrasview config file, readable only by you, and are only ever sent to their own provider.</div></div>`;
   h+=`<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(320px,1fr))">`+KEYS.map((k,i)=>`<div class="panel" style="margin:0" data-static data-key="key-${k.provider}-${k.connected}">
     <div class="row" style="margin-bottom:6px"><b style="font-size:15px">${esc(k.name)}</b><span class="pill ${k.connected?"live":""}">${k.connected?"connected":"not connected"}</span><div class="grow"></div><a class="muted" style="font-size:12px" href="${esc(k.url)}" target="_blank" rel="noopener">get a key ↗</a></div>
-    <div class="muted" style="font-size:12.5px;margin-bottom:10px">for ${esc(k.for)}${k.connected?` · ${esc(k.hint||"")} · from ${k.source==="env"?"$"+esc(k.env):"config"}`:""}</div>
-    ${k.source==="env"?`<div class="muted" style="font-size:12px">Set by the ${esc(k.env)} environment variable.</div>`:`<div class="row"><input type="password" id="key-${k.provider}" placeholder="${k.connected?"replace key…":"paste key…"}" style="flex:1" autocomplete="off"><button class="btn pri sm" data-act="keysave" data-p="${k.provider}">Save</button>${k.connected?`<button class="btn sm" data-act="keyrm" data-p="${k.provider}">Remove</button>`:""}</div>`}</div>`).join("")+`</div>`;
+    <div class="muted" style="font-size:12.5px;margin-bottom:10px">for ${esc(k.for)}${k.connected?` · from ${k.source==="env"?"$"+esc(k.env):"config"}`:""}</div>
+    ${k.source==="env"?`<div class="muted" style="font-size:12px;word-break:break-all">Set by $${esc(k.env)}: <code>${esc(k.key)}</code></div>`:`<div class="row"><input type="text" id="key-${k.provider}" value="${esc(k.key||"")}" placeholder="paste key…" style="flex:1;font-family:var(--mono);font-size:12px" autocomplete="off" spellcheck="false"><button class="btn pri sm" data-act="keysave" data-p="${k.provider}">Save</button>${k.connected?`<button class="btn sm" data-act="keyrm" data-p="${k.provider}">Remove</button>`:""}</div>`}</div>`).join("")+`</div>`;
   return h}
-async function loadMX(){try{MX=await (await fetch("/api/mcp/matrix")).json();if(!MSEL)MSEL=MX.targets.filter(t=>t.installed).map(t=>t.key)}catch(e){}if(view==="mcp")render()}
+async function loadMX(){const m=await getJSON("/api/mcp/matrix",null);if(m&&m.targets){MX=m;if(!MSEL)MSEL=MX.targets.filter(t=>t.installed).map(t=>t.key)}if(view==="mcp")render()}
 function vMCP(){
   let h=`<div class="ph"><h1>MCP servers</h1><span class="sub">add once, switch on for any agent</span></div>`;
   h+=`<div class="panel" data-static data-key="mcpadd"><h2>Add a server</h2>
@@ -884,10 +907,28 @@ function vMCPDetail(){
    <td>${l?`<span style="color:var(--good)">● running</span>`:m.transport!=="stdio"?`<span style="color:var(--cyan)">◌ remote</span>`:m.enabled?`<span class="muted">○ idle</span>`:`<span class="muted">○ disabled</span>`}</td>
    <td class="m">${l?l.pids.join(", "):""}</td><td class="r m">${l?l.cpu.toFixed(1):""}</td><td class="r m">${l?hb(l.rss):""}</td><td class="muted">${esc(m.scope)}</td><td class="cmd" title="${esc(m.url||[m.command,...m.args].join(" "))}">${esc(m.url||[m.command,...m.args].join(" "))}</td></tr>`).join("")+`</tbody></table></div>`}
 
+let SKM=null,SKF=null,SKSEL=null;
+async function loadSKM(){const m=await getJSON("/api/skills/matrix",null);if(m&&m.targets){SKM=m;if(!SKSEL)SKSEL=m.targets.filter(t=>t.installed&&t.key!=="shared").map(t=>t.key)}if(view==="skills")render()}
+function vSkillTools(){
+  let h=`<div class="panel" data-static data-key="skadd"><h2>Add skills</h2>
+    <div class="row"><input id="sksrc" placeholder="GitHub repo or folder URL, a local folder, or a SKILL.md URL" style="flex:1;min-width:260px"><button class="btn" data-act="skfind">Find skills</button></div>
+    <div class="pre" id="skpre"></div>
+    <div id="skfound" style="margin-top:10px"></div>
+    <details style="margin-top:10px"><summary class="muted" style="cursor:pointer">Write a new skill…</summary>
+      <div style="display:grid;gap:8px;margin-top:8px"><div class="row"><input id="sknm" placeholder="name, e.g. commit-messages" style="flex:1"><input id="skds" placeholder="when should the agent use it?" style="flex:2"></div>
+      <textarea id="skbd" placeholder="Instructions for the agent, in markdown" style="min-height:120px"></textarea><div class="row"><button class="btn pri" data-act="sknew">Create skill</button></div></div></details>
+    <div class="row" style="margin-top:12px"><span class="muted" style="font-size:12px">install into</span><div class="agc" id="sktg" style="margin:0"></div></div></div>`;
+  if(SKM&&SKM.skills.length){const cols=SKM.targets.filter(t=>t.installed||SKM.skills.some(s=>s.agents.includes(t.key)));
+    h+=`<div class="panel"><div class="hd2"><h2>Who has which skill</h2><span class="muted" style="font-size:12px">click a cell to add or remove</span></div><div style="overflow:auto"><table class="mx"><thead><tr><th>skill</th>${cols.map(t=>`<th class="ag"><span><span class="sd" style="background:${colorOf(t.key)}"></span>${esc(t.name)}</span></th>`).join("")}<th></th></tr></thead><tbody>`+
+    SKM.skills.map(r=>`<tr data-key="skm-${esc(r.folder)}"><td class="nm">${esc(r.name)}<small title="${esc(r.description)}">${esc(r.description)}</small></td>${cols.map(t=>{const on=r.agents.includes(t.key);return `<td class="c"><button class="cell ${on?"on":""}" style="--c:${colorOf(t.key)}" data-act="skcell" data-f="${esc(r.folder)}" data-ag="${t.key}" data-src="${r.agents[0]}" data-on="${on?1:0}">${on?"✓":"+"}</button></td>`}).join("")}<td><button class="btn sm" data-act="skrm" data-f="${esc(r.folder)}" data-ags="${r.agents.join(",")}">Remove</button></td></tr>`).join("")+`</tbody></table></div></div>`}
+  return h}
+function syncSK(){
+  const tg=$("#sktg");if(tg&&SKM){const html=SKM.targets.filter(t=>t.installed).map(t=>`<button data-act="sktg" data-k="${t.key}" class="${SKSEL.includes(t.key)?"on":""}" style="--c:${colorOf(t.key)}"><i></i>${esc(t.name)}</button>`).join("");if(tg._h!==html){tg.innerHTML=html;tg._h=html}}
+  const pre=$("#skpre");if(pre&&SKM&&!pre._h){pre.innerHTML=SKM.presets.map(x=>`<button data-act="skpre" data-src="${esc(x.source)}">${esc(x.name)}<small>${esc(x.about)}</small></button>`).join("");pre._h=1}}
 function vSkills(){
   const q=skillQ.toLowerCase();const it=S.skills.filter(s=>!q||(s.name+s.description+s.agent+s.kind).toLowerCase().includes(q)).sort((a,b)=>(a.agent+a.kind+a.name).localeCompare(b.agent+b.kind+b.name));
   const counts={};S.skills.forEach(s=>counts[s.agent]=(counts[s.agent]||0)+1);
-  return `<div class="ph"><h1>Skills</h1><span class="sub">skills, commands, subagents, rules, memory</span><div class="grow"></div><input id="sq" data-static data-key="sq" placeholder="filter…" style="width:260px"></div>
+  return `<div class="ph"><h1>Skills</h1><span class="sub">skills, commands, subagents, rules, memory</span><div class="grow"></div><input id="sq" data-static data-key="sq" placeholder="filter…" style="width:260px"></div>${vSkillTools()}<h3>Everything your agents can use</h3>
   <div class="chips" style="margin:0 0 14px">${Object.entries(counts).map(([a,n])=>`<span class="chip" style="color:${hex(a)}">${esc(a)} ${n}</span>`).join("")}</div>
   <div class="panel"><table><thead><tr><th>agent</th><th>kind</th><th>name</th><th>scope</th><th>description</th></tr></thead><tbody>`+
   it.map(s=>`<tr data-key="${esc(s.path)}" title="${esc(s.path)}"><td style="color:${hex(s.agent)};font-weight:600">${esc(s.agent)}</td><td class="m">${esc(s.kind)}</td><td>${esc(s.name)}</td><td class="muted">${s.scope.startsWith("project")?"project":esc(s.scope)}</td><td class="muted">${esc(s.description)}</td></tr>`).join("")+`</tbody></table>${it.length?"":`<div class="empty">Nothing matches.</div>`}</div>`}
@@ -916,7 +957,7 @@ function vNew(){
   <div class="panel" data-static data-key="planform"><h2>✦ Plan it for me</h2>
     <textarea id="pgoal" placeholder="e.g. a launch plan for the v2 pricing page, or the design for a Next.js todo app with auth"></textarea>
     <div class="row" style="margin-top:8px"><input id="pdoc" placeholder="save as (optional), e.g. ~/notes/todo-app.md or Vault:Projects/Todo" style="flex:1"><label class="muted" style="font-size:12.5px;display:flex;gap:6px;align-items:center"><input type="checkbox" id="prunnow"> start agents right away</label><button class="btn pri" data-act="plan">Plan</button></div>
-    <div class="muted" id="pwho" style="font-size:12px;margin-top:8px"></div></div>
+    <div id="pwho" style="margin-top:10px"></div></div>
   <div class="cols"><div class="panel" data-static data-key="newform"><div style="display:grid;gap:8px">
     <input id="npath" placeholder="path — ~/docs/launch.md or Vault:Projects/Launch">
     <input id="ntitle" placeholder="title">
@@ -985,24 +1026,31 @@ function render(){
   else if(view==="new") html=vNew();
   else if(view==="local") html=vLocal();
   else if(view==="keys") html=vKeys();
+  else if(view==="settings") html=vSettings();
   else if(view.startsWith("watch:")) html=vWatch();
   else if(view==="prompt") html=vPrompt();
   else if(view.startsWith("run:")) html=vRun(view.slice(4));
   else if(view.startsWith("doc:")) html=vDoc(view.slice(4));
   else html=vOverview();
   const main=$("#view");
-  if(main._v!==view){main.innerHTML=html;main._v=view;bindView()}else morph(main,html);
-  syncSections();syncLocal();syncComposer();syncMCP();
+  if(main._v!==view||FORCE){const first=main._v!==view;main.innerHTML=html;main._v=view;FORCE=false;if(first)bindView()}else morph(main,html);
+  syncSections();syncLocal();syncComposer();syncMCP();syncSK();
   if(view.startsWith("run:"))document.querySelectorAll(".tb").forEach(tb=>{if(tb._n!==tb.childElementCount){const stick=!tb._n||tb.scrollHeight-tb.scrollTop-tb.clientHeight<120;tb._n=tb.childElementCount;if(stick)tb.scrollTop=tb.scrollHeight}});
 }
 
 function bindView(){
   const sq=$("#sq");if(sq){sq.value=skillQ;sq.oninput=()=>{skillQ=sq.value;render()}}
-  if(view==="new"){fetch("/api/planner").then(r=>r.json()).then(d=>{const el=$("#pwho");if(!el)return;el.innerHTML=d.error?esc(d.error):`planner: <b>${esc(aname(d.pick.agent))}${d.pick.model?" · "+esc(d.pick.model):""}</b> (${esc(d.pick.where)}) · workers: ${d.workers.map(k=>esc(aname(k))).join(", ")}`})}
+  if(view==="new"){getJSON("/api/planner",{}).then(d=>{const el=$("#pwho");if(!el)return;if(d.error||!d.pick){el.innerHTML=`<span class="muted" style="font-size:12px">${esc(d.error||"planner unavailable")}</span>`;return}
+    const pid=`${d.pick.agent}:${d.pick.model||""}`;const opts=(d.options||[]).map(o=>`<option value="${esc(o.agent+":"+(o.model||""))}" ${o.agent+":"+(o.model||"")===pid?"selected":""}>${esc(aname(o.agent))}${o.model?" · "+esc(o.model):""} (${esc(o.where)})${o.agent+":"+(o.model||"")===pid?" · recommended":""}</option>`).join("");
+    el.innerHTML=`<div style="font-size:13px">This is the best model we found to plan: <b>${esc(aname(d.pick.agent))}${d.pick.model?" · "+esc(d.pick.model):""}</b> <span class="muted">(${esc(d.pick.where)})</span>. Want another one?</div>
+      <div class="row" style="margin-top:6px"><select id="pplanner" style="flex:1;max-width:520px">${opts}</select><label class="muted" style="font-size:12.5px;display:flex;gap:6px;align-items:center"><input type="checkbox" id="premember"> remember</label></div>
+      <div class="muted" style="font-size:12px;margin-top:6px">${esc(d.role)} Workers: ${d.workers.map(k=>esc(aname(k))).join(", ")}.</div>`})}
   if(view==="new"){fetch("/api/collab").then(r=>r.json()).then(l=>{const v=$("#vlist");if(v)v.innerHTML=(l.vaults||[]).map(x=>`<option value="${esc(x.name)}:">${esc(x.path)}</option>`).join("")})}
   if(view.startsWith("doc:")) loadDoc();
   if(view==="mcp")loadMX();
-  if(view==="keys")loadKeys().then(()=>{$("#view")._v=null;render()});
+  if(view==="skills")loadSKM();
+  if(view==="settings")loadSettings();
+  if(view==="keys")loadKeys().then(()=>{FORCE=true;render()});
   if(view==="prompt"){loadRuns().then(render);setTimeout(()=>{const q=$("#pq");if(q)q.focus()},30)}
   if(view.startsWith("run:"))loadRun(view.slice(4));
   if(view.startsWith("watch:")){W={key:view,data:null,pick:null,prev:null,pvOrigin:null,pvPort:null,focusKey:null,sel:null};loadWatch()}
@@ -1026,7 +1074,7 @@ document.addEventListener("click",async e=>{
     if(act==="fold"){const g=el.dataset.g;open.has(g)?open.delete(g):open.add(g);localSet("open",JSON.stringify([...open]));return renderNav()}
     if(act==="kill"){if(!confirm("Send SIGTERM to "+el.dataset.pid+"?"))return;await post("/api/kill",{pid:+el.dataset.pid});return toast("Signal sent")}
     if(act==="plan"){const goal=$("#pgoal").value.trim();if(!goal)return toast("Describe the goal first");el.disabled=true;el.textContent="Planning…";
-      try{const r=await post("/api/plan",{goal,doc:$("#pdoc").value.trim(),run:$("#prunnow").checked});toast(`${r.title}: ${r.tasks} tasks, planned by ${aname(r.planner.agent)}${r.planner.model?" · "+r.planner.model:""}`);await refresh();return go("doc:"+r.doc)}
+      try{const sel=$("#pplanner");const r=await post("/api/plan",{goal,doc:$("#pdoc").value.trim(),run:$("#prunnow").checked,planner:sel?sel.value:null,remember:!!($("#premember")&&$("#premember").checked)});toast(`${r.title}: ${r.tasks} tasks, planned by ${aname(r.planner.agent)}${r.planner.model?" · "+r.planner.model:""}`);await refresh();return go("doc:"+r.doc)}
       finally{el.disabled=false;el.textContent="Plan"}}
     if(act==="create"){const r=await post("/api/collab/new",{doc:$("#npath").value,title:$("#ntitle").value,sections:$("#nsecs").value.split(",")});await refresh();return go("doc:"+r.doc)}
     if(act==="openfile"){const r=await post("/api/collab/open",{doc:$("#opath").value});await refresh();return go("doc:"+r.doc)}
@@ -1054,15 +1102,34 @@ document.addEventListener("click",async e=>{
     if(act==="mall"){const r=await post("/api/mcp/copy",{name:el.dataset.name,from:el.dataset.src,agents:el.dataset.to.split(",")});toast(`Added ${el.dataset.name} to ${r.done.length} agents`);return loadMX()}
     if(act==="mrm"){if(!confirm(`Remove ${el.dataset.name} from every agent?`))return;await post("/api/mcp/remove",{name:el.dataset.name,agents:el.dataset.ags.split(",")});toast("Removed");return loadMX()}
     if(act==="mrowtest"){const out=$("#mrowres");out.innerHTML=`<span class="muted typing">testing ${esc(el.dataset.name)}</span>`;const r=await post("/api/mcp/test",{name:el.dataset.name,from:el.dataset.src});return showTest(out,r,el.dataset.name)}
+    if(act==="skpre"){$("#sksrc").value=el.dataset.src;return document.querySelector("[data-act=skfind]").click()}
+    if(act==="sktg"){const k=el.dataset.k;SKSEL=SKSEL.includes(k)?SKSEL.filter(x=>x!==k):[...SKSEL,k];return syncSK()}
+    if(act==="skfind"){const src=$("#sksrc").value.trim();if(!src)return toast("Paste a source first");const box=$("#skfound");box.innerHTML=`<span class="muted typing">looking for SKILL.md files</span>`;
+      try{SKF=await post("/api/skills/fetch",{source:src})}catch(err){box.innerHTML="";throw err}
+      box.innerHTML=`<div class="muted" style="font-size:12px;margin-bottom:6px">${SKF.skills.length} found · <a data-act="skall" style="cursor:pointer">select all</a></div><div style="display:grid;gap:4px;max-height:280px;overflow:auto">`+SKF.skills.map(x=>`<label style="display:flex;gap:8px;align-items:baseline;font-size:13px"><input type="checkbox" class="skpick" value="${esc(x.folder)}" ${SKF.skills.length===1?"checked":""}><b>${esc(x.name)}</b><span class="muted" style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.description)}</span></label>`).join("")+`</div><div class="row" style="margin-top:8px"><button class="btn pri" data-act="skinstall">Install selected</button></div>`;return}
+    if(act==="skall"){document.querySelectorAll(".skpick").forEach(c=>c.checked=true);return}
+    if(act==="skinstall"){const names=[...document.querySelectorAll(".skpick:checked")].map(c=>c.value);if(!names.length)return toast("Pick at least one skill");if(!SKSEL.length)return toast("Pick at least one agent");
+      const r=await post("/api/skills/install",{id:SKF.id,names,agents:SKSEL});toast(`Installed ${names.length} skill${names.length>1?"s":""} into ${SKSEL.length} agent${SKSEL.length>1?"s":""} · restart agents to load them`);$("#skfound").innerHTML="";return loadSKM()}
+    if(act==="sknew"){const name=$("#sknm").value.trim();if(!name)return toast("Name it first");if(!SKSEL.length)return toast("Pick at least one agent");
+      await post("/api/skills/create",{name,description:$("#skds").value,body:$("#skbd").value,agents:SKSEL});toast("Skill created");$("#sknm").value=$("#skds").value=$("#skbd").value="";return loadSKM()}
+    if(act==="skcell"){const on=el.dataset.on==="1";if(on&&!confirm(`Remove ${el.dataset.f} from ${aname(el.dataset.ag)}?`))return;
+      await post(on?"/api/skills/remove":"/api/skills/copy",on?{folder:el.dataset.f,agents:[el.dataset.ag]}:{folder:el.dataset.f,from:el.dataset.src,agents:[el.dataset.ag]});return loadSKM()}
+    if(act==="skrm"){if(!confirm(`Remove ${el.dataset.f} from every agent? A backup is kept.`))return;await post("/api/skills/remove",{folder:el.dataset.f,agents:el.dataset.ags.split(",")});return loadSKM()}
+    if(act==="sbtest"){const o=$("#sbres");o.innerHTML=`<span class="muted typing">starting the container</span>`;const r=await post("/api/sandbox/test",{});o.innerHTML=`<span style="color:${r.ok?"var(--good)":"var(--bad)"}">${r.ok?"✓":"✗"}</span> ${esc(r.output)}`;return}
+    if(act==="setsave"){const values={};SET.sections.forEach(sec=>{values[sec.id]={};sec.fields.forEach(f=>{const el2=$(`#set-${sec.id}-${f.name}`);if(!el2)return;values[sec.id][f.name]=f.type==="bool"?el2.checked:el2.value})});
+      SET=Object.assign(await post("/api/settings",{values}),{hooks:SET.hooks});toast("Settings saved");loadKeys();FORCE=true;return render()}
+    if(act==="setraw"){SET=Object.assign(await post("/api/settings",{raw:$("#setrawt").value}),{hooks:SET.hooks});toast("config.toml saved");FORCE=true;return render()}
+    if(act==="sethooks"){const r=await post("/api/hooks",{on:el.dataset.on==="1"});SET.hooks=r.hooks;toast(r.hooks?"Hooks on · restart running Claude sessions":"Hooks off");FORCE=true;return render()}
+    if(act==="setauto"){const r=await post("/api/autostart",{on:el.dataset.on==="1",relay:true});return toast(r.message)}
     if(act==="keysave"||act==="keyrm"){const pr=el.dataset.p;const v=act==="keyrm"?"":($("#key-"+pr).value||"").trim();if(act==="keysave"&&!v)return toast("Paste a key first");
-      if(act==="keyrm"&&!confirm("Remove this key from nyrasview's config?"))return;const r=await post("/api/keys",{provider:pr,key:v});KEYS=r.status;toast(act==="keyrm"?"Key removed":"Key saved");$("#view")._v=null;return render()}
+      if(act==="keyrm"&&!confirm("Remove this key from nyrasview's config?"))return;const r=await post("/api/keys",{provider:pr,key:v});KEYS=r.status;toast(act==="keyrm"?"Key removed":"Key saved");FORCE=true;return render()}
     if(act==="calib"){const r=await post("/api/runs",{agents:["claude"],prompt:"Reply with just: ok",cwd:"~",mode:"ask",model:"haiku"});toast("Calibrating… the gauge fills in a few seconds");return}
     if(act==="bnotify"){const p=await Notification.requestPermission();if(p==="granted"){localSet("bnotify","1");toast("Browser alerts on")}else toast("Browser blocked notifications");return render()}
     if(act==="pmore"){P.more=!P.more;return syncComposer()}
     if(act==="pmode"){P.mode=el.dataset.m;saveP();return syncComposer()}
     if(act==="prun"){const prompt=$("#pq").value.trim();if(!prompt)return toast("Write a prompt first");if(!P.agents.length)return toast("Pick at least one agent");
       if(P.mode==="auto"&&!confirm("Auto mode lets the agent run commands and change files without asking. Continue?"))return;
-      const r=await post("/api/runs",{agents:P.agents,prompt,cwd:$("#pcwd").value.trim()||"~",mode:P.mode,model:$("#pmodel").value.trim(),api:!!($("#papic")&&$("#papic").checked&&$("#papi").style.display!=="none")});
+      const r=await post("/api/runs",{agents:P.agents,prompt,cwd:$("#pcwd").value.trim()||"~",mode:P.mode,model:$("#pmodel").value.trim(),sandbox:$("#psb")&&$("#psb").style.display!=="none"?$("#psbc").checked:null,api:!!($("#papic")&&$("#papic").checked&&$("#papi").style.display!=="none")});
       const bad=r.runs.filter(x=>x.status==="failed");if(bad.length)toast(bad.map(x=>aname(x.agent)+": "+x.error).join(" · "));
       $("#pq").value="";await loadRuns();return go("run:"+r.runs[0].id)}
     if(act==="pterm"){const k=P.agents[0];if(!k)return toast("Pick an agent");const r=await post("/api/open",{agent:k,cwd:$("#pcwd").value.trim()||"~",prompt:$("#pq").value});return toast(`Opened ${aname(k)} in ${r.terminal}`)}
@@ -1104,7 +1171,7 @@ async function poll(){await refresh();await loadRuns();await loadEvents();if(vie
 {const h=decodeURIComponent(location.hash.slice(1));if(h)view=h}
 if(STALE)$("#stale").innerHTML=`<div class="hookbar">⚠ nyrasview was updated since this server started. Restart it to get the new features: press Ctrl+C where <code>nyrasview gui</code> runs, then run it again.</div>`;
 loadRuns().then(()=>{renderNav()});
-fetch("/api/agents").then(r=>r.json()).then(l=>{agentsList=l;paint(agentsList);if(view==="prompt")syncComposer();if(view.startsWith("doc:")){$("#view")._v=null;render()}});
+getJSON("/api/agents",[]).then(l=>{agentsList=l;paint(agentsList);if(view==="prompt")syncComposer();if(view.startsWith("doc:")){FORCE=true;render()}});
 render();bindView();
 requestAnimationFrame(tick);
 setTimeout(poll,1500);

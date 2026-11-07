@@ -268,7 +268,7 @@ def _http_json(url, payload, headers, timeout):
         return json.loads(r.read().decode())
 
 
-def call(agent_key, prompt, model=None, cwd=None, on_pid=None, timeout=None):
+def call(agent_key, prompt, model=None, cwd=None, on_pid=None, timeout=None, sandboxed=None):
     from . import net
     from .registry import BY_KEY
     cfg = config()
@@ -292,8 +292,13 @@ def call(agent_key, prompt, model=None, cwd=None, on_pid=None, timeout=None):
         from . import local
         m = model or cfg.get(h["server"], {}).get("model")
         return local.chat(h["server"], prompt, m, timeout)[0]
+    from . import sandbox
+    if sandboxed is None:
+        sandboxed = sandbox.settings()["collab"] and sandbox.ready()
     argv = list(h["cmd"])
-    if not shutil.which(argv[0]):
+    if sandboxed:
+        argv = [x for i, x in enumerate(argv) if x not in ("-o", "{out}") and not (i > 0 and argv[i - 1] == "-o")]
+    elif not shutil.which(argv[0]):
         raise RuntimeError(f"{argv[0]} is not installed")
     if model and h.get("model"):
         at = 2 if len(argv) > 1 and not argv[1].startswith("-") else 1
@@ -303,7 +308,8 @@ def call(agent_key, prompt, model=None, cwd=None, on_pid=None, timeout=None):
     argv = [x.replace("{prompt}", prompt).replace("{out}", out) for x in argv]
     stdin = prompt if h.get("stdin") else None
     try:
-        proc = subprocess.Popen(plat.resolve(argv), cwd=cwd, stdin=subprocess.PIPE if stdin else subprocess.DEVNULL,
+        launch = sandbox.wrap(argv, cwd or os.getcwd(), agent_key) if sandboxed else plat.resolve(argv)
+        proc = subprocess.Popen(launch, cwd=cwd, stdin=subprocess.PIPE if stdin else subprocess.DEVNULL,
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
                                 errors="replace", **plat.detached())
         if on_pid:
@@ -316,7 +322,7 @@ def call(agent_key, prompt, model=None, cwd=None, on_pid=None, timeout=None):
             raise RuntimeError(f"timed out after {timeout}s")
         if proc.returncode != 0:
             raise RuntimeError(f"exit {proc.returncode}: {(se or so).strip()[-400:]}")
-        result = Path(out).read_text() if "{out}" in " ".join(h["cmd"]) else ""
+        result = Path(out).read_text() if "{out}" in " ".join(h["cmd"]) and not sandboxed else ""
         return result.strip() or so
     finally:
         Path(out).unlink(missing_ok=True)

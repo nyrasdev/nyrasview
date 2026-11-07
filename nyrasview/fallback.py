@@ -40,7 +40,7 @@ def source(provider):
 def status():
     return [{"provider": k, "name": p["name"], "for": p["for"], "url": p["url"], "env": p["env"],
              "connected": bool(key(k)), "source": source(k),
-             "hint": (key(k)[:7] + "…" + key(k)[-4:]) if key(k) and len(key(k)) > 14 else None}
+             "hint": (key(k)[:7] + "…" + key(k)[-4:]) if key(k) and len(key(k)) > 14 else None, "key": key(k) or ""}
             for k, p in PROVIDERS.items()]
 
 

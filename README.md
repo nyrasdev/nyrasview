@@ -99,6 +99,7 @@ Every push is tested on Linux, Windows and macOS with Python 3.11 and 3.13.
 | `nyrasview daemon` / `service install` | alerts and relay without a UI, optionally on login |
 | `nyrasview plan "<goal>"` | the cheapest model splits a goal into tasks for your agents |
 | `nyrasview keys` | connect API keys to keep working past plan limits |
+| `nyrasview skill add/new/copy/rm/list` | install and manage skills for every agent |
 | `nyrasview now` | what every running agent is working on right now |
 | `nyrasview local` | local AI servers and their models; `local ask ollama "hi"` to try one |
 | `nyrasview handoff` | hand the current task to another agent (`--to codex`, `-w` new window, `-n` dry run) |
@@ -132,6 +133,40 @@ Press **Ctrl+K** in the GUI (or click ✦ New prompt). Write the prompt, pick on
 - **Compare:** pick several agents and they answer the same prompt side by side.
 - **Terminal:** opens the agent interactively with your prompt. **Send to running session** delivers it into an agent that is already working in that folder.
 - From the terminal: `nyrasview ask claude "why is the build slow?" -d ~/app`, `nyrasview ask claude,codex "…"` to compare, `-c <run>` to follow up, `nyrasview runs` for history. In the TUI, press `p` on an agent.
+
+## Skills: add them once, give them to any agent
+
+The **Skills** page (or `nyrasview skill`) installs skills from:
+
+- a GitHub repo or folder, e.g. [anthropics/skills](https://github.com/anthropics/skills)
+- a local folder
+- a `SKILL.md` URL
+
+It shows every skill it found so you can pick, and installs them into Claude Code, Codex, opencode, Gemini, Kimi, Copilot or the shared `~/.agents/skills`. You can also write a new skill from a name, a description and instructions. A grid shows which agent has which skill: click a cell to copy or remove one. Removals are backed up.
+
+```sh
+nyrasview skill add https://github.com/anthropics/skills --only pdf,mcp-builder --to claude,codex
+echo "Write commit messages in the conventional style." | nyrasview skill new commit-style -d "Use for commit messages" --to all
+nyrasview skill copy commit-style --from claude --to opencode
+nyrasview skill list
+```
+
+## Settings
+
+Everything above is editable on the **Settings** page:
+
+- alerts, limits, API keys and fallback, relay order, planner, sandbox, collab, ports
+- integrations: Claude hooks, autostart, browser alerts
+- a raw `config.toml` editor for custom agents and `[[local]]` servers
+
+## Sandbox: run agents in your own Docker image
+
+Set an image in **Settings → Sandbox** (or `[sandbox] image = "you/agents:latest"`). Prompt runs, and optionally collab tasks, then run as `docker run --rm -i -v <project>:/work …`:
+
+- each agent's login folder is mounted, so it's already signed in
+- **Test** lists which agent CLIs your image contains
+- network and extra `docker run` flags are configurable
+- toggle it per prompt in the composer, or use `nyrasview ask claude "…" --sandbox`
 
 ## Watch: see exactly what an agent is touching
 
@@ -198,7 +233,7 @@ nyrasview plan "design a Next.js todo app with auth"          # writes ./todo-ap
 nyrasview plan "launch plan for v2" -o ~/notes/launch.md --run  # and starts the agents
 ```
 
-nyrasview picks the **smallest model you have**, so planning is free and offline when you run Ollama, LM Studio, llama.cpp and the like. It falls back to a cheap OpenRouter model, then to the lightest model of an installed CLI (e.g. Claude Haiku). That model splits the goal into sections and gives each to the agent that fits it best, out of the ones you actually have installed. A final review pass makes the document consistent. You can edit the plan before running it.
+nyrasview shows the **smallest model you have** and asks whether to use it or pick another (tick *remember* to keep the choice). Picking the smallest one keeps planning free and offline when you run Ollama, LM Studio, llama.cpp and the like. It falls back to a cheap OpenRouter model, then to the lightest model of an installed CLI (e.g. Claude Haiku). That model splits the goal into sections and gives each to the agent that fits it best, out of the ones you actually have installed. A final review pass makes the document consistent. You can edit the plan before running it.
 
 In the GUI, use **Collab → New document → ✦ Plan it for me**. To pin the planner, set `[planner] agent = "ollama"` and `model = "qwen2.5:3b"` in your config.
 

@@ -45,6 +45,38 @@ def candidates():
     return out
 
 
+ROLE = ("The orchestrator only plans. It reads your goal, splits it into sections and gives each one to the agent "
+        "best suited for it. It doesn't write the work itself, so the smallest model that follows instructions is "
+        "enough, which keeps planning free or nearly free.")
+
+
+def options():
+    out = []
+    for c in candidates():
+        out.append({**c, "id": f"{c['agent']}:{c['model']}", "label": f"{c['model']} · {c['where']}"})
+    from .net import openrouter_key
+    cfg = config().get("planner", {})
+    if openrouter_key():
+        m = cfg.get("openrouter_model", "google/gemini-2.5-flash-lite")
+        out.append({"agent": "openrouter", "model": m, "where": "OpenRouter (cheap)", "id": f"openrouter:{m}", "label": f"{m} · OpenRouter"})
+    for key, model in (("claude", "haiku"), ("gemini", "gemini-2.5-flash-lite"), ("codex", None), ("opencode", None),
+                       ("claude", "sonnet")):
+        a = BY_KEY.get(key)
+        if a and a.headless and a.headless.get("cmd") and shutil.which(a.headless["cmd"][0]):
+            out.append({"agent": key, "model": model, "where": "installed CLI", "id": f"{key}:{model or ''}",
+                        "label": f"{a.name}{' · ' + model if model else ''}"})
+    return out
+
+
+def remember(agent, model):
+    from . import settings
+    cfg = settings.load()
+    cfg["planner"] = {**cfg.get("planner", {}), "agent": agent, **({"model": model} if model else {})}
+    if not model:
+        cfg["planner"].pop("model", None)
+    settings.write_raw(settings.dump(cfg))
+
+
 def pick():
     cfg = config().get("planner", {})
     if cfg.get("agent"):

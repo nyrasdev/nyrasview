@@ -109,15 +109,24 @@ def make_handler(collector, token, port):
                     v["siblings"] = [r["id"] for r in sorted((r for r in runs.listing(200) if r.get("group") == v["group"]),
                                                              key=lambda r: (r["agent"], r["id"]))]
                 return self._send(200 if v else 404, v or {"error": "no such run"})
+            if u.path == "/api/skills/matrix":
+                from . import skillman
+                return self._send(200, skillman.installed())
             if u.path == "/api/mcp/matrix":
                 from . import mcpman
                 return self._send(200, mcpman.matrix())
             if u.path == "/api/planner":
                 from . import planner
                 try:
-                    return self._send(200, {"pick": planner.pick(), "workers": planner.workers()})
+                    return self._send(200, {"pick": planner.pick(), "workers": planner.workers(), "options": planner.options(),
+                                            "role": planner.ROLE})
                 except Exception as e:
                     return self._send(200, {"error": str(e)})
+            if u.path == "/api/settings":
+                from . import feedback, settings
+                v = settings.view()
+                v["hooks"] = feedback.installed()
+                return self._send(200, v)
             if u.path == "/api/events":
                 from . import notify
                 return self._send(200, notify.recent(40, float(q.get("since", ["0"])[0] or 0)))
@@ -159,6 +168,8 @@ def make_handler(collector, token, port):
                 if b.get("planner"):
                     ag, _, model = b["planner"].partition(":")
                     who = {"agent": ag, "model": model or None, "where": "chosen"}
+                if who and b.get("remember"):
+                    planner.remember(who["agent"], who.get("model"))
                 r = planner.make(b["goal"], obsidian.resolve(b["doc"]) if b.get("doc") else None, b.get("sections"), who)
                 if b.get("run"):
                     collab.run_async(r["doc"])
@@ -209,7 +220,8 @@ def make_handler(collector, token, port):
                     raise ValueError("pick at least one agent and write a prompt")
                 group = _s.token_hex(3) if len(ags) > 1 else None
                 out = [runs.start(a, b["prompt"], b.get("cwd") or "~", b.get("mode") or "ask", b.get("model") or None,
-                                  group, b.get("parent"), bool(b.get("api"))) for a in ags]
+                                  group, b.get("parent"), bool(b.get("api")),
+                                  None if b.get("sandbox") is None else bool(b.get("sandbox"))) for a in ags]
                 collector.refresh("collab")
                 return {"runs": [{"id": m["id"], "agent": m["agent"], "status": m["status"], "error": m.get("error")} for m in out],
                         "group": group}
@@ -226,6 +238,24 @@ def make_handler(collector, token, port):
                 if "{prompt}" in " ".join(cmd):
                     cmd = [c.replace("{prompt}", pr) for c in cmd] if pr else [c for c in cmd if c != "{prompt}" and c not in ("-i", "--prompt")]
                 return {"terminal": handoff.terminal(cwd, cmd)}
+            if p.startswith("/api/skills/"):
+                from . import skillman
+                act = p[len("/api/skills/"):]
+                ags = b.get("agents") or []
+                if act == "fetch":
+                    return skillman.fetch(b.get("source"))
+                if act == "install":
+                    r = skillman.install(b["id"], b.get("names"), ags)
+                elif act == "create":
+                    r = skillman.create(b["name"], b.get("description", ""), b.get("body", ""), ags)
+                elif act == "copy":
+                    r = skillman.copy(b["folder"], b["from"], ags)
+                elif act == "remove":
+                    r = skillman.remove(b["folder"], ags)
+                else:
+                    raise ValueError("unknown action")
+                collector.refresh("cfg")
+                return {"done": r}
             if p.startswith("/api/mcp/"):
                 from . import mcpman
                 act = p[len("/api/mcp/"):]
@@ -263,6 +293,25 @@ def make_handler(collector, token, port):
                         errs[ag] = str(e)[:200]
                 collector.refresh("cfg")
                 return {"name": name, "done": done, "errors": errs}
+            if p == "/api/settings":
+                from . import settings
+                if "raw" in b:
+                    settings.write_raw(b["raw"])
+                    out = settings.view()
+                else:
+                    out = settings.save(b.get("values") or {})
+                collector.refresh("all")
+                return out
+            if p == "/api/sandbox/test":
+                from . import sandbox
+                return sandbox.test()
+            if p == "/api/hooks":
+                from . import feedback
+                feedback.install() if b.get("on") else feedback.uninstall()
+                return {"ok": True, "hooks": feedback.installed()}
+            if p == "/api/autostart":
+                from . import plat
+                return {"message": plat.autostart(bool(b.get("on")), ["daemon"] + (["--relay"] if b.get("relay") else []))}
             if p == "/api/keys":
                 from . import fallback
                 fallback.save(b["provider"], b.get("key") or "")
@@ -316,11 +365,37 @@ def serve_background(collector, port=0):
     return url
 
 
+def _takeover(port):
+    import time
+    import psutil
+    for c in psutil.net_connections("inet"):
+        if c.status == psutil.CONN_LISTEN and c.laddr and c.laddr.port == port and c.pid and c.pid != os.getpid():
+            try:
+                p = psutil.Process(c.pid)
+                if "nyrasview" not in " ".join(p.cmdline()):
+                    return False
+                p.terminate()
+                p.wait(5)
+            except (psutil.Error, psutil.TimeoutExpired):
+                try:
+                    p.kill()
+                except psutil.Error:
+                    return False
+            time.sleep(0.3)
+            return True
+    return False
+
+
 def serve(collector, port=7341, open_browser=True):
     try:
         srv, url = make_server(collector, port)
     except OSError:
-        srv, url = make_server(collector, 0)
+        if _takeover(port):
+            print(f"replaced an older nyrasview GUI that was running on port {port}")
+            srv, url = make_server(collector, port)
+        else:
+            srv, url = make_server(collector, 0)
+            print(f"port {port} is busy, using another one")
     print(f"nyrasview GUI → {url}   (ctrl+c to stop)")
     if open_browser:
         open_url(url)
