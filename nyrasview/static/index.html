@@ -6,22 +6,23 @@
 <title>nyrasview</title>
 <style>
 :root{
+  color-scheme:dark;
   --s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s6:#008300;--s7:#9085e9;--s8:#e66767;--other:#6e6e78;
   --bg:#0b0b0f;--panel:#121217;--panel2:#18181f;--line:#27272a;--branch:#3f3f46;--text:#f5f5f5;--dim:#8e8e99;
   --accent:#f5f5f5;--brand:#e879f9;--good:#22c55e;--bad:#ef4444;--warn:#f59e0b;--cyan:#67e8f9;
   --mono:ui-monospace,"JetBrains Mono","Fira Code",Menlo,monospace;
   --spring:cubic-bezier(.34,1.56,.64,1);--ease:cubic-bezier(.22,1,.36,1);
 }
-@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){color-scheme:light;
   --bg:#f7f7f8;--panel:#ffffff;--panel2:#f1f1f4;--line:#e4e4e7;--branch:#d4d4d8;--text:#0b0b0f;--dim:#6b6b76;
   --accent:#0b0b0f;--brand:#a21caf;--good:#16a34a;--bad:#dc2626;--warn:#d97706;--cyan:#0e7490;--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s6:#008300;--s7:#6250d6;--s8:#e34948;--other:#a1a1aa;}}
-:root[data-theme="light"]{--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s6:#008300;--s7:#6250d6;--s8:#e34948;--other:#a1a1aa;--bg:#f7f7f8;--panel:#ffffff;--panel2:#f1f1f4;--line:#e4e4e7;--branch:#d4d4d8;--text:#0b0b0f;--dim:#6b6b76;
+:root[data-theme="light"]{color-scheme:light;--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s6:#008300;--s7:#6250d6;--s8:#e34948;--other:#a1a1aa;--bg:#f7f7f8;--panel:#ffffff;--panel2:#f1f1f4;--line:#e4e4e7;--branch:#d4d4d8;--text:#0b0b0f;--dim:#6b6b76;
   --accent:#0b0b0f;--brand:#a21caf;--good:#16a34a;--bad:#dc2626;--warn:#d97706;--cyan:#0e7490;}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
 .sc.quiet .box,.sc.quiet .box svg path,.sc.quiet .t{animation:none!important;transition:none!important}
 .app{display:grid;grid-template-columns:260px 1fr;min-height:100vh}
-aside{position:sticky;top:0;height:100vh;overflow:auto;border-right:1px solid var(--line);padding:18px 10px 18px 10px;display:flex;flex-direction:column;gap:14px}
+aside{scrollbar-width:thin;scrollbar-color:var(--line) transparent;position:sticky;top:0;height:100vh;overflow:auto;border-right:1px solid var(--line);padding:18px 10px 18px 10px;display:flex;flex-direction:column;gap:14px}
 .brand{font-weight:800;font-size:19px;letter-spacing:.2px;padding:0 10px;display:flex;align-items:center;gap:8px}
 .brand span{color:var(--brand)}
 .brand .beat{width:8px;height:8px;border-radius:50%;background:var(--brand);box-shadow:0 0 0 0 var(--brand);animation:beat 2.4s var(--ease) infinite}
@@ -390,6 +391,9 @@ let S=__NYRA_SNAP__, view=localGet("view")||"overview", skillQ="", docData=null,
 function localGet(k){try{return localStorage.getItem("nyra."+k)}catch(e){return null}}
 function localSet(k,v){try{localStorage.setItem("nyra."+k,v)}catch(e){}}
 const $=s=>document.querySelector(s);
+let HOMERE=/^\/home\/[^/]+|^\/Users\/[^/]+|^[A-Za-z]:\\Users\\[^\\]+/;
+const setHome=h=>{if(h)HOMERE=new RegExp("^"+h.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"))};
+setHome(S&&S.home);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const hb=n=>{n=+n||0;const u=["B","K","M","G","T"];let i=0;while(n>=1024&&i<4){n/=1024;i++}return (i<2?n.toFixed(0):n.toFixed(1))+u[i]};
 const hn=n=>{n=+n||0;for(const [d,u] of [[1e9,"B"],[1e6,"M"],[1e3,"k"]]) if(n>=d) return (n/d).toFixed(1)+u;return String(Math.round(n))};
@@ -489,7 +493,7 @@ function vPrompt(){
   h+=groups.length?`<div class="runs">`+groups.slice(0,25).map((g,i)=>{const r=g.items[0];const st=g.items.some(x=>x.status==="running")?"running":g.items.every(x=>x.status==="done")?"done":g.items.some(x=>x.status==="failed")?"failed":r.status;
     return `<div class="rr" data-act="go" data-v="run:${r.id}" data-key="rr-${r.id}" style="--i:${i}"><div class="ic">${runIcon(st)}</div><div class="q">${esc(r.prompt)}</div>
       <div class="rt">${ago(r.created)}${g.items.some(x=>x.cost)?"<br>"+money(sum(g.items,x=>x.cost||0)):""}</div>
-      <div class="mt">${g.items.map(x=>`<span style="display:inline-flex;gap:5px;align-items:center"><span class="sd" style="background:${colorOf(x.agent)}"></span>${esc(aname(x.agent))}</span>`).join("")}<span>· ${esc(r.mode)}</span><span>· ${esc(r.cwd.replace(/^\/home\/[^/]+/,"~"))}</span></div></div>`}).join("")+`</div>`
+      <div class="mt">${g.items.map(x=>`<span style="display:inline-flex;gap:5px;align-items:center"><span class="sd" style="background:${colorOf(x.agent)}"></span>${esc(aname(x.agent))}</span>`).join("")}<span>· ${esc(r.mode)}</span><span>· ${esc(r.cwd.replace(HOMERE,"~"))}</span></div></div>`}).join("")+`</div>`
     :`<div class="muted" style="padding:10px 2px">Nothing yet. Write a prompt above, pick one or more agents and hit Run.</div>`;
   return h}
 
@@ -532,7 +536,7 @@ function vRun(id){
   const v=RUNV[id];if(!v)return `<div class="empty">loading…</div>`;
   const ids=(v.siblings&&v.siblings.length?v.siblings:[id]).filter(x=>RUNV[x]);
   const any=ids.some(x=>RUNV[x].status==="running");
-  let h=`<div class="ph"><h1 style="max-width:70%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(v.prompt)}</h1><span class="pill">${esc(v.mode)}</span><span class="sub">${esc(v.cwd.replace(/^\/home\/[^/]+/,"~"))}</span><div class="grow"></div>
+  let h=`<div class="ph"><h1 style="max-width:70%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(v.prompt)}</h1><span class="pill">${esc(v.mode)}</span><span class="sub">${esc(v.cwd.replace(HOMERE,"~"))}</span><div class="grow"></div>
     ${any?`<button class="btn" data-act="pstop" data-ids="${ids.join(",")}">■ Stop</button>`:""}<button class="btn" data-act="go" data-v="prompt">✦ New prompt</button></div>`;
   h+=`<div class="tcols">`+ids.map(x=>{const r=RUNV[x];const c=colorOf(r.agent);
     return `<div class="tr" data-key="col-${x}" style="--c:${c}"><div class="th"><span class="dot ${r.status==="running"?"live":""}" style="--c:${c}"></span><b>${esc(aname(r.agent))}</b>${r.model?`<span class="chip">${esc(r.model)}</span>`:""}<div class="grow"></div><span class="muted" style="font-size:12px">${r.status==="running"?(r.elapsed).toFixed(0)+"s":esc(r.status)}</span>${r.cwd&&(r.agent==="claude"||r.agent==="codex")?`<button class="btn sm" data-act="watch" data-agent="${r.agent}" data-cwd="${esc(r.cwd)}">👁</button>`:""}</div>
@@ -627,17 +631,17 @@ function vOverview(){
   h+=`<div class="panel c8"><div class="hd2"><h2>Right now</h2><span class="muted" style="font-size:12px">${work.length} session${work.length===1?"":"s"}</span></div>${chips}`;
   h+=work.length?`<div class="feed">`+work.slice(0,8).map(({a,w,st})=>{const t=w.activity||{};
       const icon=st==="limited"?`<span style="color:var(--bad)">⚠</span>`:st==="working"?`<span style="color:var(--good);display:inline-flex">${stateIcon("working")}</span>`:`<span class="muted">${st==="waiting"?"◐":"○"}</span>`;
-      const what=w.collab?"collab job":t.title||(w.cwd||"").replace(/^\/home\/[^/]+/,"~");
+      const what=w.collab?"collab job":t.title||(w.cwd||"").replace(HOMERE,"~");
       const act=st==="limited"?`limit reached${(t.limit||{}).reset?" · resets "+t.limit.reset:""}`:(t.action||t.reply||t.prompt||"");
       return `<div class="fr" ${w.cwd&&!w.collab?`data-act="watch" data-agent="${a.key}" data-cwd="${esc(w.cwd)}"`:`data-act="go" data-v="agent:${a.key}"`} data-key="fr-${w.pid}" style="--c:${a.hex}">${icon}<div class="who"><span class="dot"></span>${esc(a.name)}</div>
-        <div class="what">${esc(what)}<span class="st">${esc(st)}${t.at?" · "+ago(t.at):""} · ${esc(t.project||(w.cwd||"").replace(/^\/home\/[^/]+/,"~"))}</span></div>
+        <div class="what">${esc(what)}<span class="st">${esc(st)}${t.at?" · "+ago(t.at):""} · ${esc(t.project||(w.cwd||"").replace(HOMERE,"~"))}</span></div>
         <div class="act ${st==="working"?"on":""}">${act?(st==="working"?"now ▸ ":"▸ ")+esc(act):""}</div></div>`}).join("")+`</div>`
     :`<div class="muted" style="padding:14px 2px">No agent sessions running. Start Claude Code, Codex, Gemini… and they show up here live.</div>`;
   h+=`</div>`;
 
   const alerts=[];
   work.filter(x=>x.st==="limited").forEach(({a,w})=>{const l=(w.activity||{}).limit||{};const tg=handT.filter(x=>x.key!==a.key);
-    alerts.push(["bad","!",`<b>${esc(a.name)}</b> hit its limit`,`${esc((w.cwd||"").replace(/^\/home\/[^/]+/,"~"))}${l.reset?" · resets "+esc(l.reset):""}`,tg.length&&(a.key==="claude"||a.key==="codex")?`<button class="btn sm" data-act="handoff" data-agent="${a.key}" data-cwd="${esc(w.cwd)}" data-to="${tg[0].key}">Hand off →</button>`:""])});
+    alerts.push(["bad","!",`<b>${esc(a.name)}</b> hit its limit`,`${esc((w.cwd||"").replace(HOMERE,"~"))}${l.reset?" · resets "+esc(l.reset):""}`,tg.length&&(a.key==="claude"||a.key==="codex")?`<button class="btn sm" data-act="handoff" data-agent="${a.key}" data-cwd="${esc(w.cwd)}" data-to="${tg[0].key}">Hand off →</button>`:""])});
   tasks.filter(t=>t.status==="failed").slice(0,4).forEach(t=>alerts.push(["bad","✗",`<b>${esc(aname(t.agent))}</b> failed on ${esc(t.section||"whole doc")}`,`${esc(t.dname)} · ${esc((t.error||"").slice(0,90))}`,`<button class="btn sm" data-act="retry" data-doc="${esc(t.doc)}" data-id="${t.id}">Retry</button>`]));
   vis.filter(a=>a.rss/sy.mem_total>.2).forEach(a=>alerts.push(["warn","▲",`<b>${esc(a.name)}</b> is using ${hb(a.rss)} of RAM`,`${(a.rss/sy.mem_total*100).toFixed(0)}% of this machine`,""]));
   if(sy.mem_used/sy.mem_total>.9) alerts.push(["warn","▲","System RAM almost full",`${hb(sy.mem_used)} of ${hb(sy.mem_total)} used`,""]);
@@ -726,7 +730,7 @@ function vSessions(a){
   const ws=a.work||[];if(!ws.length) return "";
   return `<div class="panel"><h2>Working on</h2>`+ws.map(w=>{const t=w.activity||{};const st=w.collab?"working":t.state||"idle";
     return `<div class="sess ${st}" data-key="s${w.pid}" style="--c:${a.hex}"><div class="ic">${w.collab?ic("doc",16):stateIcon(st)}</div>
-     <div class="pj">${esc(t.title||(w.collab?"collab job":(w.cwd||"").replace(/^\/home\/[^/]+/,"~")))} <span class="muted" style="font-weight:400;font-size:12px">${esc(t.project||w.cwd||"")}</span></div>
+     <div class="pj">${esc(t.title||(w.collab?"collab job":(w.cwd||"").replace(HOMERE,"~")))} <span class="muted" style="font-weight:400;font-size:12px">${esc(t.project||w.cwd||"")}</span></div>
      <div class="muted m" style="font-size:12px">${st} · pid ${w.pid}${t.at?" · "+ago(t.at):""}${w.cwd&&!w.collab?` <button class="btn sm" data-act="watch" data-agent="${a.key}" data-cwd="${esc(w.cwd)}">👁 Watch</button>`:""}</div>
      ${t.prompt?`<div class="pr">you ▸ ${esc(t.prompt)}</div>`:""}
      ${t.action||t.reply?`<div class="ac">${st==="working"?"now":"last"} ▸ ${esc(t.action||t.reply)}</div>`:""}
@@ -780,7 +784,7 @@ function fbToast(it){toast(it.status==="copied"?"Copied to clipboard: paste it i
 function vWatch(){
   const {agent:k,cwd}=watchParts();const a=agent(k);const d=W.data;
   const w=(a.work||[]).find(x=>x.cwd===cwd)||{};const t=w.activity||{};
-  let h=`<div class="ph" style="--c:${a.hex||"var(--other)"}"><span class="dot ${a.running?"live":""}" style="width:12px;height:12px"></span><h1>${esc(t.title||a.name||k)}</h1><span class="pill ${t.state==="working"?"live":""}">${esc(t.state||"watching")}</span><span class="sub">${esc(a.name||k)} · ${esc(cwd.replace(/^\/home\/[^/]+/,"~"))}${t.action?" · now ▸ "+esc(t.action):""}</span><div class="grow"></div><button class="btn" data-act="pfor" data-agent="${k}" data-cwd="${esc(cwd)}">✦ Prompt</button><button class="btn" data-act="go" data-v="agent:${k}">← ${esc(a.name||k)}</button></div>`;
+  let h=`<div class="ph" style="--c:${a.hex||"var(--other)"}"><span class="dot ${a.running?"live":""}" style="width:12px;height:12px"></span><h1>${esc(t.title||a.name||k)}</h1><span class="pill ${t.state==="working"?"live":""}">${esc(t.state||"watching")}</span><span class="sub">${esc(a.name||k)} · ${esc(cwd.replace(HOMERE,"~"))}${t.action?" · now ▸ "+esc(t.action):""}</span><div class="grow"></div><button class="btn" data-act="pfor" data-agent="${k}" data-cwd="${esc(cwd)}">✦ Prompt</button><button class="btn" data-act="go" data-v="agent:${k}">← ${esc(a.name||k)}</button></div>`;
   if(W.err) return h+`<div class="hookbar" style="background:color-mix(in srgb,var(--bad) 12%,transparent)">⚠ ${esc(W.err)}</div>`;
   if(!d) return h+`<div class="empty">loading…</div>`;
   if(k==="claude"&&!d.hooks) h+=`<div class="hookbar">💬 To send live notes straight into Claude Code, nyrasview needs a small hook in ~/.claude/settings.json. Until then notes are copied to your clipboard.<button class="btn sm" data-act="hooks">Enable live feedback</button></div>`;
@@ -1068,7 +1072,7 @@ function tick(){
   document.querySelectorAll(".cc .pg").forEach(p=>{if(p.dataset.st!=="running")return;const el=(now-+p.dataset.started)*1000,exp=+p.dataset.exp;const f=1-Math.exp(-el/exp*1.6);p.style.width=(f*96).toFixed(2)+"%"});
   requestAnimationFrame(tick)}
 
-async function refresh(){try{S=await (await fetch("/api/snapshot")).json();paint(S.agents)}catch(e){}}
+async function refresh(){try{S=await (await fetch("/api/snapshot")).json();paint(S.agents);setHome(S.home)}catch(e){}}
 async function poll(){await refresh();await loadRuns();await loadEvents();if(view.startsWith("run:")){const v=RUNV[view.slice(4)];if(!v||[view.slice(4),...(v.siblings||[])].some(x=>!RUNV[x]||RUNV[x].status==="running"))await loadRun(view.slice(4))}render();if(view.startsWith("doc:"))loadDoc();if(view.startsWith("watch:"))loadWatch();setTimeout(poll,1500)}
 
 {const h=decodeURIComponent(location.hash.slice(1));if(h)view=h}

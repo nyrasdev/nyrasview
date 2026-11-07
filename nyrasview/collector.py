@@ -2,6 +2,7 @@ import os
 import socket
 import threading
 import time
+from pathlib import Path
 from collections import defaultdict, deque
 
 import psutil
@@ -107,6 +108,10 @@ class Collector:
                 seen += 1
             if not own:
                 roots[key].append(pid)
+        scope = os.environ.get("NYRA_SCOPE")
+        if scope:
+            for k in list(roots):
+                roots[k] = [p for p in roots[k] if (infos[p].get("cwd") or "").startswith(scope)]
         rootset = {p for v in roots.values() for p in v}
 
         conns = defaultdict(list)
@@ -238,7 +243,7 @@ class Collector:
         self.cwds = cwds
         vm = psutil.virtual_memory()
         return {
-            "ts": time.time(), "version": VERSION, "host": socket.gethostname(),
+            "ts": time.time(), "version": VERSION, "home": str(Path.home()), "host": os.environ.get("NYRA_HOSTNAME") or socket.gethostname(),
             "system": {"cpu": psutil.cpu_percent(), "ncpu": ncpu, "mem_used": vm.total - vm.available,
                        "mem_total": vm.total},
             "agents": agents_out, "mcp": cfg_mcp, "skills": self.slow["skills"],
