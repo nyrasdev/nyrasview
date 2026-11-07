@@ -1,0 +1,819 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>nyrasview</title>
+<style>
+:root{
+  --s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s6:#008300;--s7:#9085e9;--s8:#e66767;--other:#6e6e78;
+  --bg:#0b0b0f;--panel:#121217;--panel2:#18181f;--line:#27272a;--branch:#3f3f46;--text:#f5f5f5;--dim:#8e8e99;
+  --accent:#f5f5f5;--brand:#e879f9;--good:#22c55e;--bad:#ef4444;--warn:#f59e0b;--cyan:#67e8f9;
+  --mono:ui-monospace,"JetBrains Mono","Fira Code",Menlo,monospace;
+  --spring:cubic-bezier(.34,1.56,.64,1);--ease:cubic-bezier(.22,1,.36,1);
+}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){
+  --bg:#f7f7f8;--panel:#ffffff;--panel2:#f1f1f4;--line:#e4e4e7;--branch:#d4d4d8;--text:#0b0b0f;--dim:#6b6b76;
+  --accent:#0b0b0f;--brand:#a21caf;--good:#16a34a;--bad:#dc2626;--warn:#d97706;--cyan:#0e7490;--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s6:#008300;--s7:#6250d6;--s8:#e34948;--other:#a1a1aa;}}
+:root[data-theme="light"]{--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s6:#008300;--s7:#6250d6;--s8:#e34948;--other:#a1a1aa;--bg:#f7f7f8;--panel:#ffffff;--panel2:#f1f1f4;--line:#e4e4e7;--branch:#d4d4d8;--text:#0b0b0f;--dim:#6b6b76;
+  --accent:#0b0b0f;--brand:#a21caf;--good:#16a34a;--bad:#dc2626;--warn:#d97706;--cyan:#0e7490;}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+.sc.quiet .box,.sc.quiet .box svg path,.sc.quiet .t{animation:none!important;transition:none!important}
+.app{display:grid;grid-template-columns:260px 1fr;min-height:100vh}
+aside{position:sticky;top:0;height:100vh;overflow:auto;border-right:1px solid var(--line);padding:18px 10px 18px 10px;display:flex;flex-direction:column;gap:14px}
+.brand{font-weight:800;font-size:19px;letter-spacing:.2px;padding:0 10px;display:flex;align-items:center;gap:8px}
+.brand span{color:var(--brand)}
+.brand .beat{width:8px;height:8px;border-radius:50%;background:var(--brand);box-shadow:0 0 0 0 var(--brand);animation:beat 2.4s var(--ease) infinite}
+@keyframes beat{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--brand) 60%,transparent)}70%{box-shadow:0 0 0 9px transparent}100%{box-shadow:0 0 0 0 transparent}}
+.sys{padding:0 10px;font-family:var(--mono);font-size:11.5px;color:var(--dim);display:grid;gap:5px}
+.meter{height:3px;border-radius:2px;background:var(--panel2);overflow:hidden}
+.meter i{display:block;height:100%;background:var(--text);opacity:.55;transition:width .9s var(--ease)}
+.foot{margin-top:auto;padding:0 10px;display:flex;gap:8px;align-items:center;color:var(--dim);font-size:12px}
+
+.bm{--row:36px;--indent:40px;--trunk:14px;user-select:none}
+.bm-g{margin-bottom:2px}
+.bm-h{display:flex;align-items:center;gap:8px;width:100%;height:var(--row);padding:0 10px;border:0;background:none;color:var(--dim);font:inherit;font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;border-radius:10px;cursor:pointer}
+.bm-h:hover{color:var(--text);background:var(--panel2)}
+.bm-h svg{transition:transform .3s var(--ease)}
+.bm-g.open>.bm-h svg.chev{transform:rotate(90deg)}
+.bm-f{display:grid;grid-template-rows:0fr;transition:grid-template-rows .3s var(--ease)}
+.bm-g.open>.bm-f{grid-template-rows:1fr}
+.bm-f>div{overflow:hidden;position:relative}
+.bm-lines{position:absolute;left:0;top:0;pointer-events:none;overflow:visible}
+.bm-lines path{fill:none;stroke:var(--branch);stroke-width:1.5;stroke-linecap:round;stroke-dasharray:1;stroke-dashoffset:1;transition:stroke-dashoffset .4s var(--ease),stroke .25s}
+.bm-g.open .bm-lines path{stroke-dashoffset:0}
+.bm-lines path.on{stroke:var(--accent)}
+.bm-i{display:flex;align-items:center;gap:9px;height:var(--row);margin-left:var(--indent);padding:0 10px;border-radius:10px;color:var(--dim);cursor:pointer;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:0;transform:translateX(-6px);transition:opacity .3s var(--ease),transform .3s var(--ease),background .2s,color .2s}
+.bm-g.open .bm-i{opacity:1;transform:none}
+.bm-i:hover{color:var(--text);background:var(--panel2)}
+.bm-i.on{color:var(--accent);background:var(--panel2);font-weight:600}
+.bm-i svg{flex:none;opacity:.85}
+.bm-i .n{overflow:hidden;text-overflow:ellipsis}
+.bm-i .badge{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--dim);font-weight:400}
+
+.dot{width:9px;height:9px;border-radius:50%;background:var(--c);flex:none}
+.dot.live{animation:pulse 2s var(--ease) infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--c) 70%,transparent)}70%{box-shadow:0 0 0 7px transparent}100%{box-shadow:0 0 0 0 transparent}}
+
+main{padding:26px 30px 60px;min-width:0}
+.ph{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+.ph h1{font-size:22px;margin:0;letter-spacing:-.2px}
+.ph .sub{color:var(--dim);font-size:13px}
+.grow{flex:1}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:15px 16px;cursor:pointer;transition:border-color .25s,transform .35s var(--spring),opacity .3s;animation:rise .5s var(--ease) both;animation-delay:calc(var(--i,0)*45ms)}
+.card:hover{border-color:color-mix(in srgb,var(--c) 70%,var(--line));transform:translateY(-2px)}
+.card.off{opacity:.55}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}}
+.ch{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.ch .n{font-weight:700}
+.pill{font-size:11px;padding:1px 8px;border-radius:99px;border:1px solid var(--line);color:var(--dim);transition:color .3s,border-color .3s}
+.pill.live{color:var(--good);border-color:color-mix(in srgb,var(--good) 40%,transparent)}
+.kv{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;font-family:var(--mono);font-size:12px}
+.kv span{display:block;color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:.6px}
+.kv b{font-weight:600;font-size:13px}
+svg.sp{width:100%;height:38px;display:block;margin-top:12px}
+svg.sp polyline{transition:all .6s var(--ease)}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}
+.chip{font-size:11px;font-family:var(--mono);padding:2px 8px;border-radius:7px;background:var(--panel2);color:var(--dim)}
+.chip.mcp{color:var(--cyan)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;overflow:auto;margin-bottom:16px;animation:rise .45s var(--ease) both}
+h2{font-size:14px;margin:0 0 12px}
+h3{font-size:11px;margin:18px 0 8px;color:var(--dim);text-transform:uppercase;letter-spacing:.7px}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{text-align:left;color:var(--dim);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap;font-size:11.5px}
+td{padding:6px 8px;border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent);vertical-align:top}
+tr{transition:background .2s}
+tbody tr:hover{background:var(--panel2)}
+.m{font-family:var(--mono)}
+td.cmd{font-family:var(--mono);color:var(--dim);max-width:560px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+tr.mcp td{color:var(--cyan)} tr.collab td{color:var(--warn)}
+.r{text-align:right}
+.btn{display:inline-flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:6px 12px;border-radius:10px;font:inherit;font-size:12.5px;cursor:pointer;text-decoration:none;transition:border-color .2s,transform .25s var(--spring),background .2s}
+.btn:hover{border-color:var(--dim)}
+.btn:active{transform:scale(.96)}
+.btn.pri{background:var(--text);border-color:var(--text);color:var(--bg)}
+.btn.sm{padding:2px 8px;font-size:11px;border-radius:7px}
+input,select,textarea{background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:8px 11px;font:inherit;font-size:13px;transition:border-color .2s;min-width:0}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--dim)}
+textarea{width:100%;min-height:70px;resize:vertical}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.muted{color:var(--dim)}
+.empty{color:var(--dim);padding:40px;text-align:center}
+.bars{display:flex;align-items:flex-end;gap:5px;height:120px;margin:10px 0}
+.bars div{flex:1;background:var(--c);border-radius:4px 4px 1px 1px;min-height:2px;position:relative;opacity:.85;transform-origin:bottom;animation:grow .7s var(--ease) both;animation-delay:calc(var(--i)*30ms);transition:height .7s var(--ease)}
+.bars div:hover{opacity:1}
+.bars div:hover::after{content:attr(data-t);position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);font-size:11px;background:var(--panel2);border:1px solid var(--line);padding:2px 6px;border-radius:6px;white-space:nowrap;z-index:2}
+@keyframes grow{from{transform:scaleY(0)}}
+.cols{display:grid;grid-template-columns:minmax(320px,430px) 1fr;gap:16px;align-items:start}
+
+.calls{display:grid;gap:8px;margin-bottom:16px}
+.cc{--s:34px;--r:10px;position:relative;display:flex;align-items:center;gap:11px;padding:6px 12px 6px 6px;border-radius:calc(var(--r) + 4px);background:var(--panel);border:1px solid var(--line);overflow:hidden;animation:rise .35s var(--ease) both}
+.cc .pg{position:absolute;inset:0;width:0;background:currentColor;opacity:.08;pointer-events:none}
+.cc .wash{position:absolute;inset:0;opacity:0;transition:opacity .5s var(--ease);pointer-events:none}
+.cc.done .wash{background:var(--good);opacity:.14}
+.cc.error .wash{background:var(--bad);opacity:.14}
+.cc.error{animation:shake .45s var(--ease)}
+@keyframes shake{20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(3px)}}
+.cc .ic{width:var(--s);height:var(--s);border-radius:var(--r);background:var(--panel2);display:grid;place-items:center;flex:none;color:var(--c);position:relative;z-index:1;transition:color .3s}
+.cc.done .ic{color:var(--good)} .cc.error .ic{color:var(--bad)}
+.cc .tx{position:relative;z-index:1;min-width:0;display:flex;gap:8px;align-items:baseline;flex:1}
+.cc .nm{font-family:var(--mono);font-weight:600;font-size:13px;white-space:nowrap}
+.cc .arg{font-family:var(--mono);font-size:12.5px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cc .tm{position:relative;z-index:1;font-family:var(--mono);font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+.cc .err{position:relative;z-index:1;font-size:11.5px;color:var(--bad);max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cc .spin{animation:spin 1s linear infinite;transform-origin:center}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.sc{display:flex;align-items:flex-start;gap:12px;padding:10px 4px;border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent)}
+.sc:last-child{border-bottom:0}
+.sc .box{--b:24px;width:var(--b);height:var(--b);border-radius:8px;border:1.5px solid var(--branch);flex:none;display:grid;place-items:center;cursor:pointer;background:transparent;transition:background .25s var(--ease),border-color .25s;padding:0;margin-top:1px}
+.sc .box svg path{stroke:var(--bg);stroke-width:2.6;fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:20;stroke-dashoffset:20;transition:stroke-dashoffset .3s var(--ease) .08s}
+.sc.done .box{background:var(--text);border-color:var(--text);animation:spring .5s var(--spring)}
+.sc.done .box svg path{stroke-dashoffset:0}
+.sc.running .box{border-color:var(--warn);border-style:dashed;animation:spin 3s linear infinite}
+.sc.failed .box{border-color:var(--bad)}
+@keyframes spring{0%{transform:scale(.6)}60%{transform:scale(1.12)}100%{transform:scale(1)}}
+.sc .bd{min-width:0;flex:1}
+.sc .t{position:relative;display:inline;font-size:13.5px;transition:opacity .4s var(--ease) .12s;background-image:linear-gradient(currentColor,currentColor);background-repeat:no-repeat;background-position:0 55%;background-size:0 1.5px}
+.sc.done .t{opacity:.42;background-size:100% 1.5px;transition:opacity .4s var(--ease) .12s,background-size .45s var(--ease) .12s}
+.sc .meta{display:flex;gap:8px;align-items:center;font-size:12px;margin-top:3px}
+.sc .meta b{color:var(--c)}
+.sc .e{font-family:var(--mono);font-size:11.5px;color:var(--bad);margin-top:4px;white-space:pre-wrap}
+.sc .acts{display:flex;gap:4px;opacity:0;transition:opacity .2s}
+.sc:hover .acts{opacity:1}
+
+.doc{font-family:var(--mono);font-size:12.5px;white-space:pre-wrap;line-height:1.6;max-height:74vh;overflow:auto;background:var(--panel2);border-radius:10px;padding:16px}
+.doc .hd{color:var(--text);font-weight:700}
+.doc .ln{white-space:pre-wrap;min-height:1.6em}
+.doc .own{border-left:2px solid var(--c);padding-left:10px;transition:border-color .4s}
+.now{margin-top:12px;padding-top:10px;border-top:1px dashed var(--line);font-size:12.5px;display:grid;gap:3px;min-width:0}
+.now .l{display:flex;gap:7px;align-items:center;min-width:0}
+.now .l span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.now .act{font-family:var(--mono);font-size:12px;color:var(--cyan)}
+.now .act.idle{color:var(--dim)}
+.sess{display:grid;grid-template-columns:auto 1fr auto;gap:4px 12px;align-items:center;padding:12px 4px;border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent)}
+.sess:last-child{border-bottom:0}
+.sess .ic{grid-row:span 3;width:34px;height:34px;border-radius:10px;background:var(--panel2);display:grid;place-items:center;color:var(--c)}
+.sess .pj{font-weight:600}
+.sess .pr,.sess .ac{grid-column:2/4;font-size:12.5px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sess .ac{font-family:var(--mono);color:var(--cyan)}
+.sess.idle .ac{color:var(--dim)}
+.lim{display:flex;gap:8px;align-items:center;margin-top:8px;padding:7px 10px;border-radius:10px;background:color-mix(in srgb,var(--bad) 12%,transparent);color:var(--bad);font-size:12.5px;animation:rise .35s var(--ease) both}
+.lim b{font-weight:600}.lim .btn{margin-left:auto}
+.ho{display:flex;gap:6px;align-items:center;grid-column:2/4;margin-top:4px}
+.ho select{padding:3px 8px;font-size:12px;border-radius:8px}
+.typing::after{content:"▍";animation:blink 1s steps(1) infinite;margin-left:1px}
+@keyframes blink{50%{opacity:0}}
+.reply{white-space:pre-wrap;font-size:13.5px;line-height:1.6;background:var(--panel2);border-radius:10px;padding:14px;min-height:60px;margin-top:10px}
+.ov{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px}
+.ov>.panel{margin:0}
+.c3{grid-column:span 3}.c4{grid-column:span 4}.c5{grid-column:span 5}.c6{grid-column:span 6}.c7{grid-column:span 7}.c8{grid-column:span 8}.c12{grid-column:span 12}
+@media (max-width:1200px){.c3{grid-column:span 6}.c4,.c5{grid-column:span 6}.c7,.c8{grid-column:span 12}}
+@media (max-width:1000px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:860px){.c3,.c4,.c5,.c6,.c7,.c8{grid-column:span 12}}
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;grid-column:span 12}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px;cursor:pointer;display:grid;gap:2px;transition:border-color .2s,transform .3s var(--spring);animation:rise .45s var(--ease) both;animation-delay:calc(var(--i,0)*35ms);min-width:0}
+.tile:hover{border-color:var(--dim);transform:translateY(-2px)}
+.tile .k{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.6px;display:flex;gap:6px;align-items:center}
+.tile .v{font-size:24px;font-weight:700;letter-spacing:-.4px;font-variant-numeric:tabular-nums;line-height:1.2}
+.tile .s{font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.panel .hd2{display:flex;align-items:baseline;gap:8px;margin-bottom:12px}
+.panel .hd2 h2{margin:0}
+.panel .hd2 a{margin-left:auto;font-size:12px;color:var(--dim);cursor:pointer}
+.panel .hd2 a:hover{color:var(--text)}
+.feed{display:grid}
+.fr{display:grid;grid-template-columns:22px 150px minmax(0,1fr);gap:4px 10px;align-items:center;padding:9px 2px;border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent);cursor:pointer;border-radius:8px}
+.fr:last-child{border-bottom:0}
+.fr:hover{background:var(--panel2)}
+.fr .who{display:flex;gap:7px;align-items:center;font-weight:600;font-size:13px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fr .what{min-width:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fr .act{grid-column:3;font-family:var(--mono);font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fr .act.on{color:var(--text)}
+.fr .st{font-size:11px;color:var(--dim);margin-left:6px;font-weight:400}
+.al{display:flex;gap:10px;align-items:flex-start;padding:9px 2px;border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent);font-size:13px}
+.al:last-child{border-bottom:0}
+.al .i{flex:none;width:22px;height:22px;border-radius:7px;display:grid;place-items:center;font-size:12px;font-weight:700}
+.al.bad .i{background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad)}
+.al.warn .i{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
+.al.good .i{background:color-mix(in srgb,var(--good) 16%,transparent);color:var(--good)}
+.al .b{min-width:0;flex:1}
+.al .b small{display:block;color:var(--dim);font-size:12px}
+.seg{display:flex;gap:2px;height:14px;border-radius:5px;overflow:hidden;background:var(--panel2);margin:6px 0 4px}
+.seg i{display:block;height:100%;min-width:2px;transition:flex-grow .8s var(--ease)}
+.seg i:first-child{border-radius:4px 0 0 4px}
+.segl{display:flex;justify-content:space-between;font-size:12px;color:var(--dim);margin-top:12px}
+.segl b{color:var(--text);font-weight:600}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--dim);margin-top:10px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:9px;height:9px;border-radius:3px;display:inline-block}
+.legend b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
+.stk{display:grid;grid-template-columns:44px 1fr;gap:0 8px}
+.stk .ya{display:flex;flex-direction:column;justify-content:space-between;font-size:11px;color:var(--dim);text-align:right;height:150px;font-variant-numeric:tabular-nums}
+.stk .plot{position:relative;height:150px;display:flex;align-items:flex-end;gap:5px;border-bottom:1px solid var(--line);background:linear-gradient(var(--line),var(--line)) 0 0/100% 1px no-repeat,linear-gradient(var(--line),var(--line)) 0 50%/100% 1px no-repeat}
+.stk .col{flex:1;display:flex;flex-direction:column-reverse;gap:2px;height:100%;justify-content:flex-start;min-width:0}
+.stk .col i{display:block;width:100%;transition:height .8s var(--ease)}
+.stk .col i:last-child{border-radius:4px 4px 0 0}
+.stk .xa{grid-column:2;display:flex;gap:5px;font-size:11px;color:var(--dim);padding-top:5px}
+.stk .xa span{flex:1;text-align:center;min-width:0}
+.rk{display:grid;gap:9px}
+.rk .r{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;align-items:center;font-size:12.5px}
+.rk .r .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;gap:6px;align-items:center}
+.rk .r .val{font-family:var(--mono);font-size:12px;font-variant-numeric:tabular-nums}
+.rk .r .tr{grid-column:1/3;height:6px;border-radius:3px;background:var(--panel2);overflow:hidden}
+.rk .r .tr i{display:block;height:100%;border-radius:0 3px 3px 0;transition:width .8s var(--ease)}
+.mini{display:grid;gap:7px;font-size:13px}
+.mini .r{display:flex;gap:8px;align-items:center;min-width:0}
+.mini .r .n{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mini .r .x{margin-left:auto;color:var(--dim);font-size:12px;white-space:nowrap;font-family:var(--mono)}
+.sd{width:8px;height:8px;border-radius:50%;flex:none}
+.pb{height:5px;border-radius:3px;background:var(--panel2);overflow:hidden;flex:1;min-width:60px;max-width:140px}
+.pb i{display:block;height:100%;background:var(--text);opacity:.6;transition:width .8s var(--ease)}
+.wv{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:14px;align-items:start}
+.wv.nocode,.wv.noweb{grid-template-columns:minmax(0,1fr)}
+@media (max-width:1100px){.wv{grid-template-columns:minmax(0,1fr)}}
+.pv{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.pv .bar{display:flex;gap:8px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--line);font-size:12px;color:var(--dim)}
+.pv .bar .url{font-family:var(--mono);background:var(--panel2);padding:3px 10px;border-radius:8px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pv iframe{display:block;width:100%;height:72vh;border:0;background:#fff}
+.code{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.code .bar{display:flex;gap:8px;align-items:center;padding:9px 12px;border-bottom:1px solid var(--line);font-size:12.5px}
+.code .bar b{font-family:var(--mono);font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.code .src{font-family:var(--mono);font-size:12.5px;line-height:1.6;max-height:72vh;overflow:auto;padding:8px 0;position:relative}
+.code .ln{display:grid;grid-template-columns:52px 1fr;white-space:pre;position:relative}
+.code .ln .no{color:var(--dim);opacity:.6;text-align:right;padding-right:14px;user-select:none;cursor:pointer}
+.code .ln .no:hover{opacity:1;color:var(--text)}
+.code .ln .tx{padding-right:16px}
+.code .ln.hl{background:color-mix(in srgb,var(--c) 13%,transparent)}
+.code .ln.hl .no{color:var(--c);opacity:1}
+.code .ln.hl::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--c)}
+.code .ln.sel{background:color-mix(in srgb,var(--text) 10%,transparent)}
+.code .ln.fresh{animation:flash 1.6s var(--ease)}
+@keyframes flash{0%{background:color-mix(in srgb,var(--c) 40%,transparent)}}
+.code .flag{position:absolute;right:10px;top:2px;background:var(--c);color:#fff;font:600 10.5px/1 system-ui,sans-serif;padding:4px 8px;border-radius:7px;white-space:nowrap;display:flex;gap:5px;align-items:center;box-shadow:0 2px 8px rgba(0,0,0,.2);z-index:1}
+.code .flag svg{width:11px;height:11px}
+.caret{display:inline-block;width:2px;height:1.25em;background:var(--c);vertical-align:text-bottom;margin-left:2px;position:relative;animation:blink 1s steps(1) infinite}
+.caret b{position:absolute;left:4px;top:-1.25em;background:var(--c);color:#fff;font:600 10.5px/1 system-ui,sans-serif;padding:3px 7px;border-radius:6px 6px 6px 0;white-space:nowrap;animation:none}
+.cbub{position:fixed;width:300px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px;box-shadow:0 14px 40px rgba(0,0,0,.3);z-index:15;opacity:0;visibility:hidden;transform:translateY(6px) scale(.97);transition:opacity .2s,transform .25s var(--spring)}
+.cbub.on{opacity:1;visibility:visible;transform:none}
+.cbub .h{font-size:11.5px;color:var(--dim);margin:0 2px 7px}
+.cbub textarea{min-height:58px}
+.tl{display:grid;gap:2px}
+.tl .e{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:6px 8px;border-radius:8px;cursor:pointer;font-size:12.5px}
+.tl .e:hover{background:var(--panel2)}
+.tl .e.on{background:var(--panel2);box-shadow:inset 3px 0 0 var(--c)}
+.tl .e .f{font-family:var(--mono);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl .e .d{font-family:var(--mono);font-size:11.5px;white-space:nowrap}
+.tl .e .d .p{color:var(--good)}.tl .e .d .m{color:var(--bad)}
+.fb{display:grid;gap:8px}
+.fb .it{display:flex;gap:10px;align-items:flex-start;font-size:13px}
+.fb .it .s{font-size:11px;color:var(--dim);white-space:nowrap;margin-left:auto}
+.hookbar{display:flex;gap:10px;align-items:center;padding:10px 14px;border-radius:12px;background:color-mix(in srgb,var(--warn) 12%,transparent);font-size:13px;margin-bottom:14px}
+.hookbar .btn{margin-left:auto}
+#tip{position:fixed;z-index:20;pointer-events:none;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-size:12px;box-shadow:0 6px 20px rgba(0,0,0,.18);opacity:0;transition:opacity .12s;white-space:nowrap}
+#tip.on{opacity:1}
+.toast{position:fixed;bottom:18px;right:18px;background:var(--panel);border:1px solid var(--line);padding:10px 14px;border-radius:12px;opacity:0;transform:translateY(8px);transition:all .3s var(--spring);pointer-events:none;z-index:9}
+.toast.on{opacity:1;transform:none}
+@media (max-width:860px){.app{grid-template-columns:1fr}aside{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line)}main{padding:18px 16px 40px}.cols{grid-template-columns:1fr}.kv{grid-template-columns:repeat(2,1fr)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <div class="brand"><i class="beat"></i><div>nyras<span>view</span></div></div>
+    <div class="sys" id="sys"></div>
+    <nav class="bm" id="nav"></nav>
+    <div class="foot"><button class="btn sm" id="theme" title="theme">◐ theme</button><span id="ver"></span></div>
+  </aside>
+  <main id="main"></main>
+</div>
+<div class="toast" id="toast"></div><div id="tip"></div><div class="cbub" id="cbub"><div class="h" id="cbubh"></div><textarea id="cbubt" placeholder="e.g. rename this to something clearer"></textarea><div class="row" style="margin-top:8px"><span class="muted" style="font-size:11px;flex:1">Ctrl+Enter to send</span><button class="btn pri sm" data-act="csend">Send</button></div></div>
+<script>
+const TOKEN="__NYRA_TOKEN__";
+const quiet=new Set(),seenTask=new Set();let handT=[];
+const loadTargets=()=>fetch("/api/handoff/targets").then(r=>r.json()).then(l=>{handT=l;paint(handT)}).catch(()=>{});loadTargets();setInterval(loadTargets,30000);
+const canHand=k=>k==="claude"||k==="codex";
+function limitBar(a,w){const t=w.activity||{},l=t.limit||{};const tg=handT.filter(x=>x.key!==a.key);
+  return `<div class="lim">⚠ <span><b>Limit reached</b> · ${esc(l.message||"")}${l.reset?" · resets "+esc(l.reset):""}</span>${tg.length?`<button class="btn sm" data-act="handoff" data-agent="${a.key}" data-cwd="${esc(w.cwd)}" data-to="${tg[0].key}">Hand off to ${esc(tg[0].name)} →</button>`:""}</div>`}
+let S=__NYRA_SNAP__, view=localGet("view")||"overview", skillQ="", docData=null, agentsList=[], open=new Set(JSON.parse(localGet("open")||'["agents","toolbox","insights","collab"]'));
+function localGet(k){try{return localStorage.getItem("nyra."+k)}catch(e){return null}}
+function localSet(k,v){try{localStorage.setItem("nyra."+k,v)}catch(e){}}
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const hb=n=>{n=+n||0;const u=["B","K","M","G","T"];let i=0;while(n>=1024&&i<4){n/=1024;i++}return (i<2?n.toFixed(0):n.toFixed(1))+u[i]};
+const hn=n=>{n=+n||0;for(const [d,u] of [[1e9,"B"],[1e6,"M"],[1e3,"k"]]) if(n>=d) return (n/d).toFixed(1)+u;return String(Math.round(n))};
+const ago=t=>{if(!t)return"–";let d=Date.now()/1000-t;for(const [s,u] of [[86400,"d"],[3600,"h"],[60,"m"]]) if(d>=s) return Math.floor(d/s)+u;return Math.floor(d)+"s"};
+const money=c=>c>=1?"$"+c.toFixed(2):"$"+c.toFixed(4);
+function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("on");clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove("on"),2600)}
+async function post(url,body){const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json","X-Nyra-Token":TOKEN},body:JSON.stringify(body)});const j=await r.json();if(!r.ok) throw new Error(j.error||r.statusText);return j}
+if(localGet("theme")) document.documentElement.dataset.theme=localGet("theme");
+$("#theme").onclick=()=>{const cur=document.documentElement.dataset.theme;const n=cur==="light"?"dark":cur==="dark"?"light":(matchMedia("(prefers-color-scheme: light)").matches?"dark":"light");document.documentElement.dataset.theme=n;localSet("theme",n)};
+
+const I={
+  grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/>',
+  plug:'<path d="M9 2v5M15 2v5M6 7h12v4a6 6 0 0 1-12 0zM12 17v5"/>',
+  spark:'<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 17l.7 1.8 1.8.7-1.8.7L19 22l-.7-1.8-1.8-.7 1.8-.7z"/>',
+  chart:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+  doc:'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  term:'<path d="M5 7l5 5-5 5M12 17h7"/>',
+  check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  x:'<path d="M6 6l12 12M18 6L6 18"/>',
+  retry:'<path d="M4 12a8 8 0 1 0 2.3-5.7M4 4v5h5"/>',
+  chev:'<path d="M9 6l6 6-6 6"/>',
+  play:'<path d="M7 5l12 7-12 7z"/>',
+  undo:'<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>',
+  wand:'<path d="M15 4V2M15 10V8M11 6H9M21 6h-2M18 3l-1 1M18 9l-1-1M4 20L14 10"/>',
+  chip:'<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/>',
+  loader:'<path d="M12 3a9 9 0 1 0 9 9"/>',
+};
+const ic=(n,s=16)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${I[n]}</svg>`;
+
+function patch(a,b){
+  const ac=[...a.childNodes],bc=[...b.childNodes];
+  for(let i=0;i<bc.length;i++){
+    const x=ac[i],y=bc[i];
+    if(!x){a.appendChild(y);continue}
+    if(x.nodeType!==y.nodeType||x.nodeName!==y.nodeName||(x.nodeType===1&&x.getAttribute("data-key")!==y.getAttribute("data-key"))){a.replaceChild(y,x);continue}
+    if(x.nodeType!==1){if(x.nodeValue!==y.nodeValue)x.nodeValue=y.nodeValue;continue}
+    if(x.hasAttribute("data-static")) continue;
+    const form=/^(INPUT|TEXTAREA|SELECT)$/.test(x.tagName);
+    for(const at of [...x.attributes]) if(!y.hasAttribute(at.name)&&!(form&&at.name==="value")) x.removeAttribute(at.name);
+    for(const at of [...y.attributes]) if(x.getAttribute(at.name)!==at.value&&!(form&&at.name==="value")) x.setAttribute(at.name,at.value);
+    if(!form) patch(x,y);
+  }
+  while(a.childNodes.length>bc.length) a.removeChild(a.lastChild);
+}
+function morph(el,html){const t=document.createElement("div");t.innerHTML=html;patch(el,t)}
+
+const SLOT={gemini:1,claude:2,codex:3,opencode:4,antigravity:5,qwen:6,kimi:7,cursor:8};
+const slotOf=k=>SLOT[k]||9;
+const colorOf=k=>SLOT[k]?`var(--s${SLOT[k]})`:"var(--other)";
+function paint(list){(list||[]).forEach(a=>{if(a&&a.key)a.hex=colorOf(a.key)})}
+paint(S&&S.agents);
+document.addEventListener("mousemove",e=>{const t=$("#tip");const el=e.target.closest&&e.target.closest("[data-tip]");if(!el){t.classList.remove("on");return}
+  t.innerHTML=el.dataset.tip;t.classList.add("on");const w=t.offsetWidth,h=t.offsetHeight;let x=e.clientX+14,y=e.clientY-h-10;if(x+w>innerWidth-8)x=e.clientX-w-14;if(y<8)y=e.clientY+16;t.style.left=x+"px";t.style.top=y+"px"});
+function visible(){return (S&&S.agents||[]).filter(a=>a.visible)}
+function agent(k){return (S&&S.agents||[]).find(a=>a.key===k)||agentsList.find(a=>a.key===k)||{}}
+const hex=k=>agent(k).hex||"#999";
+const aname=k=>agent(k).name||k;
+
+function navModel(){
+  const ag=visible();
+  return [
+    {id:"agents",label:"Agents",items:[{v:"overview",label:"Overview",icon:"grid",badge:ag.filter(a=>a.running).length+" live"},
+      ...ag.map(a=>({v:"agent:"+a.key,label:a.name,dot:a.hex,live:a.running,badge:a.running?a.cpu.toFixed(0)+"%":""}))]},
+    {id:"toolbox",label:"Toolbox",items:[{v:"mcp",label:"MCP servers",icon:"plug",badge:(S.mcp||[]).length||""},{v:"skills",label:"Skills",icon:"spark",badge:(S.skills||[]).length||""}]},
+    {id:"insights",label:"Insights",items:[{v:"usage",label:"Usage",icon:"chart"},{v:"network",label:"Network",icon:"globe"},{v:"local",label:"Local AI",icon:"chip",badge:(S.local||[]).filter(x=>x.up).length?(S.local||[]).filter(x=>x.up).length+" up":""}]},
+    {id:"collab",label:"Collab",items:[...(S.collab||[]).map(d=>{const run=d.tasks.filter(t=>t.status==="running").length;return {v:"doc:"+d.doc,label:d.name.replace(/\.md$/,""),icon:"doc",badge:run?"✎ "+run:d.tasks.length?d.tasks.filter(t=>t.status==="done").length+"/"+d.tasks.length:""}}),{v:"new",label:"New document",icon:"plus"}]},
+  ]}
+
+function renderNav(){
+  const row=36,trunk=14,indent=40,r=10;
+  const html=navModel().map(g=>{
+    const n=g.items.length,on=open.has(g.id);
+    const paths=g.items.map((it,i)=>{const y=i*row+row/2;return `<path pathLength="1" class="${it.v===view?"on":""}" style="transition-delay:${i*40}ms" d="M${trunk} 0 V${y-r} Q${trunk} ${y} ${trunk+r} ${y} H${indent+2}"/>`}).join("");
+    return `<div class="bm-g ${on?"open":""}" data-key="g-${g.id}"><button class="bm-h" data-act="fold" data-g="${g.id}"><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">${I.chev}</svg>${g.label}</button>
+      <div class="bm-f"><div><svg class="bm-lines" width="${indent+4}" height="${n*row}">${paths}</svg>
+      ${g.items.map((it,i)=>`<div class="bm-i ${it.v===view?"on":""}" data-key="${esc(it.v)}" data-act="go" data-v="${esc(it.v)}" style="transition-delay:${on?i*35:0}ms;${it.dot?"--c:"+it.dot:""}" title="${esc(it.label)}">${it.dot?`<span class="dot ${it.live?"live":""}"></span>`:ic(it.icon,16)}<span class="n">${esc(it.label)}</span>${it.badge?`<span class="badge">${esc(it.badge)}</span>`:""}</div>`).join("")}
+      </div></div></div>`}).join("");
+  morph($("#nav"),html)}
+
+function spark(h,color,H=38){if(!h||h.length<2)return `<svg class="sp" style="height:${H}px"></svg>`;const v=h.map(x=>x[0]);const m=Math.max(...v,1);const w=300;
+  const pts=v.map((y,i)=>`${(i/(v.length-1)*w).toFixed(1)},${(H-2-(y/m)*(H-6)).toFixed(1)}`).join(" ");
+  return `<svg class="sp" style="height:${H}px" viewBox="0 0 ${w} ${H}" preserveAspectRatio="none"><polyline points="0,${H} ${pts} ${w},${H}" style="fill:${color};fill-opacity:.12;stroke:none"/><polyline points="${pts}" style="fill:none;stroke:${color};stroke-width:1.6" vector-effect="non-scaling-stroke"/></svg>`}
+
+function expected(k){const d=[];(S.collab||[]).forEach(x=>x.tasks.forEach(t=>{if(t.agent===k&&t.status==="done"&&t.started&&t.finished)d.push(t.finished-t.started)}));return d.length?d.reduce((a,b)=>a+b,0)/d.length*1000:30000}
+
+function callChips(docs){
+  const now=Date.now()/1000,out=[];
+  docs.forEach(d=>d.tasks.forEach(t=>{
+    const recent=t.finished&&now-t.finished<8;
+    if(t.status==="running"||(t.status==="failed"&&recent)||(t.status==="done"&&recent)) out.push({d,t})}));
+  if(!out.length) return "";
+  return `<div class="calls">`+out.map(({d,t})=>{
+    const st=t.status==="running"?"running":t.status==="done"?"done":"error";
+    const exp=expected(t.agent),el=((t.finished||now)-(t.started||now))*1000;
+    const icon=st==="running"?`<svg class="spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">${I.loader}</svg>`:st==="done"?ic("check",16):ic("x",16);
+    return `<div class="cc ${st}" data-key="cc-${t.id}-${st}" style="--c:${hex(t.agent)};color:${hex(t.agent)}">
+      <div class="pg" data-started="${t.started||now}" data-exp="${exp}" data-st="${st}" style="width:${st==="running"?Math.min(94,el/exp*94).toFixed(1):100}%"></div><div class="wash"></div>
+      <div class="ic">${icon}</div>
+      <div class="tx"><span class="nm" style="color:var(--text)">${esc(aname(t.agent))}</span><span class="arg">${esc((t.section||"whole doc")+" · "+t.instruction)}</span></div>
+      ${st==="error"?`<span class="err" title="${esc(t.error)}">${esc(t.error)}</span><button class="btn sm" data-act="retry" data-doc="${esc(d.doc)}" data-id="${t.id}">${ic("retry",12)} retry</button>`:""}
+      <span class="tm" data-t0="${t.started||now}" data-t1="${st==="running"?"":t.finished}">${(el/1000).toFixed(1)}s</span></div>`}).join("")+`</div>`}
+
+const sum=(arr,f)=>arr.reduce((x,a)=>x+(+f(a)||0),0);
+const tip=s=>esc(s).replace(/&lt;b&gt;/g,"<b>").replace(/&lt;\/b&gt;/g,"</b>");
+function bySlot(list){return [...list].sort((a,b)=>slotOf(a.key)-slotOf(b.key)||a.name.localeCompare(b.name))}
+
+function vOverview(){
+  const vis=visible(),live=vis.filter(a=>a.running),sy=S.system,ncpu=sy.ncpu||1;
+  const day=a=>(a.usage||{}).today||{};
+  const outT=sum(vis,a=>day(a).out),inT=sum(vis,a=>day(a).in),cacheT=sum(vis,a=>day(a).cache);
+  const costT=sum(vis,a=>day(a).has_cost?day(a).cost:0);
+  const cpuShare=sum(live,a=>a.cpu/ncpu),rss=sum(live,a=>a.rss);
+  const sessions=sum(live,a=>a.sessions);
+  const mcpLive=sum(S.agents,a=>Object.keys(a.mcp_live).length),mcpCfg=(S.mcp||[]).length;
+  const prov={};S.agents.forEach(a=>Object.entries(a.providers).forEach(([k,v])=>prov[k]=(prov[k]||0)+v));
+  const conns=Object.values(prov).reduce((x,y)=>x+y,0);
+  const tasks=(S.collab||[]).flatMap(d=>d.tasks.map(t=>({...t,doc:d.doc,dname:d.name})));
+  const tRun=tasks.filter(t=>t.status==="running").length,tDone=tasks.filter(t=>t.status==="done").length;
+  const L=S.local||[],lUp=L.filter(x=>x.up);
+  const work=[];vis.forEach(a=>(a.work||[]).forEach(w=>work.push({a,w,st:w.collab?"working":(w.activity||{}).state||"running"})));
+  const rank={limited:0,working:1,running:2,waiting:3,idle:4};work.sort((x,y)=>(rank[x.st]??5)-(rank[y.st]??5));
+
+  const tiles=[
+    ["overview","Live agents",live.length,`of ${vis.length} detected · ${sessions} session${sessions===1?"":"s"}`],
+    [live[0]?"agent:"+live[0].key:"overview","Agent CPU",cpuShare.toFixed(1)+"%",`of machine · system at ${sy.cpu.toFixed(0)}%`],
+    [live[0]?"agent:"+live[0].key:"overview","Agent RAM",hb(rss),`${(rss/sy.mem_total*100).toFixed(1)}% of ${hb(sy.mem_total)}`],
+    ["usage","Output today",hn(outT),`${hn(inT)} in · ${hn(cacheT)} cache${costT?` · ${money(costT)}`:""}`],
+    ["mcp","MCP servers",mcpLive,`running · ${mcpCfg} configured`],
+    ["network","Connections",conns,Object.entries(prov).sort((a,b)=>b[1]-a[1]).slice(0,2).map(([k,v])=>`${k} ${v}`).join(" · ")||"none open"],
+    ["local","Local AI",lUp.length,lUp.length?`${sum(lUp,x=>x.models.length)} models · ${sum(lUp,x=>x.loaded.length)} loaded`:"no servers up"],
+    [S.collab&&S.collab[0]?"doc:"+S.collab[0].doc:"new","Collab",tRun?tRun+" running":tDone+"/"+tasks.length,tasks.length?`${tDone} of ${tasks.length} tasks done · ${(S.collab||[]).length} docs`:"no shared docs yet"],
+  ];
+  let h=`<div class="ph"><h1>Overview</h1><span class="sub">${esc(S.host)} · everything your AI tools are doing</span></div><div class="ov">`;
+  h+=`<div class="tiles">`+tiles.map(([v,k,val,sub],i)=>`<div class="tile" style="--i:${i}" data-act="go" data-v="${esc(v)}" data-key="tile-${i}"><span class="k">${k}</span><b class="v">${esc(val)}</b><span class="s">${esc(sub)}</span></div>`).join("")+`</div>`;
+
+  const chips=callChips(S.collab||[]);
+  h+=`<div class="panel c8"><div class="hd2"><h2>Right now</h2><span class="muted" style="font-size:12px">${work.length} session${work.length===1?"":"s"}</span></div>${chips}`;
+  h+=work.length?`<div class="feed">`+work.slice(0,8).map(({a,w,st})=>{const t=w.activity||{};
+      const icon=st==="limited"?`<span style="color:var(--bad)">⚠</span>`:st==="working"?`<span style="color:var(--good);display:inline-flex">${stateIcon("working")}</span>`:`<span class="muted">${st==="waiting"?"◐":"○"}</span>`;
+      const what=w.collab?"collab job":t.title||(w.cwd||"").replace(/^\/home\/[^/]+/,"~");
+      const act=st==="limited"?`limit reached${(t.limit||{}).reset?" · resets "+t.limit.reset:""}`:(t.action||t.reply||t.prompt||"");
+      return `<div class="fr" ${w.cwd&&!w.collab?`data-act="watch" data-agent="${a.key}" data-cwd="${esc(w.cwd)}"`:`data-act="go" data-v="agent:${a.key}"`} data-key="fr-${w.pid}" style="--c:${a.hex}">${icon}<div class="who"><span class="dot"></span>${esc(a.name)}</div>
+        <div class="what">${esc(what)}<span class="st">${esc(st)}${t.at?" · "+ago(t.at):""} · ${esc(t.project||(w.cwd||"").replace(/^\/home\/[^/]+/,"~"))}</span></div>
+        <div class="act ${st==="working"?"on":""}">${act?(st==="working"?"now ▸ ":"▸ ")+esc(act):""}</div></div>`}).join("")+`</div>`
+    :`<div class="muted" style="padding:14px 2px">No agent sessions running. Start Claude Code, Codex, Gemini… and they show up here live.</div>`;
+  h+=`</div>`;
+
+  const alerts=[];
+  work.filter(x=>x.st==="limited").forEach(({a,w})=>{const l=(w.activity||{}).limit||{};const tg=handT.filter(x=>x.key!==a.key);
+    alerts.push(["bad","!",`<b>${esc(a.name)}</b> hit its limit`,`${esc((w.cwd||"").replace(/^\/home\/[^/]+/,"~"))}${l.reset?" · resets "+esc(l.reset):""}`,tg.length&&(a.key==="claude"||a.key==="codex")?`<button class="btn sm" data-act="handoff" data-agent="${a.key}" data-cwd="${esc(w.cwd)}" data-to="${tg[0].key}">Hand off →</button>`:""])});
+  tasks.filter(t=>t.status==="failed").slice(0,4).forEach(t=>alerts.push(["bad","✗",`<b>${esc(aname(t.agent))}</b> failed on ${esc(t.section||"whole doc")}`,`${esc(t.dname)} · ${esc((t.error||"").slice(0,90))}`,`<button class="btn sm" data-act="retry" data-doc="${esc(t.doc)}" data-id="${t.id}">Retry</button>`]));
+  vis.filter(a=>a.rss/sy.mem_total>.2).forEach(a=>alerts.push(["warn","▲",`<b>${esc(a.name)}</b> is using ${hb(a.rss)} of RAM`,`${(a.rss/sy.mem_total*100).toFixed(0)}% of this machine`,""]));
+  if(sy.mem_used/sy.mem_total>.9) alerts.push(["warn","▲","System RAM almost full",`${hb(sy.mem_used)} of ${hb(sy.mem_total)} used`,""]);
+  const o=S.openrouter||{};
+  if(o.configured&&o.error) alerts.push(["warn","▲","OpenRouter key check failed",esc(o.error),""]);
+  else if(o.configured&&o.limit&&o.remaining!=null&&o.remaining/o.limit<.1) alerts.push(["warn","▲","OpenRouter credit low",`${money(+o.remaining)} left of $${o.limit}`,""]);
+  h+=`<div class="panel c4"><div class="hd2"><h2>Alerts</h2><span class="muted" style="font-size:12px">${alerts.length||""}</span></div>`+
+    (alerts.length?alerts.map(([k,i,t,sm,btn],n)=>`<div class="al ${k}" data-key="al-${n}"><span class="i">${i}</span><div class="b">${t}<small>${sm}</small></div>${btn}</div>`).join("")
+     :`<div class="al good"><span class="i">✓</span><div class="b">All clear<small>No usage limits, failed tasks or memory hogs.</small></div></div>`)+`</div>`;
+
+  const segs=(items,total)=>items.map(x=>`<i style="flex-grow:${Math.max(0,x.v/total*1000).toFixed(1)};background:${x.c}" data-tip="${tip(x.tip)}"></i>`).join("");
+  const agRes=bySlot(live);
+  const cpuItems=agRes.map(a=>({c:a.hex,v:a.cpu/ncpu,tip:`<b>${a.name}</b> · ${(a.cpu/ncpu).toFixed(1)}% of machine`}));
+  const otherCpu=Math.max(0,sy.cpu-cpuShare);
+  cpuItems.push({c:"var(--other)",v:otherCpu,tip:`<b>Everything else</b> · ${otherCpu.toFixed(1)}%`});
+  const idle=Math.max(0,100-sy.cpu);cpuItems.push({c:"transparent",v:idle,tip:`<b>Idle</b> · ${idle.toFixed(0)}%`});
+  const ramItems=agRes.map(a=>({c:a.hex,v:a.rss,tip:`<b>${a.name}</b> · ${hb(a.rss)}`}));
+  const otherRam=Math.max(0,sy.mem_used-rss);ramItems.push({c:"var(--other)",v:otherRam,tip:`<b>Everything else</b> · ${hb(otherRam)}`});
+  const free=Math.max(0,sy.mem_total-sy.mem_used);ramItems.push({c:"transparent",v:free,tip:`<b>Free</b> · ${hb(free)}`});
+  h+=`<div class="panel c5"><div class="hd2"><h2>Machine share</h2><a data-act="go" data-v="overview">${ncpu} cores · ${hb(sy.mem_total)}</a></div>
+    <div class="segl" style="margin-top:0"><span>CPU</span><span><b>${cpuShare.toFixed(1)}%</b> agents · ${sy.cpu.toFixed(0)}% total</span></div><div class="seg">${segs(cpuItems,100)}</div>
+    <div class="segl"><span>Memory</span><span><b>${hb(rss)}</b> agents · ${hb(sy.mem_used)} used</span></div><div class="seg">${segs(ramItems,sy.mem_total)}</div>
+    <div class="legend">${agRes.map(a=>`<span><i style="background:${a.hex}"></i>${esc(a.name)} <b>${hb(a.rss)}</b></span>`).join("")}<span><i style="background:var(--other)"></i>everything else</span></div></div>`;
+
+  const ua=bySlot(vis.filter(a=>a.usage&&a.usage.daily&&a.usage.daily.some(v=>v)));
+  const days=[...Array(14)].map((_,i)=>new Date(Date.now()-(13-i)*864e5));
+  const totals=days.map((_,i)=>sum(ua,a=>a.usage.daily[i]));const mx=Math.max(...totals,1);
+  h+=`<div class="panel c7"><div class="hd2"><h2>Tokens · last 14 days</h2><span class="muted" style="font-size:12px">all tokens incl. cache</span><a data-act="go" data-v="usage">usage →</a></div>`;
+  h+=ua.length?`${ua.length>1?`<div class="legend" style="margin:0 0 10px">${ua.map(a=>`<span><i style="background:${a.hex}"></i>${esc(a.name)} <b>${hn(sum(a.usage.daily,v=>v))}</b></span>`).join("")}</div>`:""}
+    <div class="stk"><div class="ya"><span>${hn(mx)}</span><span>${hn(mx/2)}</span><span>0</span></div>
+    <div class="plot">${days.map((d,i)=>`<div class="col" data-key="d${i}">${ua.filter(a=>a.usage.daily[i]).map(a=>`<i style="height:calc(${(a.usage.daily[i]/mx*100).toFixed(2)}% - 2px);background:${a.hex}" data-tip="${tip(`<b>${a.name}</b> · ${d.toLocaleDateString(undefined,{month:"short",day:"numeric"})}: ${hn(a.usage.daily[i])}`)}"></i>`).join("")}</div>`).join("")}</div>
+    <div class="xa">${days.map((d,i)=>`<span>${i%2===1||i===13?d.getDate():""}</span>`).join("")}</div></div>`
+    :`<div class="muted">No usage logs yet.</div>`;
+  h+=`</div>`;
+
+  const models=[];vis.forEach(a=>((a.usage||{}).models||[]).forEach(m=>models.push({...m,a})));models.sort((x,y)=>y.tokens-x.tokens);
+  const mtop=models.slice(0,6),mm=Math.max(...mtop.map(m=>m.tokens),1);
+  h+=`<div class="panel c4"><div class="hd2"><h2>Top models</h2><span class="muted" style="font-size:12px">all time</span></div>`+
+    (mtop.length?`<div class="rk">`+mtop.map(m=>`<div class="r" data-key="m-${esc(m.model)}" data-tip="${tip(`<b>${m.model}</b> · ${m.a.name} · ${m.msgs} msgs`)}"><span class="nm"><span class="sd" style="background:${m.a.hex}"></span>${esc(m.model)}</span><span class="val">${hn(m.tokens)}</span><span class="tr"><i style="width:${(m.tokens/mm*100).toFixed(1)}%;background:${m.a.hex}"></i></span></div>`).join("")+`</div>`:`<div class="muted">No model usage recorded yet.</div>`)+`</div>`;
+
+  const pv=Object.entries(prov).sort((a,b)=>b[1]-a[1]),pm=Math.max(...pv.map(x=>x[1]),1);
+  h+=`<div class="panel c4"><div class="hd2"><h2>Network</h2><a data-act="go" data-v="network">details →</a></div>`+
+    (pv.length?`<div class="rk">`+pv.slice(0,6).map(([k,v])=>`<div class="r" data-key="p-${esc(k)}"><span class="nm">${esc(k)}</span><span class="val">${v}</span><span class="tr"><i style="width:${(v/pm*100).toFixed(1)}%;background:var(--dim)"></i></span></div>`).join("")+`</div>`:`<div class="muted">No open connections.</div>`)+`</div>`;
+
+  const liveM={};S.agents.forEach(a=>Object.keys(a.mcp_live).forEach(n=>liveM[a.key+"|"+n]=1));
+  const ms=[...(S.mcp||[])].sort((x,y)=>(liveM[y.agent+"|"+y.name]||0)-(liveM[x.agent+"|"+x.name]||0));
+  h+=`<div class="panel c4"><div class="hd2"><h2>MCP servers</h2><a data-act="go" data-v="mcp">all ${ms.length} →</a></div>`+
+    (ms.length?`<div class="mini">`+ms.slice(0,7).map(m=>{const on=liveM[m.agent+"|"+m.name];return `<div class="r" data-key="mc-${esc(m.agent+m.name+m.scope)}"><span class="sd" style="background:${on?"var(--good)":m.transport!=="stdio"?"var(--cyan)":"var(--line)"}"></span><span class="n">${esc(m.name)}</span><span class="x">${on?"running":m.transport!=="stdio"?"remote":"idle"} · ${esc(aname(m.agent))}</span></div>`}).join("")+`</div>`:`<div class="muted">None configured in any agent.</div>`)+`</div>`;
+
+  const sk={};(S.skills||[]).forEach(x=>{sk[x.agent]=sk[x.agent]||{};sk[x.agent][x.kind]=(sk[x.agent][x.kind]||0)+1});
+  h+=`<div class="panel c4"><div class="hd2"><h2>Skills & commands</h2><a data-act="go" data-v="skills">all ${(S.skills||[]).length} →</a></div>`+
+    (Object.keys(sk).length?`<div class="mini">`+Object.entries(sk).map(([ag,kinds])=>`<div class="r" data-key="sk-${ag}"><span class="sd" style="background:${colorOf(ag)}"></span><span class="n">${esc(aname(ag))}</span><span class="x">${Object.entries(kinds).map(([k,n])=>`${n} ${k}${n>1?"s":""}`).join(" · ")}</span></div>`).join("")+`</div>`:`<div class="muted">No skills found.</div>`)+`</div>`;
+
+  h+=`<div class="panel c4"><div class="hd2"><h2>Local AI</h2><a data-act="go" data-v="local">try a model →</a></div>`+
+    `<div class="mini">`+L.map(x=>`<div class="r" data-key="lo-${x.key}"><span class="sd" style="background:${x.up?"var(--good)":"var(--line)"}"></span><span class="n">${esc(x.name)}${x.up?"":` <span class="muted">· down</span>`}</span><span class="x">${x.up?`${x.models.length} models${x.loaded.length?" · "+esc(x.loaded.map(l=>l.id).join(", ")):""}`:esc(x.url.replace(/^https?:\/\//,""))}</span></div>`).join("")+`</div></div>`;
+
+  const docs=S.collab||[];
+  h+=`<div class="panel c4"><div class="hd2"><h2>Collab docs</h2><a data-act="go" data-v="new">new →</a></div>`+
+    (docs.length?`<div class="mini">`+docs.slice(0,6).map(d=>{const dn=d.tasks.filter(t=>t.status==="done").length,rn=d.tasks.filter(t=>t.status==="running").length,n=d.tasks.length;
+      return `<div class="r" data-act="go" data-v="doc:${esc(d.doc)}" style="cursor:pointer" data-key="cd-${esc(d.doc)}">${ic("doc",14)}<span class="n">${esc(d.name.replace(/\.md$/,""))}</span><span class="pb"><i style="width:${n?dn/n*100:0}%"></i></span><span class="x">${rn?`<span style="color:var(--warn)">${rn} running</span> · `:""}${dn}/${n}</span></div>`}).join("")+`</div>`
+     :`<div class="muted">No shared documents. Split one into sections and give each to a different AI.</div>`)+`</div>`;
+
+  h+=`<div class="c12" style="margin-top:6px"><div class="hd2" style="display:flex;align-items:baseline;gap:8px;margin-bottom:12px"><h2 style="margin:0">All agents</h2><span class="muted" style="font-size:12px">${live.length} live · ${vis.length} detected</span></div>`;
+  const ag=vis;
+  return h+`<div class="grid">`+ag.map((a,i)=>{const u=a.usage||{};const mc=Object.keys(a.mcp_live);
+    return `<div class="card ${a.running?"":"off"}" style="--c:${a.hex};--i:${i}" data-key="card-${a.key}" data-act="go" data-v="agent:${a.key}">
+    <div class="ch"><span class="dot ${a.running?"live":""}"></span><div class="n">${esc(a.name)}</div><span class="pill ${a.running?"live":""}">${a.running?`live · ${a.sessions}`:(a.installed||a.kind==="api"?"idle":"absent")}</span><div class="grow"></div><span class="muted" style="font-size:11px">${a.kind}</span></div>
+    <div class="kv"><div><span>cpu</span><b>${a.running?a.cpu.toFixed(1)+"%":"–"}</b></div><div><span>ram</span><b>${a.rss?hb(a.rss):"–"}</b></div><div><span>procs</span><b>${a.nprocs||"–"}</b></div><div><span>conns</span><b>${Object.values(a.providers).reduce((x,y)=>x+y,0)||"–"}</b></div>
+    <div><span>mcp</span><b>${mc.length}/${a.mcp_configured}</b></div><div><span>skills</span><b>${a.skills||"–"}</b></div><div><span>out today</span><b>${u.today?hn(u.today.out):"–"}</b></div><div><span>active</span><b>${u.last?ago(u.last):"–"}</b></div></div>
+    ${spark(a.hist,a.hex)}${nowLine(a)}
+    <div class="chips">${Object.entries(a.providers).sort((x,y)=>y[1]-x[1]).map(([p,n])=>`<span class="chip">${esc(p)}×${n}</span>`).join("")}${mc.map(m=>`<span class="chip mcp">◆ ${esc(m)}</span>`).join("")}</div></div>`}).join("")+`</div></div></div>`}
+
+function stateIcon(st){return st==="working"?`<svg class="spin" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">${I.loader}</svg>`:st==="waiting"?"◐":"○"}
+function nowLine(a){
+  const w=(a.work||[]).find(x=>x.activity&&x.activity.state==="limited")||(a.work||[]).find(x=>x.activity)||null;if(!w) return "";
+  const t=w.activity,st=t.state;
+  if(st==="limited") return limitBar(a,w);
+  return `<div class="now"><div class="l"><span style="color:${st==="working"?"var(--good)":"var(--dim)"};display:inline-flex">${stateIcon(st)}</span><span><b>${esc(t.title||t.project)}</b> <span class="muted">${st} · ${ago(t.at)}</span></span></div>
+   ${t.action||t.reply?`<div class="l act ${st==="working"?"":"idle"}"><span>▸</span><span>${esc(t.action||t.reply)}</span></div>`:""}</div>`}
+function vSessions(a){
+  const ws=a.work||[];if(!ws.length) return "";
+  return `<div class="panel"><h2>Working on</h2>`+ws.map(w=>{const t=w.activity||{};const st=w.collab?"working":t.state||"idle";
+    return `<div class="sess ${st}" data-key="s${w.pid}" style="--c:${a.hex}"><div class="ic">${w.collab?ic("doc",16):stateIcon(st)}</div>
+     <div class="pj">${esc(t.title||(w.collab?"collab job":(w.cwd||"").replace(/^\/home\/[^/]+/,"~")))} <span class="muted" style="font-weight:400;font-size:12px">${esc(t.project||w.cwd||"")}</span></div>
+     <div class="muted m" style="font-size:12px">${st} · pid ${w.pid}${t.at?" · "+ago(t.at):""}${w.cwd&&!w.collab?` <button class="btn sm" data-act="watch" data-agent="${a.key}" data-cwd="${esc(w.cwd)}">👁 Watch</button>`:""}</div>
+     ${t.prompt?`<div class="pr">you ▸ ${esc(t.prompt)}</div>`:""}
+     ${t.action||t.reply?`<div class="ac">${st==="working"?"now":"last"} ▸ ${esc(t.action||t.reply)}</div>`:""}
+     ${st==="limited"?`<div style="grid-column:2/4">${limitBar(a,w)}</div>`:canHand(a.key)&&!w.collab&&handT.some(x=>x.key!==a.key)?`<div class="ho"><span class="muted" style="font-size:12px">hand off to</span><select data-hsel="${w.pid}">${handT.filter(x=>x.key!==a.key).map(x=>`<option value="${x.key}">${esc(x.name)}</option>`).join("")}</select><button class="btn sm" data-act="handoff" data-agent="${a.key}" data-cwd="${esc(w.cwd)}" data-pick="${w.pid}">Go →</button></div>`:""}</div>`}).join("")+`</div>`}
+
+function vLocal(){
+  const L=S.local||[];const up=L.filter(x=>x.up);
+  let h=`<div class="ph"><h1>Local AI</h1><span class="sub">${up.length} of ${L.length} servers up · assign them in collab like any other AI</span></div>`;
+  h+=`<div class="grid">`+L.map((x,i)=>{const a=agent(x.key);const c=a.hex||"#afd7af";
+    return `<div class="card ${x.up?"":"off"}" style="--c:${c};--i:${i};cursor:default" data-key="ls-${x.key}"><div class="ch"><span class="dot ${x.up?"live":""}"></span><div class="n">${esc(x.name)}</div><span class="pill ${x.up?"live":""}">${x.up?"up":"down"}</span><div class="grow"></div><span class="muted m" style="font-size:11px">${esc(x.url.replace(/^https?:\/\//,""))}</span></div>
+    ${x.up?`<div class="chips" style="margin-top:0">${x.models.slice(0,12).map(m=>`<span class="chip ${x.loaded.find(l=>l.id===m.id)?"mcp":""}">${x.loaded.find(l=>l.id===m.id)?"● ":""}${esc(m.id)}${m.params?" · "+esc(m.params):""}</span>`).join("")||`<span class="chip">no models</span>`}</div>
+      ${x.loaded.filter(l=>l.vram).map(l=>`<div class="muted m" style="font-size:11.5px;margin-top:8px">${esc(l.id)} · ${hb(l.size)} · ${hb(l.vram)} in vram</div>`).join("")}`
+     :`<div class="muted" style="font-size:12.5px">not running</div>`}</div>`}).join("")+`</div>`;
+  h+=`<div class="panel" style="margin-top:16px" data-static data-key="try"><h2>Try a local model</h2>
+    <div class="row"><select id="lsrv"></select><select id="lmod"></select></div>
+    <textarea id="lprompt" style="margin-top:8px" placeholder="Ask something…"></textarea>
+    <div class="row" style="margin-top:8px"><button class="btn pri" data-act="lask">${ic("play",13)} Send</button><span class="muted" id="lmeta" style="font-size:12px"></span></div>
+    <div class="reply" id="lreply"><span class="muted">${up.length?"Replies show up here.":"Start Ollama, LM Studio, llama.cpp, vLLM, Jan or KoboldCpp, or add a server under [[local]] in config.toml."}</span></div></div>`;
+  return h}
+function syncLocal(){
+  const s=$("#lsrv"),m=$("#lmod");if(!s)return;const up=(S.local||[]).filter(x=>x.up);
+  const so=up.map(x=>`<option value="${x.key}">${esc(x.name)}</option>`).join("");
+  if(s._o!==so){const k=s.value;s.innerHTML=so;s._o=so;if(k)s.value=k}
+  const srv=up.find(x=>x.key===s.value)||up[0];const mo=srv?srv.models.map(x=>`<option>${esc(x.id)}</option>`).join(""):"";
+  if(m._o!==mo){const k=m.value;m.innerHTML=mo;m._o=mo;if(k)m.value=k}}
+
+let W={key:null,data:null,pick:null,prev:null,pvOrigin:null,pvPort:null,focusKey:null,sel:null};
+function watchParts(){const v=view.slice(6);const i=v.indexOf(":");return {agent:v.slice(0,i),cwd:v.slice(i+1)}}
+async function loadWatch(){
+  if(!view.startsWith("watch:"))return;const {agent,cwd}=watchParts();
+  const r=await fetch(`/api/live?agent=${encodeURIComponent(agent)}&cwd=${encodeURIComponent(cwd)}${W.pick!=null?"&pick="+W.pick:""}`,{headers:{"X-Nyra-Token":TOKEN}});
+  if(!r.ok)return;W.data=await r.json();
+  const ports=W.data.ports||[];
+  if(ports.length&&(!W.pvPort||!ports.includes(W.pvPort))){W.pvPort=ports[0];const p=await post("/api/preview",{port:W.pvPort});W.prev=p.url;W.pvOrigin=p.origin}
+  if(!ports.length){W.prev=null;W.pvPort=null}
+  if(view.startsWith("watch:"))render();pushFocus(false)}
+function pushFocus(force){
+  const f=W.data&&W.data.focus,fr=$("#pvf");if(!f||!fr||!fr.contentWindow||!W.pvOrigin)return;
+  const key=f.file+"|"+f.i+"|"+(f.range||[]).join("-");if(!force&&key===W.focusKey)return;W.focusKey=key;
+  const a=agent(W.data.agent);
+  fr.contentWindow.postMessage({type:"nyra-focus",agent:a.name||W.data.agent,color:getComputedStyle(document.documentElement).getPropertyValue((a.hex||"").replace(/^var\(|\)$/g,"")).trim()||"#d95926",file:f.rel,hints:f.hints,action:f.tool},W.pvOrigin)}
+window.addEventListener("message",async e=>{
+  if(!W.pvOrigin||e.origin!==W.pvOrigin)return;const m=e.data||{};
+  if(m.type==="nyra-ready")pushFocus(true);
+  if(m.type==="nyra-found"){const el=$("#pvfound");if(el)el.textContent=m.found?"pointing at "+m.selector:"couldn't match this edit on the page"}
+  if(m.type==="nyra-feedback"){const {agent:ag,cwd}=watchParts();const f=W.data&&W.data.focus;
+    const it=await post("/api/feedback",{agent:ag,cwd,text:m.text,target:{...m.target,file:f&&f.rel}});fbToast(it)}});
+function fbToast(it){toast(it.status==="copied"?"Copied to clipboard: paste it into the agent":"Sent: the agent gets it after its next step");loadWatch()}
+
+function vWatch(){
+  const {agent:k,cwd}=watchParts();const a=agent(k);const d=W.data;
+  const w=(a.work||[]).find(x=>x.cwd===cwd)||{};const t=w.activity||{};
+  let h=`<div class="ph" style="--c:${a.hex||"var(--other)"}"><span class="dot ${a.running?"live":""}" style="width:12px;height:12px"></span><h1>${esc(t.title||a.name||k)}</h1><span class="pill ${t.state==="working"?"live":""}">${esc(t.state||"watching")}</span><span class="sub">${esc(a.name||k)} · ${esc(cwd.replace(/^\/home\/[^/]+/,"~"))}${t.action?" · now ▸ "+esc(t.action):""}</span><div class="grow"></div><button class="btn" data-act="go" data-v="agent:${k}">← ${esc(a.name||k)}</button></div>`;
+  if(!d) return h+`<div class="empty">loading…</div>`;
+  if(k==="claude"&&!d.hooks) h+=`<div class="hookbar">💬 To send live notes straight into Claude Code, nyrasview needs a small hook in ~/.claude/settings.json. Until then notes are copied to your clipboard.<button class="btn sm" data-act="hooks">Enable live feedback</button></div>`;
+  const f=d.focus,hasWeb=!!W.prev,hasCode=!!(f&&!f.missing);
+  h+=`<div class="wv ${hasWeb?"":"noweb"} ${hasCode?"":"nocode"}" style="--c:${a.hex||"var(--other)"}">`;
+  if(hasWeb) h+=`<div class="pv" data-static data-key="pv-${W.pvPort}"><div class="bar">${ic("globe",14)}<span class="url">localhost:${W.pvPort}</span><span id="pvfound"></span><a class="btn sm" href="http://localhost:${W.pvPort}/" target="_blank" rel="noopener">open ↗</a></div><iframe id="pvf" src="${esc(W.prev)}" onload="pushFocus(true)"></iframe><div class="bar" style="border-top:1px solid var(--line);border-bottom:0">Hover the highlighted box to leave a note · Alt+click anything on the page to comment on it</div></div>`;
+  if(hasCode){const r=f.range;const c0=r?r[0]:-1,c1=r?r[1]:-1;
+    h+=`<div class="code"><div class="bar">${ic("doc",14)}<b>${esc(f.rel)}</b><span class="muted">${esc(f.tool)} · ${ago(f.at)} ago${r?` · line ${r[0]+1}${r[1]>r[0]?"–"+(r[1]+1):""}`:""}</span></div><div class="src" id="src">`+
+      f.lines.map((line,j)=>{const n=f.start+j;const on=n>=c0&&n<=c1;const sel=W.sel&&n>=W.sel[0]&&n<=W.sel[1];
+        return `<div class="ln ${on?"hl":""} ${sel?"sel":""}" data-key="L${f.i}-${n}" ${on?`data-hl="1"`:""}><span class="no" data-act="line" data-n="${n}">${n+1}</span><span class="tx">${esc(line)||" "}${n===c1?`<span class="caret"></span>`:""}</span>${n===c0?`<span class="flag"><svg viewBox="0 0 24 24"><path d="M3 2l7.5 19 2.6-7.9L21 10.5z" fill="#fff"/></svg>${esc(a.name||k)}</span>`:""}</div>`}).join("")+`</div></div>`}
+  if(!hasWeb&&!hasCode) h+=`<div class="panel"><div class="muted">${f&&f.missing?"The last edited file is gone or unreadable.":"No edits yet in this session. As soon as it changes a file, you'll see it here."}</div></div>`;
+  h+=`</div>`;
+  h+=`<div class="ov" style="margin-top:14px"><div class="panel c7"><div class="hd2"><h2>Recent edits</h2><span class="muted" style="font-size:12px">${d.edits.length}</span>${W.pick!=null?`<a data-act="wlatest">follow latest →</a>`:""}</div><div class="tl">`+
+    [...d.edits].reverse().map(e=>`<div class="e ${f&&f.i===e.i?"on":""}" data-act="wpick" data-i="${e.i}" data-key="e${e.i}"><span class="muted m" style="font-size:11.5px">${ago(e.at)}</span><span class="f">${esc(e.rel)}</span><span class="d"><span class="p">+${e.added}</span> <span class="m">−${e.removed}</span></span></div>`).join("")+`</div></div>`;
+  const fb=(d.feedback||[]).slice().reverse();
+  h+=`<div class="panel c5"><div class="hd2"><h2>Your notes</h2></div><div style="display:grid;gap:8px;margin-bottom:12px" data-static data-key="say"><textarea id="say" placeholder="Tell ${esc(a.name||k)} something about the work…"></textarea><div class="row"><button class="btn pri sm" data-act="say">Send note</button><span class="muted" style="font-size:11.5px">or click a line number in the code to comment on a line</span></div></div><div class="fb">`+
+    (fb.length?fb.map(x=>`<div class="it" data-key="fb${x.id}"><span>${x.status==="delivered"?"✓":x.status==="copied"?"📋":"⏳"}</span><div style="min-width:0">${esc(x.text)}${x.target&&(x.target.selector||x.target.file)?`<div class="muted m" style="font-size:11px">${esc([x.target.file,x.target.selector].filter(Boolean).join(" · "))}</div>`:""}</div><span class="s">${esc(x.status)} · ${ago(x.at)}</span></div>`).join(""):`<div class="muted" style="font-size:12.5px">Nothing sent yet.</div>`)+`</div></div></div>`;
+  return h}
+
+function openCodeBubble(n0,n1,anchor){
+  W.sel=[n0,n1];const b=$("#cbub");const r=anchor.getBoundingClientRect();
+  b.style.left=Math.min(innerWidth-312,r.right+8)+"px";b.style.top=Math.min(innerHeight-170,r.top-4)+"px";
+  $("#cbubh").textContent=`Comment on line ${n0+1}${n1>n0?"–"+(n1+1):""}`;b.classList.add("on");setTimeout(()=>$("#cbubt").focus(),30);render()}
+document.addEventListener("mouseover",e=>{
+  const hl=e.target.closest&&e.target.closest(".ln[data-hl]");if(!hl||$("#cbub").classList.contains("on"))return;
+  clearTimeout(W.ht);W.ht=setTimeout(()=>{const f=W.data&&W.data.focus;if(f&&f.range&&view.startsWith("watch:")){const first=document.querySelector(".ln[data-hl]");openCodeBubble(f.range[0],f.range[1],first||hl)}},450)});
+document.addEventListener("mouseout",e=>{if(e.target.closest&&e.target.closest(".ln[data-hl]"))clearTimeout(W.ht)});
+document.addEventListener("mousedown",e=>{const b=$("#cbub");if(b.classList.contains("on")&&!b.contains(e.target)&&!(e.target.closest&&e.target.closest("[data-act=line]"))){b.classList.remove("on");W.sel=null;render()}});
+document.addEventListener("keydown",e=>{if(e.target.id==="cbubt"&&e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();document.querySelector("[data-act=csend]").click()}if(e.target.id==="cbubt"&&e.key==="Escape"){$("#cbub").classList.remove("on");W.sel=null;render()}});
+
+function vAgent(k){
+  const a=agent(k);if(!a.key) return `<div class="empty">Agent not found.</div>`;
+  const u=a.usage||{};
+  let h=`<div class="ph" style="--c:${a.hex}"><span class="dot ${a.running?"live":""}" style="width:12px;height:12px"></span><h1>${esc(a.name)}</h1><span class="pill ${a.running?"live":""}">${a.running?"live":"idle"}</span><span class="sub">${esc(a.binary||"")}${a.listen.length?" · listening "+a.listen.join(", "):""}</span></div>
+  <div class="panel" style="--c:${a.hex}"><div class="kv" style="grid-template-columns:repeat(auto-fit,minmax(110px,1fr))"><div><span>cpu</span><b>${a.cpu.toFixed(1)}%</b></div><div><span>ram</span><b>${hb(a.rss)}</b></div><div><span>sessions</span><b>${a.sessions}</b></div><div><span>processes</span><b>${a.nprocs}</b></div><div><span>connections</span><b>${Object.values(a.providers).reduce((x,y)=>x+y,0)}</b></div><div><span>out today</span><b>${u.today?hn(u.today.out):"–"}</b></div><div><span>out 7d</span><b>${u.week?hn(u.week.out):"–"}</b></div></div>${spark(a.hist,a.hex,64)}</div>`+vSessions(a);
+  if(a.procs.length) h+=`<div class="panel"><h2>Processes</h2><table><thead><tr><th>pid</th><th>role</th><th class="r">cpu%</th><th class="r">ram</th><th class="r">thr</th><th>network</th><th>command</th><th></th></tr></thead><tbody>`+
+    a.procs.map(p=>`<tr data-key="p${p.pid}" class="${p.role.startsWith("mcp")?"mcp":p.role==="collab"?"collab":""}"><td class="m">${p.pid}</td><td>${p.role.startsWith("mcp")?"◆ "+esc(p.mcp):esc(p.role)}${p.collab?" ✎"+p.collab:""}</td><td class="r m">${p.cpu}</td><td class="r m">${hb(p.rss)}</td><td class="r m">${p.threads}</td><td class="m">${p.conns.map(c=>esc(c.host)).slice(0,3).join("<br>")}</td><td class="cmd" title="${esc(p.cmd)}">${"&nbsp;&nbsp;".repeat(Math.min(p.depth,6))}${esc(p.cmd)}</td><td><button class="btn sm" data-act="kill" data-pid="${p.pid}">kill</button></td></tr>`).join("")+`</tbody></table></div>`;
+  const mcfg=(S.mcp||[]).filter(m=>m.agent===k);
+  if(mcfg.length||Object.keys(a.mcp_live).length) h+=`<div class="panel"><h2>MCP</h2><div class="chips">${mcfg.map(m=>`<span class="chip ${a.mcp_live[m.name]?"mcp":""}">${a.mcp_live[m.name]?"●":"○"} ${esc(m.name)} · ${m.transport}</span>`).join("")}</div></div>`;
+  if(a.hosts.length) h+=`<div class="panel"><h2>Network</h2><div class="chips">${a.hosts.map(x=>`<span class="chip">${esc(x.provider)} · ${esc(x.host)} ×${x.count}</span>`).join("")}</div></div>`;
+  if(u.models&&u.models.length) h+=`<div class="panel"><h2>Models</h2><table><tbody>${u.models.map(m=>`<tr><td class="m">${esc(m.model)}</td><td class="r m">${hn(m.tokens)} tok</td><td class="r m muted">${m.msgs} msgs</td></tr>`).join("")}</tbody></table></div>`;
+  return h}
+
+function vMCP(){
+  const live={};S.agents.forEach(a=>Object.entries(a.mcp_live).forEach(([n,m])=>live[a.key+"|"+n]=m));
+  const rows=S.mcp.map(m=>{const l=live[m.agent+"|"+m.name];delete live[m.agent+"|"+m.name];return {m,l}});
+  Object.entries(live).forEach(([k,l])=>{const [ag,name]=k.split("|");rows.push({m:{agent:ag,name,transport:"stdio",scope:"unlisted",enabled:true,command:"(detected from process)",args:[]},l})});
+  const head=`<div class="ph"><h1>MCP servers</h1><span class="sub">${rows.length} across all agents</span></div>`;
+  if(!rows.length) return head+`<div class="empty">No MCP servers configured in any agent.</div>`;
+  return head+`<div class="panel"><table><thead><tr><th>agent</th><th>server</th><th>type</th><th>status</th><th>pids</th><th class="r">cpu%</th><th class="r">ram</th><th>scope</th><th>target</th></tr></thead><tbody>`+
+   rows.map(({m,l})=>`<tr data-key="${esc(m.agent+m.name+m.scope)}"><td><span style="color:${hex(m.agent)};font-weight:600">${esc(m.agent)}</span></td><td>${esc(m.name)}</td><td class="m">${m.transport}</td>
+   <td>${l?`<span style="color:var(--good)">● running</span>`:m.transport!=="stdio"?`<span style="color:var(--cyan)">◌ remote</span>`:m.enabled?`<span class="muted">○ idle</span>`:`<span class="muted">○ disabled</span>`}</td>
+   <td class="m">${l?l.pids.join(", "):""}</td><td class="r m">${l?l.cpu.toFixed(1):""}</td><td class="r m">${l?hb(l.rss):""}</td><td class="muted">${esc(m.scope)}</td><td class="cmd" title="${esc(m.url||[m.command,...m.args].join(" "))}">${esc(m.url||[m.command,...m.args].join(" "))}</td></tr>`).join("")+`</tbody></table></div>`}
+
+function vSkills(){
+  const q=skillQ.toLowerCase();const it=S.skills.filter(s=>!q||(s.name+s.description+s.agent+s.kind).toLowerCase().includes(q)).sort((a,b)=>(a.agent+a.kind+a.name).localeCompare(b.agent+b.kind+b.name));
+  const counts={};S.skills.forEach(s=>counts[s.agent]=(counts[s.agent]||0)+1);
+  return `<div class="ph"><h1>Skills</h1><span class="sub">skills, commands, subagents, rules, memory</span><div class="grow"></div><input id="sq" data-static data-key="sq" placeholder="filter…" style="width:260px"></div>
+  <div class="chips" style="margin:0 0 14px">${Object.entries(counts).map(([a,n])=>`<span class="chip" style="color:${hex(a)}">${esc(a)} ${n}</span>`).join("")}</div>
+  <div class="panel"><table><thead><tr><th>agent</th><th>kind</th><th>name</th><th>scope</th><th>description</th></tr></thead><tbody>`+
+  it.map(s=>`<tr data-key="${esc(s.path)}" title="${esc(s.path)}"><td style="color:${hex(s.agent)};font-weight:600">${esc(s.agent)}</td><td class="m">${esc(s.kind)}</td><td>${esc(s.name)}</td><td class="muted">${s.scope.startsWith("project")?"project":esc(s.scope)}</td><td class="muted">${esc(s.description)}</td></tr>`).join("")+`</tbody></table>${it.length?"":`<div class="empty">Nothing matches.</div>`}</div>`}
+
+function vUsage(){
+  const ag=S.agents.filter(a=>a.usage&&a.usage.total);let h=`<div class="ph"><h1>Usage</h1><span class="sub">from each tool's local logs</span></div>`;
+  const o=S.openrouter;
+  if(o&&o.configured) h+=`<div class="panel">${o.error?`<span style="color:var(--bad)">OpenRouter: ${esc(o.error)}</span>`:`<b>OpenRouter</b> <span class="muted">${esc(o.label||"")}</span> · ${money(+o.usage||0)} used${o.limit?` of $${o.limit}`:""} · today ${money(+o.daily||0)} · week ${money(+o.weekly||0)} · month ${money(+o.monthly||0)}`}</div>`;
+  if(!ag.length) return h+`<div class="empty">No local usage logs found yet.</div>`;
+  h+=`<div class="panel"><table><thead><tr><th>agent</th><th class="r">today in</th><th class="r">today out</th><th class="r">cache</th><th class="r">7d in</th><th class="r">7d out</th><th class="r">all out</th><th class="r">msgs</th><th class="r">cost</th><th class="r">last</th></tr></thead><tbody>`+
+   ag.map(a=>{const u=a.usage,t=u.today,w=u.week,al=u.total;return `<tr data-key="u-${a.key}"><td style="color:${a.hex};font-weight:600">${esc(a.name)}</td><td class="r m">${hn(t.in)}</td><td class="r m">${hn(t.out)}</td><td class="r m">${hn(t.cache)}</td><td class="r m">${hn(w.in)}</td><td class="r m">${hn(w.out)}</td><td class="r m">${hn(al.out)}</td><td class="r m">${al.msgs}</td><td class="r m">${al.has_cost?money(al.cost):"n/a"}</td><td class="r m">${ago(u.last)}</td></tr>`}).join("")+`</tbody></table></div>`;
+  h+=`<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(400px,1fr))">`+ag.map((a,j)=>{const d=a.usage.daily,m=Math.max(...d,1);
+    return `<div class="card" style="--c:${a.hex};--i:${j};cursor:default" data-key="uc-${a.key}"><div class="ch"><span class="dot"></span><div class="n">${esc(a.name)}</div><span class="muted" style="font-size:12px">14 days · all tokens</span></div>
+    <div class="bars">${d.map((v,i)=>`<div style="--i:${i};height:${(v/m*100).toFixed(1)}%" data-t="${new Date(Date.now()-(13-i)*864e5).toLocaleDateString(undefined,{month:"short",day:"numeric"})}: ${hn(v)}"></div>`).join("")}</div>
+    <table><tbody>${a.usage.models.map(x=>`<tr><td class="m">${esc(x.model)}</td><td class="r m">${hn(x.tokens)}</td><td class="r m muted">${x.msgs} msgs</td></tr>`).join("")}</tbody></table></div>`}).join("")+`</div>`;
+  return h}
+
+function vNet(){
+  let rows=[];S.agents.forEach(a=>{a.hosts.forEach(x=>rows.push(`<tr data-key="${esc(a.key+x.host)}"><td style="color:${a.hex};font-weight:600">${esc(a.name)}</td><td>${esc(x.provider)}</td><td class="r m">${x.count}</td><td class="m">${esc(x.host)}</td></tr>`));
+    if(a.listen.length) rows.push(`<tr data-key="l-${a.key}"><td style="color:${a.hex};font-weight:600">${esc(a.name)}</td><td style="color:var(--warn)">listening</td><td></td><td class="m">${a.listen.join(", ")}</td></tr>`)});
+  let h=`<div class="ph"><h1>Network</h1><span class="sub">live connections by provider</span></div>`;
+  return h+(rows.length?`<div class="panel"><table><thead><tr><th>agent</th><th>provider</th><th class="r">conns</th><th>endpoint</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>`:`<div class="empty">No agent network activity right now.</div>`)}
+
+function vNew(){
+  return `<div class="ph"><h1>New shared document</h1><span class="sub">split it into sections, then hand each one to a different AI</span></div>
+  <div class="cols"><div class="panel" data-static data-key="newform"><div style="display:grid;gap:8px">
+    <input id="npath" placeholder="path — ~/docs/launch.md or Vault:Projects/Launch">
+    <input id="ntitle" placeholder="title">
+    <input id="nsecs" placeholder="sections — Goals, Architecture, Risks, Timeline">
+    <div class="row"><button class="btn pri" data-act="create">${ic("plus",14)} Create</button></div>
+    <h3>or open an existing file</h3>
+    <div class="row"><input id="opath" placeholder="~/notes/plan.md" style="flex:1" list="vlist"><datalist id="vlist"></datalist><button class="btn" data-act="openfile">Open</button></div>
+  </div></div><div class="panel"><h2>How it works</h2><div class="muted" style="font-size:13px;line-height:1.7">
+  Each AI gets the whole document for context and writes only its own section. Section tasks run in parallel; whole-document passes run after them.
+  Every write is backed up, so undo steps back one write at a time.<br><br>In Obsidian you can assign work from inside a note:<div class="doc" style="margin-top:8px">## Architecture\n&gt; [!ai] codex\n&gt; describe the services</div></div></div></div>`}
+
+function vDoc(path){
+  const d=docData&&docData.doc===path?docData:null;
+  const ov=(S.collab||[]).find(x=>x.doc===path)||{doc:path,tasks:[]};
+  const tasks=d?d.tasks:ov.tasks;
+  const name=path.split("/").pop();
+  let h=`<div class="ph"><h1>${esc(name.replace(/\.md$/,""))}</h1><span class="sub">${esc(path)}${d&&d.vault?" · vault "+esc(d.vault):""}</span><div class="grow"></div>
+    ${d&&d.obsidian?`<a class="btn" href="${esc(d.obsidian)}">Open in Obsidian</a>`:""}
+    <button class="btn" data-act="sync" title="turn > [!ai] callouts into tasks">${ic("wand",14)} Callouts</button>
+    <button class="btn" data-act="undo">${ic("undo",14)} Undo</button>
+    <button class="btn pri" data-act="run">${ic("play",13)} Run pending</button></div>`;
+  h+=callChips([{doc:path,tasks}]);
+  const secs=d?d.sections:[];
+  h+=`<div class="cols"><div>
+   <div class="panel" data-static data-key="assign-${esc(path)}"><h2>Assign work</h2><div style="display:grid;gap:8px">
+     <select id="asec"></select>
+     <div class="row"><select id="aag" style="flex:1">${agentsList.map(a=>`<option value="${a.key}">${esc(a.name)}${a.installed?"":" (not installed)"}</option>`).join("")}</select><input id="amodel" placeholder="model (optional)" style="flex:1"></div>
+     <textarea id="ainst" placeholder="What should this AI write?"></textarea>
+     <div class="row"><button class="btn pri" data-act="assign">Assign</button></div></div></div>
+   <div class="panel"><h2>Tasks <span class="muted" style="font-weight:400">${tasks.filter(t=>t.status==="done").length}/${tasks.length}</span></h2>
+   ${tasks.length?tasks.map(t=>{if(!seenTask.has(t.id)){seenTask.add(t.id);if(t.status==="done")quiet.add(t.id)}if(t.status!=="done")quiet.delete(t.id);return `<div class="sc ${t.status} ${quiet.has(t.id)?"quiet":""}" data-key="t-${t.id}" style="--c:${hex(t.agent)}">
+      <button class="box" data-act="${t.status==="done"?"reopen":"runone"}" data-id="${t.id}" title="${t.status==="done"?"reopen":"run now"}"><svg width="14" height="14" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
+      <div class="bd"><div class="t">${esc(t.instruction)}</div>
+      <div class="meta"><b>${esc(aname(t.agent))}</b>${t.model?`<span class="chip">${esc(t.model)}</span>`:""}<span class="muted">→ ${esc(t.section||"whole document")}</span><span class="muted">${t.status==="done"&&t.started?Math.round(t.finished-t.started)+"s":t.status==="pending"?"pending":""}</span><div class="grow"></div>
+      <span class="acts">${t.status!=="running"?`<button class="btn sm" data-act="retry" data-doc="${esc(path)}" data-id="${t.id}">${ic("retry",11)}</button><button class="btn sm" data-act="rm" data-id="${t.id}">${ic("x",11)}</button>`:""}</span></div>
+      ${t.error&&t.status==="failed"?`<div class="e">${esc(t.error)}</div>`:""}</div></div>`}).join(""):`<div class="muted">No tasks yet. Pick a section, pick an AI, describe the job.</div>`}</div>
+  </div><div class="panel"><div class="doc" id="dtext">${d?docHTML(d):"loading…"}</div></div></div>`;
+  return h}
+
+function docHTML(d){
+  const owners={};d.tasks.filter(t=>t.status==="done"&&t.section).forEach(t=>owners[t.section.toLowerCase()]=t.agent);
+  let cur=null;
+  return d.text.split("\n").map(line=>{const m=line.match(/^(#{1,6})\s+(.*?)\s*#*\s*$/);if(m){cur=owners[m[2].toLowerCase()]||null;return `<div class="ln"><span class="hd">${esc(line)}</span>${cur?` <span class="chip" style="color:${hex(cur)}">${esc(aname(cur))}</span>`:""}</div>`}
+    return `<div class="ln ${cur?"own":""}" ${cur?`style="--c:${hex(cur)}"`:""}>${esc(line)||"&nbsp;"}</div>`}).join("")}
+
+function syncSections(){
+  const s=$("#asec");if(!s||!docData)return;
+  const opts=`<option value="">⟨whole document⟩ — runs after sections</option>`+docData.sections.map(x=>`<option value="${esc(x.title)}">${"· ".repeat(Math.max(0,x.level-1))}${esc(x.title)}</option>`).join("");
+  if(s._o!==opts){const k=s.value;s.innerHTML=opts;s._o=opts;s.value=k}}
+
+function render(){
+  if(!S){$("#main").innerHTML=`<div class="empty">collecting…</div>`;return}
+  const sy=S.system;
+  morph($("#sys"),`<div class="row" style="justify-content:space-between"><span>${esc(S.host)}</span><span>${(S.agents||[]).filter(a=>a.running).length} live</span></div>
+   <div class="row" style="justify-content:space-between"><span>cpu</span><span>${sy.cpu.toFixed(0)}%</span></div><div class="meter"><i style="width:${Math.min(100,sy.cpu)}%"></i></div>
+   <div class="row" style="justify-content:space-between"><span>ram</span><span>${hb(sy.mem_used)} / ${hb(sy.mem_total)}</span></div><div class="meter"><i style="width:${(sy.mem_used/sy.mem_total*100).toFixed(1)}%"></i></div>`);
+  $("#ver").textContent="v"+S.version;
+  renderNav();
+  let html;
+  if(view==="overview") html=vOverview();
+  else if(view.startsWith("agent:")) html=vAgent(view.slice(6));
+  else if(view==="mcp") html=vMCP();
+  else if(view==="skills") html=vSkills();
+  else if(view==="usage") html=vUsage();
+  else if(view==="network") html=vNet();
+  else if(view==="new") html=vNew();
+  else if(view==="local") html=vLocal();
+  else if(view.startsWith("watch:")) html=vWatch();
+  else if(view.startsWith("doc:")) html=vDoc(view.slice(4));
+  else html=vOverview();
+  const main=$("#main");
+  if(main._v!==view){main.innerHTML=html;main._v=view;bindView()}else morph(main,html);
+  syncSections();syncLocal();
+}
+
+function bindView(){
+  const sq=$("#sq");if(sq){sq.value=skillQ;sq.oninput=()=>{skillQ=sq.value;render()}}
+  if(view==="new"){fetch("/api/collab").then(r=>r.json()).then(l=>{const v=$("#vlist");if(v)v.innerHTML=(l.vaults||[]).map(x=>`<option value="${esc(x.name)}:">${esc(x.path)}</option>`).join("")})}
+  if(view.startsWith("doc:")) loadDoc();
+  if(view.startsWith("watch:")){W={key:view,data:null,pick:null,prev:null,pvOrigin:null,pvPort:null,focusKey:null,sel:null};loadWatch()}
+}
+
+function go(v){view=v;localSet("view",v);docData=null;history.replaceState(null,"","#"+encodeURIComponent(v));render();scrollTo(0,0)}
+
+async function loadDoc(){
+  if(!view.startsWith("doc:"))return;
+  const path=view.slice(4);
+  const r=await fetch("/api/collab?doc="+encodeURIComponent(path));
+  if(!r.ok){toast("Document not found");return}
+  docData=await r.json();
+  if(view==="doc:"+path) render()}
+
+document.addEventListener("click",async e=>{
+  const el=e.target.closest("[data-act]");if(!el)return;
+  const act=el.dataset.act,doc=view.startsWith("doc:")?view.slice(4):null;
+  try{
+    if(act==="go") return go(el.dataset.v);
+    if(act==="fold"){const g=el.dataset.g;open.has(g)?open.delete(g):open.add(g);localSet("open",JSON.stringify([...open]));return renderNav()}
+    if(act==="kill"){if(!confirm("Send SIGTERM to "+el.dataset.pid+"?"))return;await post("/api/kill",{pid:+el.dataset.pid});return toast("Signal sent")}
+    if(act==="create"){const r=await post("/api/collab/new",{doc:$("#npath").value,title:$("#ntitle").value,sections:$("#nsecs").value.split(",")});await refresh();return go("doc:"+r.doc)}
+    if(act==="openfile"){const r=await post("/api/collab/open",{doc:$("#opath").value});await refresh();return go("doc:"+r.doc)}
+    if(act==="assign"){const inst=$("#ainst").value.trim();if(!inst)return toast("Write an instruction");
+      await post("/api/collab/assign",{doc,section:$("#asec").value,agent:$("#aag").value,model:$("#amodel").value,instruction:inst});$("#ainst").value="";toast("Assigned");return loadDoc()}
+    if(act==="run"){await post("/api/collab/run",{doc});toast("Agents are writing…");return setTimeout(loadDoc,300)}
+    if(act==="runone"){await post("/api/collab/reset",{doc,id:el.dataset.id});await post("/api/collab/run",{doc,ids:[el.dataset.id]});return setTimeout(loadDoc,300)}
+    if(act==="retry"){const d=el.dataset.doc||doc;await post("/api/collab/reset",{doc:d,id:el.dataset.id});await post("/api/collab/run",{doc:d,ids:[el.dataset.id]});toast("Retrying");return setTimeout(loadDoc,300)}
+    if(act==="reopen"){await post("/api/collab/reset",{doc,id:el.dataset.id});return loadDoc()}
+    if(act==="rm"){await post("/api/collab/remove",{doc,id:el.dataset.id});return loadDoc()}
+    if(act==="undo"){const r=await post("/api/collab/undo",{doc});toast(r.ok?"Restored previous version":"Nothing to undo");return loadDoc()}
+    if(act==="watch") return go("watch:"+el.dataset.agent+":"+el.dataset.cwd);
+    if(act==="wpick"){W.pick=+el.dataset.i;W.focusKey=null;return loadWatch()}
+    if(act==="wlatest"){W.pick=null;W.focusKey=null;return loadWatch()}
+    if(act==="line"){const n=+el.dataset.n;const s0=e.shiftKey&&W.sel?Math.min(W.sel[0],n):n,s1=e.shiftKey&&W.sel?Math.max(W.sel[1],n):n;return openCodeBubble(s0,s1,el)}
+    if(act==="csend"){const text=$("#cbubt").value.trim();if(!text)return;const {agent:ag,cwd}=watchParts();const f=W.data&&W.data.focus;
+      const it=await post("/api/feedback",{agent:ag,cwd,text,target:{file:f&&f.rel,lines:W.sel}});$("#cbubt").value="";$("#cbub").classList.remove("on");W.sel=null;return fbToast(it)}
+    if(act==="say"){const text=$("#say").value.trim();if(!text)return;const {agent:ag,cwd}=watchParts();const it=await post("/api/feedback",{agent:ag,cwd,text});$("#say").value="";return fbToast(it)}
+    if(act==="hooks"){if(!confirm("Add nyrasview hooks to ~/.claude/settings.json? A backup is saved first. Already-running Claude sessions need a restart to pick it up."))return;await post("/api/hooks/install",{});toast("Live feedback enabled");return loadWatch()}
+    if(act==="handoff"){const sel=el.dataset.pick?document.querySelector(`[data-hsel="${el.dataset.pick}"]`):null;const to=sel?sel.value:el.dataset.to;
+      if(!confirm(`Write .nyrasview/HANDOFF.md in ${el.dataset.cwd} and open ${to} with it?`))return;
+      const r=await post("/api/handoff",{agent:el.dataset.agent,cwd:el.dataset.cwd,to});return toast(`Handed off to ${r.to} · opened in ${r.terminal}`)}
+    if(act==="lask"){const pr=$("#lprompt").value.trim();if(!pr)return;const out=$("#lreply");out.innerHTML=`<span class="muted typing">thinking</span>`;$("#lmeta").textContent="";
+      const t0=performance.now();const r=await post("/api/local/chat",{server:$("#lsrv").value,model:$("#lmod").value,prompt:pr});
+      $("#lmeta").textContent=r.model+" · "+((performance.now()-t0)/1000).toFixed(1)+"s";out.textContent="";out.classList.add("typing");
+      let i=0;const step=Math.max(1,Math.ceil(r.text.length/90));(function type(){i+=step;out.textContent=r.text.slice(0,i);if(i<r.text.length)requestAnimationFrame(type);else out.classList.remove("typing")})();return}
+    if(act==="sync"){const r=await post("/api/collab/sync",{doc,run:true});toast(r.tasks.length?r.tasks.length+" callout task(s) running":"No [!ai] callouts in this note");return setTimeout(loadDoc,300)}
+  }catch(err){toast(err.message)}
+});
+
+function tick(){
+  const now=Date.now()/1000;
+  document.querySelectorAll(".cc .tm").forEach(t=>{const t0=+t.dataset.t0,t1=+t.dataset.t1||now;t.textContent=Math.max(0,t1-t0).toFixed(1)+"s"});
+  document.querySelectorAll(".cc .pg").forEach(p=>{if(p.dataset.st!=="running")return;const el=(now-+p.dataset.started)*1000,exp=+p.dataset.exp;const f=1-Math.exp(-el/exp*1.6);p.style.width=(f*96).toFixed(2)+"%"});
+  requestAnimationFrame(tick)}
+
+async function refresh(){try{S=await (await fetch("/api/snapshot")).json();paint(S.agents)}catch(e){}}
+async function poll(){await refresh();render();if(view.startsWith("doc:"))loadDoc();if(view.startsWith("watch:"))loadWatch();setTimeout(poll,1500)}
+
+{const h=decodeURIComponent(location.hash.slice(1));if(h)view=h}
+fetch("/api/agents").then(r=>r.json()).then(l=>{agentsList=l;paint(agentsList);if(view.startsWith("doc:")){$("#main")._v=null;render()}});
+render();bindView();
+requestAnimationFrame(tick);
+setTimeout(poll,1500);
+</script>
+</body>
+</html>
