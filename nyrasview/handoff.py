@@ -223,7 +223,8 @@ def _cut(s, n):
 
 def build(agent, cwd, to, ctx):
     src = BY_KEY[agent].name if agent in BY_KEY else agent
-    dst = BY_KEY[to].name if to in BY_KEY else to
+    from . import fallback
+    dst = fallback.label(to)
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     rel = lambda p: os.path.relpath(p, cwd) if os.path.isabs(p) and p.startswith(cwd) else p.replace(str(HOME), "~")
     L = [f"# Handoff: {src} → {dst}", ""]
@@ -298,14 +299,16 @@ def write(cwd, text):
 
 
 def targets(exclude=None):
+    from . import fallback
     chain = config().get("handoff", {}).get("chain") or CHAIN
-    out = []
+    out = fallback.available(exclude) if exclude else []
     for k in chain:
         if k == exclude or k not in BY_KEY:
             continue
         cmd = interactive(k)
         if cmd and plat.which(cmd[0]):
             out.append(k)
+    out += [t for t in fallback.available() if t not in out and fallback.TARGETS[t]["base"] != exclude]
     return out
 
 
@@ -314,14 +317,21 @@ def interactive(key):
     return list(over) if over else list(INTERACTIVE.get(key, []))
 
 
-def kickoff(src):
+def kickoff(src, to=None):
+    from . import fallback
     name = BY_KEY[src].name if src in BY_KEY else src
+    if to in fallback.TARGETS and fallback.TARGETS[to]["base"] == src:
+        return ("You hit the subscription usage limit, so this session now runs on an API key. Continue exactly where you "
+                "left off. .nyrasview/HANDOFF.md has a summary of the task and the changes so far if you need it.")
     return (f"{name} stopped mid-task and you are taking over. Read .nyrasview/HANDOFF.md in this folder: "
             "it has what I asked for, what was already done, the files that changed and the current diff. "
             "Then continue the work from where it stopped.")
 
 
 def command(to, src):
+    from . import fallback
+    if to in fallback.TARGETS:
+        return fallback.command(to, kickoff(src, to)), True
     cmd = interactive(to)
     if not cmd:
         raise RuntimeError(f"no interactive command known for {to}")
@@ -331,9 +341,9 @@ def command(to, src):
     return cmd, False
 
 
-def terminal(cwd, cmd):
+def terminal(cwd, cmd, env=None):
     pref = os.environ.get("NYRA_TERMINAL") or config().get("handoff", {}).get("terminal") or os.environ.get("TERMINAL")
-    return plat.terminal(cwd, cmd, pref)
+    return plat.terminal(cwd, cmd, pref, env)
 
 
 def notify(title, body):
@@ -354,14 +364,17 @@ def prepare(agent, cwd, to=None):
 
 
 def launch(h, where="terminal"):
+    from . import fallback
     cmd, embedded = command(h["to"], h["from"])
+    extra = fallback.env_for(h["to"]) if h["to"] in fallback.TARGETS else {}
     if where == "here":
         os.chdir(h["cwd"])
+        os.environ.update(extra)
         if plat.WIN:
             import sys
             sys.exit(subprocess.call(plat.resolve(cmd)))
         os.execvp(cmd[0], cmd)
-    used = terminal(h["cwd"], cmd)
+    used = terminal(h["cwd"], cmd, extra or None)
     return {"terminal": used, "embedded": embedded, "cmd": cmd}
 
 
@@ -387,7 +400,8 @@ def relay(agents=("claude", "codex"), interval=10.0, auto=True, on_event=None):
             try:
                 h = prepare(key, cwd)
                 src = BY_KEY[key].name
-                dst = BY_KEY[h["to"]].name
+                from . import fallback
+                dst = fallback.label(h["to"])
                 notify(f"{src} hit its limit", f"Handing {os.path.basename(cwd)} to {dst}")
                 res = launch(h) if auto else None
                 if on_event:

@@ -274,7 +274,8 @@ def cmd_handoff(a):
     h = handoff.prepare(src, cwd, a.to)
     ctx = h["ctx"]
     lim = ctx.get("limit")
-    print(f"{col(BY_KEY[src].hex, BY_KEY[src].name)} → {col(BY_KEY[h['to']].hex, BY_KEY[h['to']].name)}  "
+    from . import fallback
+    print(f"{col(BY_KEY[src].hex, BY_KEY[src].name)} → {col(fallback.color(h['to']), fallback.label(h['to']))}  "
           + dim(f"{len(ctx['prompts'])} prompts · {len(ctx['edits'])} files changed · {len(ctx['commands'])} commands"))
     if lim:
         print(col("#f87171", f"limit: {lim['message']}") + (dim(f"  resets {lim['reset']}") if lim.get("reset") else ""))
@@ -283,20 +284,21 @@ def cmd_handoff(a):
         return
     if a.window:
         r = handoff.launch(h, "terminal")
-        print(dim(f"opened {BY_KEY[h['to']].name} in {r['terminal']}"))
+        print(dim(f"opened {fallback.label(h['to'])} in {r['terminal']}"))
     else:
         handoff.launch(h, "here")
 
 
 def cmd_relay(a):
     from . import handoff
+    from . import fallback
     ts = handoff.targets()
     print(f"relay on · watching Claude Code and Codex for usage limits · next in line: " +
-          (", ".join(BY_KEY[k].name for k in ts) or col("#f87171", "nothing installed")))
+          (", ".join(fallback.label(k) for k in ts) or col("#f87171", "nothing installed")))
 
     def ev(kind, d):
         if kind == "handoff":
-            print(f"⇢ {BY_KEY[d['from']].name} hit its limit in {d['cwd']} → {BY_KEY[d['to']].name}  " + dim(d["path"]), flush=True)
+            print(f"⇢ {BY_KEY[d['from']].name} hit its limit in {d['cwd']} → {fallback.label(d['to'])}  " + dim(d["path"]), flush=True)
         else:
             print(col("#f87171", f"✗ {d['from']} in {d['cwd']}: {d['error']}"), flush=True)
     handoff.relay(interval=a.interval, auto=not a.no_launch, on_event=ev)
@@ -354,6 +356,15 @@ def cmd_ask(a):
                         print(tag + col("#f87171", "  ✗ " + (e.get("out") or "")[:160]), flush=True)
                 seen[m["id"]] = len(v["events"])
                 if v["status"] == "running":
+                    busy = True
+                elif v.get("retried_as") is None and v["status"] == "failed":
+                    time.sleep(0.3)
+                    v = runs.view(m["id"])
+                if v.get("retried_as") and v["retried_as"] not in seen:
+                    print(col("#f59e0b", f"{g.name} hit its plan limit · retrying on your API key (run {v['retried_as']})"), flush=True)
+                    nm = runs.load(v["retried_as"])
+                    started.append(nm)
+                    seen[nm["id"]] = 0
                     busy = True
                 elif not v.get("_shown"):
                     pass
@@ -468,6 +479,41 @@ def cmd_daemon(a):
 def cmd_service(a):
     from . import plat
     print(plat.autostart(a.service_cmd == "install", ["daemon"] + (["--relay"] if a.relay else [])))
+
+
+def cmd_plan(a):
+    from . import planner
+    who = planner.pick()
+    if a.planner:
+        ag, _, model = a.planner.partition(":")
+        who = {"agent": ag, "model": model or None, "where": "chosen", "size": None}
+    print(dim("planner: ") + col(BY_KEY[who["agent"]].hex if who["agent"] in BY_KEY else None, BY_KEY[who["agent"]].name if who["agent"] in BY_KEY else who["agent"])
+          + (f" · {who['model']}" if who.get("model") else "") + dim(f"  ({who['where']})"), flush=True)
+    if a.dry:
+        print(dim("workers: ") + ", ".join(planner.workers()))
+        return
+    r = planner.make(a.goal, a.doc, a.sections, who, not a.no_review)
+    print(f"\n{col('#e879f9', r['plan']['title'])}  " + dim(r["doc"]))
+    for t in r["tasks"]:
+        g = BY_KEY.get(t["agent"])
+        print(f"  {col(g.hex if g else None, (g.name if g else t['agent']).ljust(13))} → {(t['section'] or 'whole document (review)')}: " + dim(t["instruction"][:110]))
+    if a.run:
+        print()
+        a.collab_cmd, a.doc, a.only, a.parallel, a.rerun, a.reset = "run", r["doc"], None, 4, False, False
+        return cmd_collab(a)
+    print(dim(f"\nedit anything you like, then:  nyrasview collab run \"{r['doc']}\"   (or open it in the GUI)"))
+
+
+def cmd_keys(a):
+    from . import fallback
+    if a.provider:
+        val = a.value if a.value is not None else __import__("getpass").getpass(f"{fallback.PROVIDERS[a.provider]['name']} API key (empty to remove): ")
+        fallback.save(a.provider, val)
+    for s in fallback.status():
+        st = col("#22c55e", "connected") + dim(f" ({s['source']}, {s['hint']})") if s["connected"] else dim("not connected")
+        print(f"{s['name']:<11} {st}  " + dim(f"→ {s['for']}"))
+    print(dim("\nconnect:  nyrasview keys anthropic   (prompts for the key; stored in your config file, readable only by you)"))
+    print(dim("with a key, relay continues the same Claude Code / Codex session on API billing when the plan limit hits"))
 
 
 def money(c):
@@ -661,6 +707,17 @@ def main():
     x.add_argument("-j", "--parallel", type=int, default=4)
     sp.add_parser("obsidian", help="list Obsidian vaults")
     sp.add_parser("now", help="what each running agent is working on")
+    x = sp.add_parser("keys", help="connect API keys to keep working when plan limits run out")
+    x.add_argument("provider", nargs="?", choices=["anthropic", "openai", "openrouter"])
+    x.add_argument("value", nargs="?")
+    x = sp.add_parser("plan", help="let the cheapest model split a goal into tasks for your agents")
+    x.add_argument("goal")
+    x.add_argument("-o", "--doc", help="where to write the plan (default: ./<title>.md)")
+    x.add_argument("-n", "--sections", type=int)
+    x.add_argument("--planner", help="force a planner, e.g. ollama:qwen2.5:1.5b or claude:haiku")
+    x.add_argument("--run", action="store_true", help="start the agents right away")
+    x.add_argument("--no-review", action="store_true")
+    x.add_argument("--dry", action="store_true", help="only show which planner and workers would be used")
     x = sp.add_parser("limits", help="usage limit gauges and forecast")
     x.add_argument("--json", action="store_true")
     x = sp.add_parser("inbox", help="recent alerts")
@@ -706,7 +763,7 @@ def main():
     x.add_argument("-m", "--model")
     a = ap.parse_args()
     fn = {"tui": cmd_tui, "gui": cmd_gui, "status": cmd_status, "ps": cmd_ps, "mcp": cmd_mcp,
-          "skills": cmd_skills, "usage": cmd_usage, "agents": cmd_agents, "collab": cmd_collab, "obsidian": cmd_obsidian, "now": cmd_now, "limits": cmd_limits, "inbox": cmd_events, "notify-test": cmd_notify_test,
+          "skills": cmd_skills, "usage": cmd_usage, "agents": cmd_agents, "collab": cmd_collab, "obsidian": cmd_obsidian, "now": cmd_now, "keys": cmd_keys, "plan": cmd_plan, "limits": cmd_limits, "inbox": cmd_events, "notify-test": cmd_notify_test,
           "daemon": cmd_daemon, "service": cmd_service, "ask": cmd_ask, "runs": cmd_runs, "hook": cmd_hook, "hooks": cmd_hooks, "say": cmd_say, "handoff": cmd_handoff, "relay": cmd_relay, "local": cmd_local,
           None: cmd_tui}[a.cmd]
     if a.relay and a.cmd in (None, "tui", "gui"):

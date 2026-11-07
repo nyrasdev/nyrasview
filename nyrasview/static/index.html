@@ -485,7 +485,7 @@ function vPrompt(){
     <div class="agc" id="pag"></div>
     <div class="row"><input id="pcwd" list="pdirs" placeholder="folder (default: home)" style="flex:1;min-width:220px"><datalist id="pdirs"></datalist>
       <div class="seg2" id="pmode">${["ask","edit","auto"].map(m=>`<button data-act="pmode" data-m="${m}" class="${m}">${m[0].toUpperCase()+m.slice(1)}</button>`).join("")}</div>
-      <input id="pmodel" placeholder="model (optional)" style="width:160px"></div>
+      <input id="pmodel" placeholder="model (optional)" style="width:160px"><label id="papi" class="muted" style="font-size:12.5px;display:none;gap:6px;align-items:center" title="bill this run to your connected API key instead of the plan"><input type="checkbox" id="papic"> on API key</label></div>
     <div class="row" style="margin-top:10px"><span class="muted" id="pdesc" style="font-size:12px;flex:1"></span>
       <span id="plive"></span><button class="btn" data-act="pterm" title="open the first selected agent in a terminal with this prompt">${ic("term",14)} Terminal</button><button class="btn pri" data-act="prun">${ic("play",13)} Run</button></div></div>`;
   h+=`<div class="hd2" style="display:flex;align-items:baseline;gap:8px;margin:6px 0 10px"><h2 style="margin:0">Recent</h2><span class="muted" style="font-size:12px">${RUNS.length}</span></div>`;
@@ -504,6 +504,7 @@ function syncComposer(){
   const html=list.map(a=>{const ok=okk.has(a.key);return `<button data-act="pag" data-k="${a.key}" class="${P.agents.includes(a.key)?"on":""} ${ok?"":"na"}" style="--c:${colorOf(a.key)}" title="${ok?"":"not installed / not running"}"><i></i>${esc(a.name)}</button>`}).join("")+(hidden||P.more?`<button data-act="pmore" style="--c:var(--dim)">${P.more?"fewer":"+"+hidden+" more"}</button>`:"");
   if(box._h!==html){box.innerHTML=html;box._h=html}
   document.querySelectorAll("#pmode button").forEach(b=>b.classList.toggle("on",b.dataset.m===P.mode));
+  const pa=$("#papi");if(pa){const can=P.agents.some(k=>(k==="claude"&&KEYS.some(x=>x.provider==="anthropic"&&x.connected))||(k==="codex"&&KEYS.some(x=>x.provider==="openai"&&x.connected))||(k==="opencode"&&KEYS.some(x=>x.provider==="openrouter"&&x.connected)));pa.style.display=can?"flex":"none"}
   const d=$("#pdesc");if(d)d.textContent=(P.agents.length>1?`Compare · ${P.agents.length} agents in parallel · `:"")+MODEDESC[P.mode];
   const dl=$("#pdirs");if(dl){const o=knownDirs().map(x=>`<option value="${esc(x)}">`).join("");if(dl._h!==o){dl.innerHTML=o;dl._h=o}}
   const cw=$("#pcwd");if(cw&&!cw._init){cw.value=P.cwd;cw._init=1;cw.oninput=()=>{P.cwd=cw.value;saveP()}}
@@ -543,6 +544,7 @@ function vRun(id){
   h+=`<div class="tcols">`+ids.map(x=>{const r=RUNV[x];const c=colorOf(r.agent);
     return `<div class="tr" data-key="col-${x}" style="--c:${c}"><div class="th"><span class="dot ${r.status==="running"?"live":""}" style="--c:${c}"></span><b>${esc(aname(r.agent))}</b>${r.model?`<span class="chip">${esc(r.model)}</span>`:""}<div class="grow"></div><span class="muted" style="font-size:12px">${r.status==="running"?(r.elapsed).toFixed(0)+"s":esc(r.status)}</span>${r.cwd&&(r.agent==="claude"||r.agent==="codex")?`<button class="btn sm" data-act="watch" data-agent="${r.agent}" data-cwd="${esc(r.cwd)}">👁</button>`:""}</div>
       <div class="tb" id="tb-${x}">${transcript(r)}</div>
+      ${r.retried_as?`<div class="fu"><span class="muted" style="font-size:12.5px;flex:1">Hit the plan limit · retried on your API key</span><button class="btn sm" data-act="go" data-v="run:${r.retried_as}">Open retry →</button></div>`:""}
       ${r.status!=="running"?`<div class="fu" data-static data-key="fu-${x}"><textarea id="fu-${x}" placeholder="Follow up with ${esc(aname(r.agent))}…"></textarea><button class="btn pri sm" data-act="pfollow" data-id="${x}">Send</button></div>`:""}</div>`}).join("")+`</div>`;
   return h}
 
@@ -556,7 +558,7 @@ function navModel(){
   return [
     {id:"agents",label:"Agents",items:[{v:"overview",label:"Overview",icon:"grid",badge:ag.filter(a=>a.running).length+" live"},
       ...ag.map(a=>({v:"agent:"+a.key,label:a.name,dot:a.hex,live:a.running,badge:a.running?a.cpu.toFixed(0)+"%":""}))]},
-    {id:"toolbox",label:"Toolbox",items:[{v:"mcp",label:"MCP servers",icon:"plug",badge:(S.mcp||[]).length||""},{v:"skills",label:"Skills",icon:"spark",badge:(S.skills||[]).length||""}]},
+    {id:"toolbox",label:"Toolbox",items:[{v:"mcp",label:"MCP servers",icon:"plug",badge:(S.mcp||[]).length||""},{v:"skills",label:"Skills",icon:"spark",badge:(S.skills||[]).length||""},{v:"keys",label:"API keys",icon:"plug",badge:KEYS.filter(k=>k.connected).length?KEYS.filter(k=>k.connected).length+" on":""}]},
     {id:"insights",label:"Insights",items:[{v:"usage",label:"Usage",icon:"chart"},{v:"network",label:"Network",icon:"globe"},{v:"local",label:"Local AI",icon:"chip",badge:(S.local||[]).filter(x=>x.up).length?(S.local||[]).filter(x=>x.up).length+" up":""}]},
     {id:"prompt",label:"Prompts",items:[{v:"prompt",label:"New prompt",icon:"wand"},...(()=>{const out=[],sg={};RUNS.forEach(r=>{if(r.group){if(sg[r.group])return;sg[r.group]=1}out.push(r)});return out.slice(0,5)})().map(r=>({v:"run:"+r.id,label:r.prompt,dot:colorOf(r.agent),live:r.status==="running",badge:r.status==="running"?"…":r.status==="failed"?"✗":""}))]},
     {id:"collab",label:"Collab",items:[...(S.collab||[]).map(d=>{const run=d.tasks.filter(t=>t.status==="running").length;return {v:"doc:"+d.doc,label:d.name.replace(/\.md$/,""),icon:"doc",badge:run?"✎ "+run:d.tasks.length?d.tasks.filter(t=>t.status==="done").length+"/"+d.tasks.length:""}}),{v:"new",label:"New document",icon:"plus"}]},
@@ -835,7 +837,17 @@ function vAgent(k){
   if(u.models&&u.models.length) h+=`<div class="panel"><h2>Models</h2><table><tbody>${u.models.map(m=>`<tr><td class="m">${esc(m.model)}</td><td class="r m">${hn(m.tokens)} tok</td><td class="r m muted">${m.msgs} msgs</td></tr>`).join("")}</tbody></table></div>`;
   return h}
 
-let MX=null,MSEL=null;
+let MX=null,MSEL=null,KEYS=[];
+async function loadKeys(){try{KEYS=await (await fetch("/api/keys")).json()}catch(e){}}
+loadKeys();
+function vKeys(){
+  let h=`<div class="ph"><h1>API keys</h1><span class="sub">keep working when a plan's limit runs out</span></div>
+  <div class="panel"><div class="muted" style="font-size:13px;line-height:1.7">With a key connected, <b>relay</b> continues the <i>same</i> Claude Code or Codex session on API billing the moment the plan limit hits (<code>claude --continue</code>), and prompt runs that fail on a limit retry on the key automatically. Keys are stored in your nyrasview config file, readable only by you, and are only ever sent to their own provider.</div></div>`;
+  h+=`<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(320px,1fr))">`+KEYS.map((k,i)=>`<div class="panel" style="margin:0" data-static data-key="key-${k.provider}-${k.connected}">
+    <div class="row" style="margin-bottom:6px"><b style="font-size:15px">${esc(k.name)}</b><span class="pill ${k.connected?"live":""}">${k.connected?"connected":"not connected"}</span><div class="grow"></div><a class="muted" style="font-size:12px" href="${esc(k.url)}" target="_blank" rel="noopener">get a key ↗</a></div>
+    <div class="muted" style="font-size:12.5px;margin-bottom:10px">for ${esc(k.for)}${k.connected?` · ${esc(k.hint||"")} · from ${k.source==="env"?"$"+esc(k.env):"config"}`:""}</div>
+    ${k.source==="env"?`<div class="muted" style="font-size:12px">Set by the ${esc(k.env)} environment variable.</div>`:`<div class="row"><input type="password" id="key-${k.provider}" placeholder="${k.connected?"replace key…":"paste key…"}" style="flex:1" autocomplete="off"><button class="btn pri sm" data-act="keysave" data-p="${k.provider}">Save</button>${k.connected?`<button class="btn sm" data-act="keyrm" data-p="${k.provider}">Remove</button>`:""}</div>`}</div>`).join("")+`</div>`;
+  return h}
 async function loadMX(){try{MX=await (await fetch("/api/mcp/matrix")).json();if(!MSEL)MSEL=MX.targets.filter(t=>t.installed).map(t=>t.key)}catch(e){}if(view==="mcp")render()}
 function vMCP(){
   let h=`<div class="ph"><h1>MCP servers</h1><span class="sub">add once, switch on for any agent</span></div>`;
@@ -900,7 +912,11 @@ function vNet(){
   return h+(rows.length?`<div class="panel"><table><thead><tr><th>agent</th><th>provider</th><th class="r">conns</th><th>endpoint</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>`:`<div class="empty">No agent network activity right now.</div>`)}
 
 function vNew(){
-  return `<div class="ph"><h1>New shared document</h1><span class="sub">split it into sections, then hand each one to a different AI</span></div>
+  return `<div class="ph"><h1>New shared document</h1><span class="sub">describe a goal and let a planner split it, or set up the sections yourself</span></div>
+  <div class="panel" data-static data-key="planform"><h2>✦ Plan it for me</h2>
+    <textarea id="pgoal" placeholder="e.g. a launch plan for the v2 pricing page, or the design for a Next.js todo app with auth"></textarea>
+    <div class="row" style="margin-top:8px"><input id="pdoc" placeholder="save as (optional), e.g. ~/notes/todo-app.md or Vault:Projects/Todo" style="flex:1"><label class="muted" style="font-size:12.5px;display:flex;gap:6px;align-items:center"><input type="checkbox" id="prunnow"> start agents right away</label><button class="btn pri" data-act="plan">Plan</button></div>
+    <div class="muted" id="pwho" style="font-size:12px;margin-top:8px"></div></div>
   <div class="cols"><div class="panel" data-static data-key="newform"><div style="display:grid;gap:8px">
     <input id="npath" placeholder="path — ~/docs/launch.md or Vault:Projects/Launch">
     <input id="ntitle" placeholder="title">
@@ -968,6 +984,7 @@ function render(){
   else if(view==="network") html=vNet();
   else if(view==="new") html=vNew();
   else if(view==="local") html=vLocal();
+  else if(view==="keys") html=vKeys();
   else if(view.startsWith("watch:")) html=vWatch();
   else if(view==="prompt") html=vPrompt();
   else if(view.startsWith("run:")) html=vRun(view.slice(4));
@@ -981,9 +998,11 @@ function render(){
 
 function bindView(){
   const sq=$("#sq");if(sq){sq.value=skillQ;sq.oninput=()=>{skillQ=sq.value;render()}}
+  if(view==="new"){fetch("/api/planner").then(r=>r.json()).then(d=>{const el=$("#pwho");if(!el)return;el.innerHTML=d.error?esc(d.error):`planner: <b>${esc(aname(d.pick.agent))}${d.pick.model?" · "+esc(d.pick.model):""}</b> (${esc(d.pick.where)}) · workers: ${d.workers.map(k=>esc(aname(k))).join(", ")}`})}
   if(view==="new"){fetch("/api/collab").then(r=>r.json()).then(l=>{const v=$("#vlist");if(v)v.innerHTML=(l.vaults||[]).map(x=>`<option value="${esc(x.name)}:">${esc(x.path)}</option>`).join("")})}
   if(view.startsWith("doc:")) loadDoc();
   if(view==="mcp")loadMX();
+  if(view==="keys")loadKeys().then(()=>{$("#view")._v=null;render()});
   if(view==="prompt"){loadRuns().then(render);setTimeout(()=>{const q=$("#pq");if(q)q.focus()},30)}
   if(view.startsWith("run:"))loadRun(view.slice(4));
   if(view.startsWith("watch:")){W={key:view,data:null,pick:null,prev:null,pvOrigin:null,pvPort:null,focusKey:null,sel:null};loadWatch()}
@@ -1006,6 +1025,9 @@ document.addEventListener("click",async e=>{
     if(act==="go") return go(el.dataset.v);
     if(act==="fold"){const g=el.dataset.g;open.has(g)?open.delete(g):open.add(g);localSet("open",JSON.stringify([...open]));return renderNav()}
     if(act==="kill"){if(!confirm("Send SIGTERM to "+el.dataset.pid+"?"))return;await post("/api/kill",{pid:+el.dataset.pid});return toast("Signal sent")}
+    if(act==="plan"){const goal=$("#pgoal").value.trim();if(!goal)return toast("Describe the goal first");el.disabled=true;el.textContent="Planning…";
+      try{const r=await post("/api/plan",{goal,doc:$("#pdoc").value.trim(),run:$("#prunnow").checked});toast(`${r.title}: ${r.tasks} tasks, planned by ${aname(r.planner.agent)}${r.planner.model?" · "+r.planner.model:""}`);await refresh();return go("doc:"+r.doc)}
+      finally{el.disabled=false;el.textContent="Plan"}}
     if(act==="create"){const r=await post("/api/collab/new",{doc:$("#npath").value,title:$("#ntitle").value,sections:$("#nsecs").value.split(",")});await refresh();return go("doc:"+r.doc)}
     if(act==="openfile"){const r=await post("/api/collab/open",{doc:$("#opath").value});await refresh();return go("doc:"+r.doc)}
     if(act==="assign"){const inst=$("#ainst").value.trim();if(!inst)return toast("Write an instruction");
@@ -1032,13 +1054,15 @@ document.addEventListener("click",async e=>{
     if(act==="mall"){const r=await post("/api/mcp/copy",{name:el.dataset.name,from:el.dataset.src,agents:el.dataset.to.split(",")});toast(`Added ${el.dataset.name} to ${r.done.length} agents`);return loadMX()}
     if(act==="mrm"){if(!confirm(`Remove ${el.dataset.name} from every agent?`))return;await post("/api/mcp/remove",{name:el.dataset.name,agents:el.dataset.ags.split(",")});toast("Removed");return loadMX()}
     if(act==="mrowtest"){const out=$("#mrowres");out.innerHTML=`<span class="muted typing">testing ${esc(el.dataset.name)}</span>`;const r=await post("/api/mcp/test",{name:el.dataset.name,from:el.dataset.src});return showTest(out,r,el.dataset.name)}
+    if(act==="keysave"||act==="keyrm"){const pr=el.dataset.p;const v=act==="keyrm"?"":($("#key-"+pr).value||"").trim();if(act==="keysave"&&!v)return toast("Paste a key first");
+      if(act==="keyrm"&&!confirm("Remove this key from nyrasview's config?"))return;const r=await post("/api/keys",{provider:pr,key:v});KEYS=r.status;toast(act==="keyrm"?"Key removed":"Key saved");$("#view")._v=null;return render()}
     if(act==="calib"){const r=await post("/api/runs",{agents:["claude"],prompt:"Reply with just: ok",cwd:"~",mode:"ask",model:"haiku"});toast("Calibrating… the gauge fills in a few seconds");return}
     if(act==="bnotify"){const p=await Notification.requestPermission();if(p==="granted"){localSet("bnotify","1");toast("Browser alerts on")}else toast("Browser blocked notifications");return render()}
     if(act==="pmore"){P.more=!P.more;return syncComposer()}
     if(act==="pmode"){P.mode=el.dataset.m;saveP();return syncComposer()}
     if(act==="prun"){const prompt=$("#pq").value.trim();if(!prompt)return toast("Write a prompt first");if(!P.agents.length)return toast("Pick at least one agent");
       if(P.mode==="auto"&&!confirm("Auto mode lets the agent run commands and change files without asking. Continue?"))return;
-      const r=await post("/api/runs",{agents:P.agents,prompt,cwd:$("#pcwd").value.trim()||"~",mode:P.mode,model:$("#pmodel").value.trim()});
+      const r=await post("/api/runs",{agents:P.agents,prompt,cwd:$("#pcwd").value.trim()||"~",mode:P.mode,model:$("#pmodel").value.trim(),api:!!($("#papic")&&$("#papic").checked&&$("#papi").style.display!=="none")});
       const bad=r.runs.filter(x=>x.status==="failed");if(bad.length)toast(bad.map(x=>aname(x.agent)+": "+x.error).join(" · "));
       $("#pq").value="";await loadRuns();return go("run:"+r.runs[0].id)}
     if(act==="pterm"){const k=P.agents[0];if(!k)return toast("Pick an agent");const r=await post("/api/open",{agent:k,cwd:$("#pcwd").value.trim()||"~",prompt:$("#pq").value});return toast(`Opened ${aname(k)} in ${r.terminal}`)}

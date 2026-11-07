@@ -112,13 +112,23 @@ def make_handler(collector, token, port):
             if u.path == "/api/mcp/matrix":
                 from . import mcpman
                 return self._send(200, mcpman.matrix())
+            if u.path == "/api/planner":
+                from . import planner
+                try:
+                    return self._send(200, {"pick": planner.pick(), "workers": planner.workers()})
+                except Exception as e:
+                    return self._send(200, {"error": str(e)})
             if u.path == "/api/events":
                 from . import notify
                 return self._send(200, notify.recent(40, float(q.get("since", ["0"])[0] or 0)))
             if u.path == "/api/handoff/targets":
                 from . import handoff
-                return self._send(200, [{"key": k, "name": BY_KEY[k].name, "hex": BY_KEY[k].hex}
+                from . import fallback
+                return self._send(200, [{"key": k, "name": fallback.label(k), "hex": fallback.color(k)}
                                         for k in handoff.targets((q.get("exclude") or [None])[0])])
+            if u.path == "/api/keys":
+                from . import fallback
+                return self._send(200, fallback.status())
             if u.path == "/api/agents":
                 snap = collector.snapshot() or {}
                 vis = {x["key"]: x for x in snap.get("agents", [])}
@@ -143,6 +153,17 @@ def make_handler(collector, token, port):
 
         def route(self, p, b):
             doc = obsidian.resolve(b.get("doc") or "")
+            if p == "/api/plan":
+                from . import planner
+                who = None
+                if b.get("planner"):
+                    ag, _, model = b["planner"].partition(":")
+                    who = {"agent": ag, "model": model or None, "where": "chosen"}
+                r = planner.make(b["goal"], obsidian.resolve(b["doc"]) if b.get("doc") else None, b.get("sections"), who)
+                if b.get("run"):
+                    collab.run_async(r["doc"])
+                collector.refresh("collab")
+                return {"doc": r["doc"], "planner": r["planner"], "title": r["plan"]["title"], "tasks": len(r["tasks"])}
             if p == "/api/collab/new":
                 secs = [s for s in (b.get("sections") or []) if s.strip()]
                 path = collab.new_doc(doc, b.get("title") or Path(doc).stem, secs)
@@ -188,7 +209,7 @@ def make_handler(collector, token, port):
                     raise ValueError("pick at least one agent and write a prompt")
                 group = _s.token_hex(3) if len(ags) > 1 else None
                 out = [runs.start(a, b["prompt"], b.get("cwd") or "~", b.get("mode") or "ask", b.get("model") or None,
-                                  group, b.get("parent")) for a in ags]
+                                  group, b.get("parent"), bool(b.get("api"))) for a in ags]
                 collector.refresh("collab")
                 return {"runs": [{"id": m["id"], "agent": m["agent"], "status": m["status"], "error": m.get("error")} for m in out],
                         "group": group}
@@ -242,6 +263,11 @@ def make_handler(collector, token, port):
                         errs[ag] = str(e)[:200]
                 collector.refresh("cfg")
                 return {"name": name, "done": done, "errors": errs}
+            if p == "/api/keys":
+                from . import fallback
+                fallback.save(b["provider"], b.get("key") or "")
+                collector.refresh("openrouter")
+                return {"ok": True, "status": fallback.status()}
             if p == "/api/preview":
                 from . import proxy
                 pp = proxy.start(int(b["port"]), origin)

@@ -90,7 +90,7 @@ def _context(prev):
     return "\n".join(lines) + "\n\nNow: "
 
 
-def start(agent, prompt, cwd, mode="ask", model=None, group=None, parent=None):
+def start(agent, prompt, cwd, mode="ask", model=None, group=None, parent=None, api=False):
     if mode not in MODES:
         raise ValueError("mode must be ask, edit or auto")
     cwd = os.path.realpath(os.path.expanduser(cwd or "~"))
@@ -109,7 +109,7 @@ def start(agent, prompt, cwd, mode="ask", model=None, group=None, parent=None):
     rid = secrets.token_hex(4)
     meta = {"id": rid, "agent": agent, "cwd": cwd, "mode": mode, "model": model, "group": group,
             "prompt": prompt, "created": time.time(), "status": "running", "pid": None, "session": None,
-            "parent": parent, "turns": prev + [{"prompt": prompt}]}
+            "parent": parent, "api": bool(api), "turns": prev + [{"prompt": prompt}]}
     d = DIR / rid
     d.mkdir(parents=True, exist_ok=True)
     full = prompt
@@ -135,6 +135,14 @@ def start(agent, prompt, cwd, mode="ask", model=None, group=None, parent=None):
     else:
         inp = subprocess.DEVNULL
     env = dict(os.environ, NO_COLOR="1", NYRA_RUN=rid)
+    if api:
+        from . import fallback
+        extra = fallback.env_for(agent)
+        if not extra:
+            meta.update(status="failed", error="no API key connected for this agent", finished=time.time())
+            _save(meta)
+            return meta
+        env.update(extra)
     proc = subprocess.Popen(plat.resolve(argv), cwd=cwd, stdin=inp, stdout=out, stderr=err, env=env, **plat.detached())
     meta["pid"] = proc.pid
     _save(meta)
@@ -148,6 +156,24 @@ def _reap(rid, proc):
     if m and m["status"] == "running":
         m["exit"] = code
         _finish(m)
+    _maybe_retry(rid)
+
+
+def _maybe_retry(rid):
+    from . import fallback
+    from .handoff import _limit
+    from .util import config
+    m = load(rid)
+    if not m or m["status"] != "failed" or m.get("api") or m.get("retried_as"):
+        return
+    if config().get("fallback", {}).get("auto_retry", True) is False or not fallback.env_for(m["agent"]):
+        return
+    text = (m.get("error") or "") + " " + " ".join(e.get("text") or "" for e in events(m) if e["k"] in ("text", "done"))
+    if not _limit(text):
+        return
+    new = start(m["agent"], m["prompt"], m["cwd"], m["mode"], m.get("model"), m.get("group"), m.get("parent"), api=True)
+    m["retried_as"] = new["id"]
+    _save(m)
 
 
 def _http(meta, prompt):

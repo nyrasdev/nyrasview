@@ -245,16 +245,17 @@ LINUX_TERMS = [
 ]
 
 
-def terminal(cwd, cmd, prefer=None):
+def terminal(cwd, cmd, prefer=None, env=None):
+    penv = dict(os.environ, **env) if env else None
     if WIN:
         cmd = resolve(cmd)
         if shutil.which("wt"):
-            subprocess.Popen(["wt", "-d", cwd, *cmd], cwd=cwd, **detached())
+            subprocess.Popen(["wt", "-d", cwd, *cmd], cwd=cwd, env=penv, **detached())
             return "Windows Terminal"
-        subprocess.Popen(cmd, cwd=cwd, creationflags=subprocess.CREATE_NEW_CONSOLE)
+        subprocess.Popen(cmd, cwd=cwd, env=penv, creationflags=subprocess.CREATE_NEW_CONSOLE)
         return "console"
     if MAC:
-        script = f"cd {shlex.quote(cwd)} && {shlex.join(cmd)}"
+        script = f"cd {shlex.quote(cwd)} && " + ("env " + " ".join(f"{k}={shlex.quote(v)}" for k, v in env.items()) + " " if env else "") + shlex.join(cmd)
         if prefer and "iterm" in prefer.lower():
             subprocess.Popen(["osascript", "-e", f'tell application "iTerm" to create window with default profile command {_as(script)}'])
             return "iTerm"
@@ -264,7 +265,7 @@ def terminal(cwd, cmd, prefer=None):
     order = sorted(LINUX_TERMS, key=lambda t: t[0] != (os.path.basename(prefer) if prefer else ""))
     for name, fn in order:
         if shutil.which(name):
-            subprocess.Popen(fn(cwd, cmd), cwd=cwd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **detached())
+            subprocess.Popen(fn(cwd, cmd), cwd=cwd, env=penv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **detached())
             return name
     raise RuntimeError("no terminal emulator found; set handoff.terminal in config")
 

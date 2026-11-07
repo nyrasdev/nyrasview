@@ -97,6 +97,8 @@ Every push is tested on Linux, Windows and macOS with Python 3.11 and 3.13.
 | `nyrasview inbox` | recent alerts (`notify-test` sends one) |
 | `nyrasview mcp add/copy/rm/test` | manage MCP servers for every agent at once |
 | `nyrasview daemon` / `service install` | alerts and relay without a UI, optionally on login |
+| `nyrasview plan "<goal>"` | the cheapest model splits a goal into tasks for your agents |
+| `nyrasview keys` | connect API keys to keep working past plan limits |
 | `nyrasview now` | what every running agent is working on right now |
 | `nyrasview local` | local AI servers and their models; `local ask ollama "hi"` to try one |
 | `nyrasview handoff` | hand the current task to another agent (`--to codex`, `-w` new window, `-n` dry run) |
@@ -165,18 +167,40 @@ soon_pct = 90              # warn at 90% of a limit
 
 ## Limits: see the wall before you hit it
 
-`nyrasview limits` (and the Limits panel in the GUI) shows the 5-hour and weekly windows for Claude Code and Codex:
+`nyrasview limits` (and the Limits panel in the GUI) shows your real subscription windows.
 
-- how full each window is
-- when it resets
-- how long you have left at your current pace
+- **Claude Code:** read live from Anthropic's usage API with the login Claude Code already stores, the same numbers `/usage` shows. You get:
+  - your plan (e.g. *Claude Pro*)
+  - every window your plan is metered on: session (5h), weekly, and model-scoped weeks when your plan has them
+  - when each resets
+  - your pace against the clock (↑ over / ↓ under)
+  - time left at the current rate
 
-**Where the numbers come from:**
+  The token never leaves `api.anthropic.com` and nyrasview never rewrites it. If the API can't be reached, nyrasview falls back to estimating from your local token logs.
+- **Codex:** read straight from its own session logs.
 
-- **Claude:** nyrasview takes the real reading from any run it starts (or one tiny *Calibrate* call) and extrapolates it with the token burn rate from your local logs.
-- **Codex:** read straight from its own logs.
+An alert fires when a window gets close, and with relay on the handoff file is ready before you hit the wall.
 
-With relay on, the handoff file is written as soon as a limit gets close, so the switch is instant.
+## Keep working when the plan runs out
+
+Connect an API key in the GUI (**API keys**) or with `nyrasview keys anthropic` (`openai`, `openrouter`). Then:
+
+- **Relay** continues the *same* Claude Code or Codex session on API billing (`claude --continue`) the moment the plan limit hits, instead of switching tools.
+- **Prompt runs** that fail on a limit retry on the key automatically.
+- **opencode can run through OpenRouter** as one more fallback.
+
+Keys live in your nyrasview config file, readable only by you, and are only ever sent to their own provider.
+
+## Plan: let the cheapest model split the work
+
+```sh
+nyrasview plan "design a Next.js todo app with auth"          # writes ./todo-app-design.md with tasks
+nyrasview plan "launch plan for v2" -o ~/notes/launch.md --run  # and starts the agents
+```
+
+nyrasview picks the **smallest model you have**, so planning is free and offline when you run Ollama, LM Studio, llama.cpp and the like. It falls back to a cheap OpenRouter model, then to the lightest model of an installed CLI (e.g. Claude Haiku). That model splits the goal into sections and gives each to the agent that fits it best, out of the ones you actually have installed. A final review pass makes the document consistent. You can edit the plan before running it.
+
+In the GUI, use **Collab → New document → ✦ Plan it for me**. To pin the planner, set `[planner] agent = "ollama"` and `model = "qwen2.5:3b"` in your config.
 
 ## MCP manager
 
@@ -264,6 +288,14 @@ model = "qwen3:14b"
 
 [handoff]
 chain = ["codex", "gemini", "opencode"]
+
+[fallback]
+auto_retry = true                       # retry limit-hit prompt runs on your API key
+openrouter_model = "moonshotai/kimi-k2" # model opencode uses through OpenRouter
+
+[planner]
+agent = "ollama"                        # leave out to auto-pick the smallest model
+model = "qwen2.5:3b"
 terminal = "kitty"
 
 [collab]
