@@ -123,7 +123,8 @@ def cmd_mcp(a):
                 print(f"{'removed' if spec is None else 'added'} {name} {'from' if spec is None else 'to'} {ag}")
             except Exception as e:
                 print(col("#ef4444", f"{ag}: {e}"))
-        print(dim("restart running agents to load the change · backups in ~/.local/state/nyrasview/backups"))
+        from .util import STATE
+        print(dim(f"restart running agents to load the change · backups in {STATE / 'backups'}"))
         return
     s = snap()
     if a.json:

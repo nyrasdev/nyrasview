@@ -113,7 +113,11 @@ def _backup(path):
         return
     d = STATE / "backups" / time.strftime("%Y%m%d-%H%M%S")
     d.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(path, d / (str(path).replace(str(HOME), "").strip("/").replace("/", "__")))
+    try:
+        rel = path.resolve().relative_to(HOME.resolve())
+    except ValueError:
+        rel = Path(path.name)
+    shutil.copy2(path, d / "__".join(rel.parts))
 
 
 def _read_json(path):
