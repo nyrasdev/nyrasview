@@ -1,3 +1,4 @@
+import io
 import json
 import os
 import re
@@ -10,6 +11,7 @@ import time
 import urllib.request
 from pathlib import Path
 
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True)
 ROOT = Path(tempfile.mkdtemp(prefix="nyra-smoke-"))
 HOME = ROOT / "home"
 WORK = ROOT / "work"
@@ -48,8 +50,6 @@ def step(name):
 def config_dir():
     if os.name == "nt":
         return HOME / "AppData/Roaming/nyrasview"
-    if sys.platform == "darwin":
-        return HOME / "Library/Application Support/nyrasview"
     return HOME / ".config/nyrasview"
 
 

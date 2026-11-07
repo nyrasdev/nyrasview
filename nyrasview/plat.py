@@ -26,8 +26,6 @@ def state_dir():
 def config_file():
     if WIN:
         return Path(os.environ.get("APPDATA") or HOME / "AppData/Roaming") / "nyrasview" / "config.toml"
-    if MAC and not os.environ.get("XDG_CONFIG_HOME"):
-        return HOME / "Library/Application Support/nyrasview/config.toml"
     return Path(os.environ.get("XDG_CONFIG_HOME") or HOME / ".config") / "nyrasview" / "config.toml"
 
 
@@ -130,7 +128,26 @@ def resolve(argv):
 
 
 def split(text):
-    return shlex.split(text, posix=not WIN)
+    if not WIN:
+        return shlex.split(text)
+    out = []
+    for t in shlex.split(text, posix=False):
+        if len(t) >= 2 and t[0] == t[-1] and t[0] in "\"'":
+            t = t[1:-1]
+        out.append(t)
+    return out
+
+
+def replace(src, dst):
+    import time
+    for i in range(40):
+        try:
+            os.replace(src, dst)
+            return
+        except PermissionError:
+            if not WIN or i == 39:
+                raise
+            time.sleep(0.05)
 
 
 def quote_cmd(argv):

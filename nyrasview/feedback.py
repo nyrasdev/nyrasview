@@ -31,7 +31,7 @@ def _write(cwd, items):
     f = _file(cwd)
     tmp = f.with_suffix(".tmp")
     tmp.write_text("".join(json.dumps(i) + "\n" for i in items[-200:]))
-    os.replace(tmp, f)
+    plat.replace(tmp, f)
 
 
 def message(text, target=None):

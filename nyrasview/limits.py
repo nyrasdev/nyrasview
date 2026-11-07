@@ -3,6 +3,7 @@ import os
 import time
 from pathlib import Path
 
+from . import plat
 from .util import HOME, STATE, parse_ts
 
 FILE = STATE / "limits.json"
@@ -20,7 +21,7 @@ def _save(d):
     FILE.parent.mkdir(parents=True, exist_ok=True)
     tmp = FILE.with_suffix(".tmp")
     tmp.write_text(json.dumps(d))
-    os.replace(tmp, FILE)
+    plat.replace(tmp, FILE)
 
 
 def record_claude(info, ts=None):

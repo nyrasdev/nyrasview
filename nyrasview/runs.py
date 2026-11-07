@@ -40,7 +40,7 @@ def _save(meta):
     d.mkdir(parents=True, exist_ok=True)
     tmp = d / "meta.tmp"
     tmp.write_text(json.dumps(meta, indent=1))
-    os.replace(tmp, d / "meta.json")
+    plat.replace(tmp, d / "meta.json")
 
 
 def load(rid):

@@ -37,7 +37,7 @@ def _claim(key):
         d[key] = now
         tmp = SEEN.with_suffix(".tmp")
         tmp.write_text(json.dumps(d))
-        os.replace(tmp, SEEN)
+        plat.replace(tmp, SEEN)
         return True
 
 

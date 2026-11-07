@@ -49,7 +49,7 @@ def _write_json(path, data):
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(json.dumps(data, indent=2))
-    os.replace(tmp, path)
+    plat.replace(tmp, path)
 
 
 def register(doc):
