@@ -74,7 +74,7 @@ def check(cmd, cwd, timeout=None):
     t0 = time.time()
     try:
         r = subprocess.run(cmd, cwd=cwd, shell=True, capture_output=True, text=True, encoding="utf-8",
-                           errors="replace", timeout=timeout, env=dict(os.environ, CI="1", FORCE_COLOR="0", NO_COLOR="1"))
+                           errors="replace", timeout=timeout, env=dict(os.environ, CI="1", FORCE_COLOR="0", NO_COLOR="1", PYTHONDONTWRITEBYTECODE="1"))
         out = (r.stdout or "") + ("\n" + r.stderr if r.stderr else "")
         code = r.returncode
     except subprocess.TimeoutExpired as e:

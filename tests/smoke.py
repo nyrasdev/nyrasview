@@ -8,6 +8,7 @@ import sys
 import tempfile
 import textwrap
 import time
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -212,6 +213,174 @@ def _():
 def _():
     r = subprocess.run([PY, "-c", "import nyrasview.tui"], capture_output=True, text=True, env=ENV)
     assert r.returncode == 0, r.stderr
+
+
+BIN = ROOT / "bin"
+BIN.mkdir()
+fixer = ROOT / "fixer.py"
+fixer.write_text(textwrap.dedent("""
+    import sys
+    p = sys.stdin.read()
+    if "fails in" in p:
+        src = open("calc.py", encoding="utf-8").read()
+        open("calc.py", "w", encoding="utf-8").write(src.replace("a - b", "a + b"))
+        print("Fixed add: it subtracted instead of adding.")
+    else:
+        print("nothing to do")
+"""), encoding="utf-8")
+planbot = ROOT / "planbot.py"
+planbot.write_text(textwrap.dedent("""
+    import sys
+    sys.stdin.read()
+    print('Here you go: {"title": "Smoke plan", "sections": [{"title": "Goals", "agent": "echoer", "instruction": "Write goals."}, '
+          '{"title": "Risks", "agent": "nobody-like-this", "instruction": "Write risks."}], "review": {"agent": "echoer", "instruction": "Tidy up."}}')
+"""), encoding="utf-8")
+fake_claude = ROOT / "claude_fake.py"
+fake_claude.write_text(textwrap.dedent("""
+    import json, os, sys
+    sys.stdin.read()
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        print(json.dumps({"type": "result", "subtype": "error", "is_error": True, "result": "Claude AI usage limit reached|1794100000"}))
+        sys.exit(1)
+    print(json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "continued on the key"}]}}))
+    print(json.dumps({"type": "result", "subtype": "success", "is_error": False, "result": "ok", "total_cost_usd": 0.01, "duration_ms": 10, "usage": {}}))
+"""), encoding="utf-8")
+if os.name == "nt":
+    (BIN / "claude.cmd").write_text(f'@"{PY}" "{fake_claude}" %*\r\n', encoding="utf-8")
+else:
+    (BIN / "claude").write_text(f"#!{PY}\n" + fake_claude.read_text(encoding="utf-8"), encoding="utf-8")
+    (BIN / "claude").chmod(0o755)
+ENV["PATH"] = str(BIN) + os.pathsep + ENV.get("PATH", "")
+with open(cfg / "config.toml", "a", encoding="utf-8") as f:
+    f.write("\n[agents.fixer]\nname = \"Fixer\"\nheadless = { cmd = [" + json.dumps(PY) + ", " + json.dumps(str(fixer)) + "], stdin = true }\n")
+    f.write("\n[agents.planbot]\nname = \"Planbot\"\nheadless = { cmd = [" + json.dumps(PY) + ", " + json.dumps(str(planbot)) + "], stdin = true }\n")
+HEAL = ROOT / "healproj"
+HEAL.mkdir()
+(HEAL / "check.py").write_text("from calc import add\nimport sys\nsys.exit(0 if add(2, 3) == 5 else 1)\n", encoding="utf-8")
+CHECK = f'"{PY}" check.py'
+
+
+@step("self-heal: an agent fixes a failing check")
+def _():
+    (HEAL / "calc.py").write_text("def add(a, b):\n    return a - b\n", encoding="utf-8")
+    out = run("heal", CHECK, "-d", str(HEAL), "-a", "fixer", "-n", "2", timeout=180)
+    assert "passes after 1 fix" in out, out
+    assert "a + b" in (HEAL / "calc.py").read_text(encoding="utf-8")
+
+
+@step("self-heal: live Claude session is sent back to fix")
+def _():
+    (HEAL / "calc.py").write_text("def add(a, b):\n    return a - b\n", encoding="utf-8")
+    run("heal", "--live", CHECK, "-d", str(HEAL))
+    payload = json.dumps({"session_id": "smoke", "cwd": str(HEAL), "hook_event_name": "Stop"})
+    out = run("hook", input=payload)
+    d = json.loads(out)
+    assert d["decision"] == "block" and "self-heal" in d["reason"], out
+    (HEAL / "calc.py").write_text("def add(a, b):\n    return a + b\n", encoding="utf-8")
+    assert run("hook", input=payload).strip() == "", "should let Claude stop once the check passes"
+    run("heal", "--live", "--off", "-d", str(HEAL))
+
+
+@step("skills: add from a folder, create, copy, remove")
+def _():
+    src = ROOT / "skillsrc" / "smoke-skill"
+    src.mkdir(parents=True)
+    (src / "SKILL.md").write_text("---\nname: smoke-skill\ndescription: Used by the smoke test\n---\nDo the thing.\n", encoding="utf-8")
+    run("skill", "add", str(src.parent), "--to", "claude,codex")
+    assert (HOME / ".claude/skills/smoke-skill/SKILL.md").exists()
+    run("skill", "new", "made-here", "-d", "Created from stdin", "--to", "claude", input="Some instructions.\n")
+    assert "Some instructions." in (HOME / ".claude/skills/made-here/SKILL.md").read_text(encoding="utf-8")
+    run("skill", "copy", "made-here", "--from", "claude", "--to", "opencode")
+    assert (HOME / ".config/opencode/skill/made-here/SKILL.md").exists()
+    listing = run("skill", "list")
+    assert "smoke-skill" in listing and "made-here" in listing, listing
+    run("skill", "rm", "smoke-skill")
+    assert not (HOME / ".claude/skills/smoke-skill").exists()
+
+
+@step("API key fallback: a limit-hit run retries on the key")
+def _():
+    run("keys", "anthropic", "sk-ant-smoke-1234567890")
+    assert "connected" in run("keys")
+    out = run("ask", "claude", "keep going", "-d", str(WORK), timeout=120)
+    assert "retrying on your API key" in out and "continued on the key" in out, out
+
+
+@step("planner: splits a goal into agent tasks")
+def _():
+    doc = WORK / "smoke-plan.md"
+    out = run("plan", "build something small", "--planner", "planbot", "-y", "-o", str(doc), timeout=120)
+    text = doc.read_text(encoding="utf-8")
+    assert "## Goals" in text and "## Risks" in text, out + text
+    shown = run("collab", "show", str(doc))
+    assert "Echoer" in shown and "whole document" in shown, shown
+
+
+def _state_dir():
+    if os.name == "nt":
+        return HOME / "AppData/Local/nyrasview"
+    if sys.platform == "darwin":
+        return HOME / "Library/Application Support/nyrasview"
+    return HOME / ".local/state/nyrasview"
+
+
+@step("gui api: settings, keys, hand-off options, phone login")
+def _():
+    import http.client
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+    p = subprocess.Popen([PY, "-m", "nyrasview", "gui", "--no-open", "-p", str(port)], env=ENV, cwd=str(WORK),
+                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    try:
+        html = None
+        for _ in range(60):
+            time.sleep(0.5)
+            try:
+                with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=2) as r:
+                    html = r.read().decode("utf-8")
+                break
+            except Exception:
+                continue
+        assert html, "gui did not start"
+        token = re.search(r'TOKEN="([^"]+)"', html).group(1)
+
+        def api(method, path, body=None, host=None, headers=None):
+            c = http.client.HTTPConnection("127.0.0.1", host or port, timeout=30)
+            h = {"Content-Type": "application/json", "X-Nyra-Token": token, **(headers or {})}
+            c.request(method, path, body=json.dumps(body) if body is not None else None, headers=h)
+            r = c.getresponse()
+            data = r.read()
+            return r.status, dict(r.getheaders()), data
+
+        st, _, data = api("POST", "/api/settings", {"values": {"notify": {"soon_pct": "77"}}})
+        assert st == 200, data
+        st, _, data = api("GET", "/api/settings")
+        v = json.loads(data)
+        assert "soon_pct = 77" in v["raw"] and "agents.echoer" in v["raw"], v["raw"]
+        st, _, data = api("POST", "/api/keys", {"provider": "openai", "key": "sk-openai-smoke"})
+        assert any(k["provider"] == "openai" and k["connected"] for k in json.loads(data)["status"]), data
+        st, _, data = api("GET", f"/api/handoff/options?agent=claude&cwd={urllib.parse.quote(str(WORK))}")
+        opts = json.loads(data)
+        assert any(t["key"] == "codex" and t["ok"] for t in opts["targets"]), opts
+        st, _, data = api("POST", "/api/phone", {"on": True})
+        info = json.loads(data)
+        assert info["on"] and info["port"], info
+        key = (_state_dir() / "phone_key").read_text().strip()
+        st, _, _ = api("GET", "/api/snapshot", host=info["port"], headers={"X-Nyra-Token": ""})
+        assert st == 401, f"phone without key should be refused, got {st}"
+        st, hd, _ = api("GET", f"/?key={key}", host=info["port"])
+        assert st == 302 and "nyra_key=" in hd.get("Set-Cookie", ""), (st, hd)
+        st, _, data = api("GET", "/api/snapshot", host=info["port"], headers={"Cookie": f"nyra_key={key}"})
+        assert st == 200 and json.loads(data).get("agents"), st
+        api("POST", "/api/phone", {"on": False})
+    finally:
+        p.terminate()
+        try:
+            p.wait(10)
+        except subprocess.TimeoutExpired:
+            p.kill()
 
 
 print(f"\n{'ALL PASSED' if not FAILS else 'FAILED: ' + ', '.join(FAILS)} on {sys.platform}")
