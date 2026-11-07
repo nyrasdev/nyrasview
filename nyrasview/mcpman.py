@@ -9,6 +9,7 @@ import time
 import urllib.request
 from pathlib import Path
 
+from . import plat
 from .util import HOME, STATE, load_json, load_toml, strip_jsonc
 
 PRESETS = [
@@ -190,12 +191,12 @@ def _claude_set(name, spec):
     if not shutil.which("claude"):
         raise RuntimeError("claude CLI not found")
     _backup(HOME / ".claude.json")
-    subprocess.run(["claude", "mcp", "remove", name, "-s", "user"], capture_output=True, text=True, timeout=30)
+    subprocess.run(plat.resolve(["claude", "mcp", "remove", name, "-s", "user"]), capture_output=True, text=True, timeout=30)
     if spec is None:
         return
     d = _std(spec)
     d["type"] = spec["transport"]
-    r = subprocess.run(["claude", "mcp", "add-json", name, json.dumps(d), "-s", "user"],
+    r = subprocess.run(plat.resolve(["claude", "mcp", "add-json", name, json.dumps(d), "-s", "user"]),
                        capture_output=True, text=True, timeout=30)
     if r.returncode != 0:
         raise RuntimeError((r.stderr or r.stdout).strip()[:300])
@@ -285,7 +286,7 @@ def parse(text, name=None):
         spec = {"transport": "sse" if text.rstrip("/").endswith("/sse") else "http", "command": None, "args": [],
                 "url": text.split()[0], "env": {}, "headers": {}}
     else:
-        parts = shlex.split(text)
+        parts = plat.split(text)
         env = {}
         while parts and re.match(r"^[A-Z_][A-Z0-9_]*=", parts[0]):
             k, v = parts.pop(0).split("=", 1)
@@ -306,39 +307,40 @@ def probe(spec, timeout=45):
     t0 = time.time()
     if spec["transport"] != "stdio":
         return _probe_http(spec, t0)
-    exe = shutil.which(spec["command"]) or spec["command"]
     env = dict(os.environ, **{k: str(v) for k, v in (spec.get("env") or {}).items()})
     try:
-        p = subprocess.Popen([exe, *spec.get("args", [])], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                             stderr=subprocess.PIPE, env=env, start_new_session=True)
+        p = subprocess.Popen(plat.resolve([spec["command"], *spec.get("args", [])]), stdin=subprocess.PIPE,
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, **plat.detached())
     except OSError as e:
         return {"ok": False, "error": str(e)}
-    buf = b""
+    import queue
+    import threading
+    q = queue.Queue()
+
+    def pump():
+        for raw in iter(p.stdout.readline, b""):
+            q.put(raw)
+        q.put(None)
+    threading.Thread(target=pump, daemon=True).start()
 
     def send(o):
         p.stdin.write((json.dumps(o) + "\n").encode())
         p.stdin.flush()
 
     def wait(mid):
-        nonlocal buf
         while time.time() - t0 < timeout:
-            r, _, _ = select.select([p.stdout], [], [], 0.5)
-            if not r:
-                if p.poll() is not None:
-                    return None
+            try:
+                line = q.get(timeout=0.5)
+            except queue.Empty:
                 continue
-            chunk = os.read(p.stdout.fileno(), 65536)
-            if not chunk:
+            if line is None:
                 return None
-            buf += chunk
-            while b"\n" in buf:
-                line, buf = buf.split(b"\n", 1)
-                try:
-                    o = json.loads(line)
-                except ValueError:
-                    continue
-                if o.get("id") == mid:
-                    return o
+            try:
+                o = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(o, dict) and o.get("id") == mid:
+                return o
         return None
 
     try:
@@ -349,7 +351,7 @@ def probe(spec, timeout=45):
         if not init:
             err = b""
             try:
-                p.kill()
+                plat.kill_tree(p.pid, True)
                 err = p.stderr.read()[-600:]
             except Exception:
                 pass
@@ -363,10 +365,7 @@ def probe(spec, timeout=45):
         return {"ok": True, "server": info.get("name"), "version": info.get("version"), "tools": tools,
                 "ms": int((time.time() - t0) * 1000)}
     finally:
-        try:
-            os.killpg(p.pid, 9)
-        except OSError:
-            pass
+        plat.kill_tree(p.pid, True)
 
 
 def _probe_http(spec, t0):

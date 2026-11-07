@@ -8,7 +8,8 @@ version = "2.0.0"
 description = "Monitor and orchestrate your AI coding agents: Claude Code, Codex, Gemini, opencode, Kimi, Antigravity, OpenRouter and more"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["psutil>=5.9"]
+classifiers = ["Operating System :: POSIX :: Linux", "Operating System :: Microsoft :: Windows", "Operating System :: MacOS"]
+dependencies = ["psutil>=5.9", "windows-curses>=2.3; sys_platform == 'win32'"]
 license = { text = "MIT" }
 
 [project.scripts]

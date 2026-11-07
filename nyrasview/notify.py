@@ -1,4 +1,3 @@
-import fcntl
 import json
 import os
 import shutil
@@ -7,6 +6,7 @@ import threading
 import time
 import urllib.request
 
+from . import plat
 from .registry import BY_KEY
 from .util import HOME, STATE, config
 
@@ -25,8 +25,7 @@ def settings():
 
 def _claim(key):
     SEEN.parent.mkdir(parents=True, exist_ok=True)
-    with _mem, open(str(SEEN) + ".lock", "w") as lf:
-        fcntl.flock(lf, fcntl.LOCK_EX)
+    with _mem, plat.file_lock(str(SEEN) + ".lock"):
         try:
             d = json.loads(SEEN.read_text())
         except (OSError, ValueError):
@@ -51,10 +50,8 @@ def emit(kind, agent, title, body, key, cwd=None, urgent=False, extra=None):
     EVENTS.parent.mkdir(parents=True, exist_ok=True)
     with _mem, open(EVENTS, "a") as f:
         f.write(json.dumps(ev) + "\n")
-    if st["desktop"] and shutil.which("notify-send"):
-        subprocess.Popen(["notify-send", "-a", "nyrasview", "-u", "critical" if urgent else "normal",
-                          "-i", "dialog-information", title, body[:300]],
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if st["desktop"]:
+        plat.notify(title, body, urgent)
     if st["ntfy"]:
         threading.Thread(target=_ntfy, args=(st["ntfy"], title, body, urgent), daemon=True).start()
     return ev

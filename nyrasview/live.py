@@ -267,8 +267,9 @@ def ports(cwd, extra_pids=()):
             want.add(p.info["pid"])
     want -= skip
     found = set()
+    from . import plat
     try:
-        for c in psutil.net_connections("inet"):
+        for c in plat.net_connections(list(want)):
             if c.status == psutil.CONN_LISTEN and c.pid in want and c.laddr:
                 found.add(c.laddr.port)
     except (psutil.AccessDenied, OSError):

@@ -9,6 +9,7 @@ from collections import OrderedDict
 from datetime import datetime
 from pathlib import Path
 
+from . import plat
 from .registry import BY_KEY
 from .util import HOME, STATE, config, parse_ts
 
@@ -37,16 +38,6 @@ INTERACTIVE = {
 }
 CHAIN = ["codex", "claude", "gemini", "opencode", "cursor", "qwen", "copilot", "kimi", "droid", "crush", "amp",
          "goose", "aider"]
-TERMINALS = [
-    ("kitty", lambda cwd, cmd: ["kitty", "--directory", cwd, *cmd]),
-    ("ghostty", lambda cwd, cmd: ["ghostty", f"--working-directory={cwd}", "-e", *cmd]),
-    ("wezterm", lambda cwd, cmd: ["wezterm", "start", "--cwd", cwd, "--", *cmd]),
-    ("foot", lambda cwd, cmd: ["foot", "-D", cwd, *cmd]),
-    ("alacritty", lambda cwd, cmd: ["alacritty", "--working-directory", cwd, "-e", *cmd]),
-    ("konsole", lambda cwd, cmd: ["konsole", "--workdir", cwd, "-e", *cmd]),
-    ("gnome-terminal", lambda cwd, cmd: ["gnome-terminal", f"--working-directory={cwd}", "--", *cmd]),
-    ("xterm", lambda cwd, cmd: ["xterm", "-e", "sh", "-c", f"cd {shlex.quote(cwd)} && exec {shlex.join(cmd)}"]),
-]
 
 
 def _lines(path):
@@ -313,7 +304,7 @@ def targets(exclude=None):
         if k == exclude or k not in BY_KEY:
             continue
         cmd = interactive(k)
-        if cmd and shutil.which(cmd[0]):
+        if cmd and plat.which(cmd[0]):
             out.append(k)
     return out
 
@@ -342,19 +333,11 @@ def command(to, src):
 
 def terminal(cwd, cmd):
     pref = os.environ.get("NYRA_TERMINAL") or config().get("handoff", {}).get("terminal") or os.environ.get("TERMINAL")
-    order = sorted(TERMINALS, key=lambda t: t[0] != (os.path.basename(pref) if pref else ""))
-    for name, fn in order:
-        if shutil.which(name):
-            subprocess.Popen(fn(cwd, cmd), cwd=cwd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                             start_new_session=True)
-            return name
-    raise RuntimeError("no terminal emulator found; set handoff.terminal in config")
+    return plat.terminal(cwd, cmd, pref)
 
 
 def notify(title, body):
-    if shutil.which("notify-send"):
-        subprocess.Popen(["notify-send", "-a", "nyrasview", title, body], stdout=subprocess.DEVNULL,
-                         stderr=subprocess.DEVNULL)
+    plat.notify(title, body)
 
 
 def prepare(agent, cwd, to=None):
@@ -374,6 +357,9 @@ def launch(h, where="terminal"):
     cmd, embedded = command(h["to"], h["from"])
     if where == "here":
         os.chdir(h["cwd"])
+        if plat.WIN:
+            import sys
+            sys.exit(subprocess.call(plat.resolve(cmd)))
         os.execvp(cmd[0], cmd)
     used = terminal(h["cwd"], cmd)
     return {"terminal": used, "embedded": embedded, "cmd": cmd}

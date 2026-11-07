@@ -1,4 +1,3 @@
-import fcntl
 import json
 import os
 import re
@@ -13,6 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from pathlib import Path
 
+from . import plat
 from .util import STATE, config
 
 INDEX = STATE / "collab.json"
@@ -33,12 +33,8 @@ def plan_path(doc):
 def _locked(path):
     path = STATE / "locks" / (_stem(path) + ".lock")
     path.parent.mkdir(parents=True, exist_ok=True)
-    with _mem, open(path, "w") as f:
-        fcntl.flock(f, fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(f, fcntl.LOCK_UN)
+    with _mem, plat.file_lock(path):
+        yield
 
 
 def _read_json(path, default):
@@ -157,13 +153,7 @@ def reset(doc, tid=None):
 
 
 def _alive(pid):
-    if not pid:
-        return False
-    try:
-        os.kill(pid, 0)
-        return True
-    except OSError:
-        return False
+    return plat.alive(pid)
 
 
 def _set(doc, tid, **kw):
@@ -313,9 +303,9 @@ def call(agent_key, prompt, model=None, cwd=None, on_pid=None, timeout=None):
     argv = [x.replace("{prompt}", prompt).replace("{out}", out) for x in argv]
     stdin = prompt if h.get("stdin") else None
     try:
-        proc = subprocess.Popen(argv, cwd=cwd, stdin=subprocess.PIPE if stdin else subprocess.DEVNULL,
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-                                start_new_session=True)
+        proc = subprocess.Popen(plat.resolve(argv), cwd=cwd, stdin=subprocess.PIPE if stdin else subprocess.DEVNULL,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
+                                errors="replace", **plat.detached())
         if on_pid:
             on_pid(proc.pid)
         try:

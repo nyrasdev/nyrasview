@@ -5,9 +5,11 @@ import time
 import tomllib
 from pathlib import Path
 
+from .plat import config_file, state_dir
+
 HOME = Path.home()
-STATE = Path(os.environ.get("XDG_STATE_HOME") or HOME / ".local/state") / "nyrasview"
-CONFIG = Path(os.environ.get("XDG_CONFIG_HOME") or HOME / ".config") / "nyrasview" / "config.toml"
+STATE = state_dir()
+CONFIG = config_file()
 
 
 def P(s):

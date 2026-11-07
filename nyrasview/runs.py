@@ -8,6 +8,7 @@ import threading
 import time
 from pathlib import Path
 
+from . import plat
 from .registry import BY_KEY
 from .util import STATE
 
@@ -50,17 +51,7 @@ def load(rid):
 
 
 def _alive(pid):
-    if not pid:
-        return False
-    try:
-        os.kill(pid, 0)
-    except OSError:
-        return False
-    try:
-        with open(f"/proc/{pid}/stat") as f:
-            return f.read().split(") ", 1)[1][0] != "Z"
-    except OSError:
-        return True
+    return plat.alive(pid)
 
 
 def _argv(agent, prompt, mode, model, session, cwd):
@@ -131,7 +122,7 @@ def start(agent, prompt, cwd, mode="ask", model=None, group=None, parent=None):
         _save(meta)
         threading.Thread(target=_http, args=(meta, full), daemon=True).start()
         return meta
-    if not shutil.which(argv[0]):
+    if not plat.which(argv[0]):
         meta.update(status="failed", error=f"{argv[0]} is not installed", finished=time.time())
         _save(meta)
         return meta
@@ -144,7 +135,7 @@ def start(agent, prompt, cwd, mode="ask", model=None, group=None, parent=None):
     else:
         inp = subprocess.DEVNULL
     env = dict(os.environ, NO_COLOR="1", NYRA_RUN=rid)
-    proc = subprocess.Popen(argv, cwd=cwd, stdin=inp, stdout=out, stderr=err, start_new_session=True, env=env)
+    proc = subprocess.Popen(plat.resolve(argv), cwd=cwd, stdin=inp, stdout=out, stderr=err, env=env, **plat.detached())
     meta["pid"] = proc.pid
     _save(meta)
     threading.Thread(target=_reap, args=(rid, proc), daemon=True).start()
@@ -357,13 +348,7 @@ def stop(rid):
     m = load(rid)
     if not m or not m.get("pid"):
         return False
-    try:
-        os.killpg(m["pid"], signal.SIGTERM)
-    except OSError:
-        try:
-            os.kill(m["pid"], signal.SIGTERM)
-        except OSError:
-            pass
+    plat.kill_tree(m["pid"])
     m.update(status="stopped", finished=time.time())
     _save(m)
     return True

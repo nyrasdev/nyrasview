@@ -561,7 +561,7 @@ class UI:
             elif k in (curses.KEY_LEFT, 27):
                 self.focus = 0
             elif k in (ord("k"), ord("K")):
-                self.kill(s, signal.SIGKILL if k == ord("K") else signal.SIGTERM)
+                self.kill(s, k == ord("K"))
             return
         if k == curses.KEY_UP:
             self.sel[t] -= 1
@@ -641,7 +641,7 @@ class UI:
         except Exception as e:
             self.flash(f"handoff failed: {e}")
 
-    def kill(self, s, sig):
+    def kill(self, s, force):
         ag = self.agents(s)
         if not ag:
             return
@@ -649,11 +649,12 @@ class UI:
         if not a["procs"]:
             return
         p = a["procs"][max(0, min(self.psel, len(a["procs"]) - 1))]
-        name = "SIGKILL" if sig == signal.SIGKILL else "SIGTERM"
+        name = "force-kill" if force else "stop"
         if self.ask(f"{name} {p['pid']} {p['name']}? [y/N] ").lower() != "y":
             return
         try:
-            os.kill(p["pid"], sig)
+            from . import plat
+            plat.kill(p["pid"], force)
             self.flash(f"sent {name} to {p['pid']}")
         except OSError as e:
             self.flash(f"kill failed: {e}")

@@ -10,7 +10,8 @@ from . import VERSION, activity, collab, limits, local, mcp, net, notify, skills
 from .registry import AGENTS, BY_KEY, identify
 from .usage import UsageStore
 
-SHELLS = {"bash", "zsh", "fish", "sh", "dash", "nu", "pwsh"}
+SHELLS = {"bash", "zsh", "fish", "sh", "dash", "nu", "pwsh", "powershell", "cmd", "bash.exe", "cmd.exe",
+          "powershell.exe", "pwsh.exe"}
 ATTRS = ["pid", "ppid", "name", "exe", "cmdline", "cpu_percent", "memory_info", "create_time",
          "cwd", "num_threads"]
 
@@ -110,8 +111,9 @@ class Collector:
 
         conns = defaultdict(list)
         listen = defaultdict(list)
+        from . import plat
         try:
-            for c in psutil.net_connections("inet"):
+            for c in plat.net_connections([pid for pid, k in ident.items() if k]):
                 if c.pid is None:
                     continue
                 if c.status == psutil.CONN_LISTEN and c.laddr:

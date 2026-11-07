@@ -141,30 +141,38 @@ def apply_config():
 apply_config()
 
 
+def _base(p):
+    b = os.path.basename(str(p).replace("\\", "/")).lower()
+    for ext in (".exe", ".cmd", ".bat", ".ps1", ".js", ".cjs", ".mjs"):
+        if b.endswith(ext):
+            return b[:-len(ext)]
+    return b
+
+
 def tokens(info):
     toks = set()
-    name = (info.get("name") or "").lower()
+    name = _base(info.get("name") or "")
     if name:
         toks.add(name)
     exe = info.get("exe") or ""
     if exe:
-        toks.add(os.path.basename(exe).lower())
+        toks.add(_base(exe))
     argv = info.get("cmdline") or []
     if argv:
-        a0 = os.path.basename(argv[0]).lower()
+        a0 = _base(argv[0])
         toks.add(a0)
         if (a0 in INTERPRETERS or a0.startswith("python")) and len(argv) > 1:
             for a in argv[1:3]:
                 if not a.startswith("-"):
-                    toks.add(os.path.basename(a).lower())
+                    toks.add(_base(a))
                     break
     return toks
 
 
 def identify(info):
     toks = tokens(info)
-    head = " ".join((info.get("cmdline") or [])[:3])
-    exe = info.get("exe") or ""
+    head = " ".join((info.get("cmdline") or [])[:3]).replace("\\", "/")
+    exe = (info.get("exe") or "").replace("\\", "/")
     for a in AGENTS:
         if a.kind == "api":
             continue

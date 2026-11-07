@@ -31,12 +31,8 @@ BUILD = build()
 
 
 def open_url(url):
-    opener = shutil.which("xdg-open") or shutil.which("open")
-    if opener:
-        subprocess.Popen([opener, url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                         start_new_session=True)
-    else:
-        webbrowser.open(url)
+    from . import plat
+    plat.open_url(url)
 
 
 _port_cache = {}
@@ -270,7 +266,8 @@ def make_handler(collector, token, port):
                 owned = {pr["pid"] for a in snap.get("agents", []) for pr in a["procs"]}
                 if pid not in owned:
                     raise PermissionError("pid is not an agent process")
-                os.kill(pid, signal.SIGKILL if b.get("force") else signal.SIGTERM)
+                from . import plat
+                plat.kill(pid, bool(b.get("force")))
                 return {"ok": True}
             raise ValueError("unknown endpoint")
 

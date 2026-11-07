@@ -212,7 +212,10 @@ def cmd_gui(a):
 def cmd_tui(a):
     if not sys.stdout.isatty():
         sys.exit("nyrasview needs a terminal (try: nyrasview status)")
-    from . import tui
+    try:
+        from . import tui
+    except ImportError:
+        sys.exit("the terminal UI needs curses. On Windows: pip install windows-curses  (or use: nyrasview gui)")
     from .collector import Collector
     tui.run(Collector(interval=a.interval, relay=a.relay))
 
@@ -452,23 +455,8 @@ def cmd_daemon(a):
 
 
 def cmd_service(a):
-    import shutil as sh
-    unit = Path(os.path.expanduser("~/.config/systemd/user/nyrasview.service"))
-    if a.service_cmd == "uninstall":
-        os.system("systemctl --user disable --now nyrasview.service >/dev/null 2>&1")
-        unit.unlink(missing_ok=True)
-        return print("removed nyrasview.service")
-    exe = sh.which("nyrasview") or f"{sys.executable} -m nyrasview"
-    unit.parent.mkdir(parents=True, exist_ok=True)
-    unit.write_text("[Unit]\nDescription=nyrasview alerts and relay\nAfter=graphical-session.target\n\n[Service]\n"
-                    f"ExecStart={exe} daemon{' --relay' if a.relay else ''}\nRestart=on-failure\nRestartSec=5\n\n"
-                    "[Install]\nWantedBy=default.target\n")
-    print(f"wrote {unit}")
-    if a.enable:
-        r = os.system("systemctl --user daemon-reload && systemctl --user enable --now nyrasview.service")
-        print("enabled and started" if r == 0 else "could not enable it, run: systemctl --user enable --now nyrasview.service")
-    else:
-        print(dim("start it now and on every login:  systemctl --user enable --now nyrasview.service"))
+    from . import plat
+    print(plat.autostart(a.service_cmd == "install", ["daemon"] + (["--relay"] if a.relay else [])))
 
 
 def money(c):
@@ -576,6 +564,13 @@ def cmd_collab(a):
 
 
 def main():
+    if os.name == "nt" and not sys.flags.utf8_mode and not os.environ.get("NYRA_NO_REEXEC"):
+        import subprocess
+        try:
+            sys.exit(subprocess.call([sys.executable, "-X", "utf8", "-m", "nyrasview", *sys.argv[1:]],
+                                     env=dict(os.environ, NYRA_NO_REEXEC="1")))
+        except KeyboardInterrupt:
+            sys.exit(130)
     ap = argparse.ArgumentParser(prog="nyrasview", description="monitor and orchestrate your AI coding agents")
     ap.add_argument("-v", "--version", action="version", version=f"nyrasview {VERSION}")
     ap.add_argument("-i", "--interval", type=float, default=1.5)
@@ -665,7 +660,7 @@ def main():
     x = sp.add_parser("service", help="run the daemon on login with systemd")
     x.add_argument("service_cmd", choices=["install", "uninstall"])
     x.add_argument("--relay", action="store_true")
-    x.add_argument("--enable", action="store_true")
+    x.add_argument("--enable", action="store_true", help=argparse.SUPPRESS)
     x = sp.add_parser("ask", help="prompt an agent (or several: claude,codex) and stream the answer")
     x.add_argument("agent")
     x.add_argument("prompt")

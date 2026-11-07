@@ -13,6 +13,7 @@ CONFIGS = [
     HOME / ".var/app/md.obsidian.Obsidian/config/obsidian/obsidian.json",
     HOME / "snap/obsidian/current/.config/obsidian/obsidian.json",
     HOME / "Library/Application Support/obsidian/obsidian.json",
+    Path(os.environ.get("APPDATA") or HOME / "AppData/Roaming") / "obsidian/obsidian.json",
 ]
 CALLOUT = re.compile(r"^>\s*\[!ai\][-+]?\s*(\S+)(?:\s+(\S+))?\s*(.*)$", re.I)
 SKIP = {".obsidian", ".trash", ".git", "node_modules"}

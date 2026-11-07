@@ -7,6 +7,7 @@ import sys
 import time
 from pathlib import Path
 
+from . import plat
 from .util import HOME, STATE
 
 DIR = STATE / "feedback"
@@ -59,11 +60,7 @@ def add(agent, cwd, text, target=None):
     items.append(item)
     _write(cwd, items)
     if agent != "claude" or not installed():
-        if shutil.which("wl-copy"):
-            subprocess.run(["wl-copy", item["message"]], timeout=3)
-            item["status"] = "copied"
-        elif shutil.which("xclip"):
-            subprocess.run(["xclip", "-selection", "clipboard"], input=item["message"].encode(), timeout=3)
+        if plat.copy(item["message"]):
             item["status"] = "copied"
         items[-1] = item
         _write(cwd, items)
@@ -117,8 +114,10 @@ def hook():
 
 
 def _cmd():
-    exe = shutil.which("nyrasview")
-    return f"{exe} hook" if exe else f"{sys.executable} -m nyrasview hook"
+    parts = plat.exe_cmd()
+    if plat.WIN:
+        return " ".join(f'"{p.replace(chr(92), "/")}"' if " " in p else p.replace(chr(92), "/") for p in parts) + " hook"
+    return plat.quote_cmd(parts) + " hook"
 
 
 def _load():
