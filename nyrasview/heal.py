@@ -149,7 +149,8 @@ def run_job(jid, on_event=None):
         save(job)
         emit("failing", job)
         m = runs.start(job["agent"], fix_prompt(job["cmd"], job["cwd"], res, attempt, job["tries"]), job["cwd"],
-                       job["mode"], job.get("model"), None, parent, sandboxed=job.get("sandbox"))
+                       job["mode"], job.get("model"), None, parent, sandboxed=job.get("sandbox"),
+                       label=f"self-heal fix {attempt}/{job['tries']} · {job['cmd']}")
         step["run"] = m["id"]
         save(job)
         emit("fixing", job)

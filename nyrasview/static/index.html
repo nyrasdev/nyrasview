@@ -518,7 +518,7 @@ function vPrompt(){
   const groups=[],seen={};
   RUNS.forEach(r=>{if(r.group){if(seen[r.group]){seen[r.group].items.push(r);return}seen[r.group]={g:r.group,items:[r]};groups.push(seen[r.group])}else groups.push({items:[r]})});
   h+=groups.length?`<div class="runs">`+groups.slice(0,25).map((g,i)=>{const r=g.items[0];const st=g.items.some(x=>x.status==="running")?"running":g.items.every(x=>x.status==="done")?"done":g.items.some(x=>x.status==="failed")?"failed":r.status;
-    return `<div class="rr" data-act="go" data-v="run:${r.id}" data-key="rr-${r.id}" style="--i:${i}"><div class="ic">${runIcon(st)}</div><div class="q">${esc(r.prompt)}</div>
+    return `<div class="rr" data-act="go" data-v="run:${r.id}" data-key="rr-${r.id}" style="--i:${i}"><div class="ic">${runIcon(st)}</div><div class="q">${esc(r.label||r.prompt)}</div>
       <div class="rt">${ago(r.created)}${g.items.some(x=>x.cost)?"<br>"+money(sum(g.items,x=>x.cost||0)):""}</div>
       <div class="mt">${g.items.map(x=>`<span style="display:inline-flex;gap:5px;align-items:center"><span class="sd" style="background:${colorOf(x.agent)}"></span>${esc(aname(x.agent))}</span>`).join("")}<span>· ${esc(r.mode)}</span><span>· ${esc(r.cwd.replace(HOMERE,"~"))}</span></div></div>`}).join("")+`</div>`
     :`<div class="muted" style="padding:10px 2px">Nothing yet. Write a prompt above, pick one or more agents and hit Run.</div>`;
@@ -587,7 +587,7 @@ function navModel(){
       ...ag.map(a=>({v:"agent:"+a.key,label:a.name,dot:a.hex,live:a.running,badge:a.running?a.cpu.toFixed(0)+"%":""}))]},
     {id:"toolbox",label:"Toolbox",items:[{v:"phone",label:"Phone",icon:"phone"},{v:"mcp",label:"MCP servers",icon:"plug",badge:(S.mcp||[]).length||""},{v:"skills",label:"Skills",icon:"spark",badge:(S.skills||[]).length||""},{v:"settings",label:"Settings",icon:"gear"},{v:"keys",label:"API keys",icon:"plug",badge:KEYS.filter(k=>k.connected).length?KEYS.filter(k=>k.connected).length+" on":""}]},
     {id:"insights",label:"Insights",items:[{v:"usage",label:"Usage",icon:"chart"},{v:"network",label:"Network",icon:"globe"},{v:"local",label:"Local AI",icon:"chip",badge:(S.local||[]).filter(x=>x.up).length?(S.local||[]).filter(x=>x.up).length+" up":""}]},
-    {id:"prompt",label:"Prompts",items:[{v:"prompt",label:"New prompt",icon:"wand"},{v:"heal",label:"Self-heal",icon:"retry",badge:HEAL.filter(j=>!["passed","failed","stopped"].includes(j.status)).length?"…":""},...(()=>{const out=[],sg={};RUNS.forEach(r=>{if(r.group){if(sg[r.group])return;sg[r.group]=1}out.push(r)});return out.slice(0,5)})().map(r=>({v:"run:"+r.id,label:r.prompt,dot:colorOf(r.agent),live:r.status==="running",badge:r.status==="running"?"…":r.status==="failed"?"✗":""}))]},
+    {id:"prompt",label:"Prompts",items:[{v:"prompt",label:"New prompt",icon:"wand"},{v:"heal",label:"Self-heal",icon:"retry",badge:HEAL.filter(j=>!["passed","failed","stopped"].includes(j.status)).length?"…":""},...(()=>{const out=[],sg={};RUNS.forEach(r=>{if(r.group){if(sg[r.group])return;sg[r.group]=1}out.push(r)});return out.slice(0,5)})().map(r=>({v:"run:"+r.id,label:r.label||r.prompt,dot:colorOf(r.agent),live:r.status==="running",badge:r.status==="running"?"…":r.status==="failed"?"✗":""}))]},
     {id:"collab",label:"Collab",items:[...(S.collab||[]).map(d=>{const run=d.tasks.filter(t=>t.status==="running").length;return {v:"doc:"+d.doc,label:d.name.replace(/\.md$/,""),icon:"doc",badge:run?"✎ "+run:d.tasks.length?d.tasks.filter(t=>t.status==="done").length+"/"+d.tasks.length:""}}),{v:"new",label:"New document",icon:"plus"}]},
   ]}
 

@@ -3,11 +3,11 @@ import os
 import signal
 import time
 
-from . import collab
+from . import collab, tui_more
 from .registry import BY_KEY
 from .util import ago, hb, hn
 
-TABS = ["Agents", "MCP", "Skills", "Usage", "Network", "Collab"]
+TABS = ["Agents", "MCP", "Skills", "Usage", "Network", "Collab", "Runs"]
 SPARK = " ▁▂▃▄▅▆▇█"
 SPIN = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 ROLE = {"main": "●", "collab": "✎", "mcp": "◆", "mcp?": "◇", "shell": "$", "child": "·"}
@@ -35,6 +35,7 @@ class UI:
         self.filter = ""
         self.msg = ("", 0)
         self.frame = 0
+        self.cache = tui_more.Cache()
         self.eased = {}
         self.animating = False
         self.show_all = False
@@ -181,23 +182,31 @@ class UI:
             lab = f" {i + 1} {t} "
             x = self.put(1, x, lab, self.A("accent", True, rev=True) if i == self.tab else self.A("dim"))
             x += 1
+        ev = tui_more.latest_alert(self)
+        if ev and W - x > 30:
+            mark = {"approval": "⚠", "limit": "⛔", "limit_soon": "▲", "failed": "✗"}.get(ev["kind"], "✓")
+            txt = f"{mark} {ev['title']} · {ago(ev['at'])} "
+            self.put(1, max(x + 2, W - len(txt) - 1), txt[:W - x - 3],
+                     self.A("bad" if ev["kind"] in ("approval", "limit", "failed") else "warn" if ev["kind"] == "limit_soon" else "good", True))
         msg, t0 = self.msg
         if msg and time.time() - t0 < 4:
             foot = msg
         else:
             foot = {
-                0: "↑↓ agent  enter/→ processes  p prompt  h hand off  k kill  a show all  g gui  q quit",
+                0: "↑↓ agent  enter/→ processes  p prompt  h hand off  f self-heal  k kill  a show all  g gui  q quit",
                 1: "↑↓ scroll  g gui  q quit",
                 2: "↑↓ scroll  / filter  esc clear  g gui  q quit",
                 3: "↑↓ agent  g gui  q quit",
                 4: "↑↓ scroll  g gui  q quit",
                 5: "↑↓ doc  n new  a assign  w whole-doc task  r run  x reset  u undo  g gui  q quit",
+                6: "↑↓ item  enter follow up  p new prompt  f self-heal  s stop  g gui  q quit",
             }[self.tab]
         self.put(H - 1, 0, foot, self.A("dim"))
 
     def draw(self, s):
         self.header(s)
-        [self.t_agents, self.t_mcp, self.t_skills, self.t_usage, self.t_net, self.t_collab][self.tab](s)
+        [self.t_agents, self.t_mcp, self.t_skills, self.t_usage, self.t_net, self.t_collab,
+         lambda s: tui_more.t_runs(self, s)][self.tab](s)
 
     def table(self, y0, y1, cols, rows, sel=None, off=0, attrs=None):
         x = 0
@@ -319,6 +328,7 @@ class UI:
                 self.put(y, 2, ("now ▸ " if state == "working" else "last ▸ ") + now.replace("\n", " "),
                          self.A("cyan") if state == "working" else self.A("dim"))
                 y += 1
+        y = tui_more.limit_lines(self, s, a["key"], y, W)
         u = a["usage"]
         if u.get("models"):
             self.put(y, 0, "MODELS " + "  ".join(f"{m['model']} {hn(m['tokens'])}" for m in u["models"][:4]), self.A("dim"))
@@ -534,7 +544,7 @@ class UI:
     def key(self, k, s):
         if k in (ord("q"), ord("Q")):
             return False
-        if k in (ord("1"), ord("2"), ord("3"), ord("4"), ord("5"), ord("6")):
+        if ord("1") <= k <= ord(str(len(TABS))):
             self.tab, self.focus = k - ord("1"), 0
             return
         if k == 9 or (k == curses.KEY_RIGHT and self.tab != 0):
@@ -575,10 +585,23 @@ class UI:
             self.sel[t] = 0
         elif t == 0 and k in (10, 13, curses.KEY_ENTER, curses.KEY_RIGHT):
             self.focus, self.psel, self.poff = 1, 0, 0
-        elif t == 0 and k == ord("p"):
-            self.prompt_agent(s)
-        elif t == 0 and k == ord("h"):
-            self.handoff(s)
+        elif t == 0 and k in (ord("p"), ord("h"), ord("f")):
+            ag = self.agents(s)
+            a = ag[max(0, min(self.sel[0], len(ag) - 1))] if ag else None
+            if a is None:
+                return
+            if k == ord("p"):
+                if not a["headless"]:
+                    self.flash(f"{a['name']} can't be prompted from here")
+                    return
+                work = [w for w in a.get("work") or [] if w.get("cwd") and not w.get("collab")]
+                tui_more.prompt_menu(self, s, a["key"], work[0]["cwd"] if work else os.getcwd())
+            elif k == ord("h"):
+                tui_more.handoff_menu(self, s, a)
+            else:
+                tui_more.heal_menu(self, s, a)
+        elif t == 6:
+            tui_more.runs_key(self, k, s)
         elif t == 0 and k == ord("a"):
             self.show_all = not self.show_all
         elif t == 0 and k in (ord("k"), ord("K")):

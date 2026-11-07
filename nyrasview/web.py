@@ -396,7 +396,7 @@ def make_handler(collector, token, port, phone=False):
                     out = settings.view()
                 else:
                     out = settings.save(b.get("values") or {})
-                collector.refresh("all")
+                threading.Thread(target=collector.refresh, args=("all",), daemon=True).start()
                 return out
             if p == "/api/heal":
                 from . import heal

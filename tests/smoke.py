@@ -347,12 +347,22 @@ def _():
         token = re.search(r'TOKEN="([^"]+)"', html).group(1)
 
         def api(method, path, body=None, host=None, headers=None):
-            c = http.client.HTTPConnection("127.0.0.1", host or port, timeout=30)
-            h = {"Content-Type": "application/json", "X-Nyra-Token": token, **(headers or {})}
-            c.request(method, path, body=json.dumps(body) if body is not None else None, headers=h)
-            r = c.getresponse()
-            data = r.read()
+            t0 = time.time()
+            try:
+                c = http.client.HTTPConnection("127.0.0.1", host or port, timeout=60)
+                h = {"Content-Type": "application/json", "X-Nyra-Token": token, **(headers or {})}
+                c.request(method, path, body=json.dumps(body) if body is not None else None, headers=h)
+                r = c.getresponse()
+                data = r.read()
+            except Exception as e:
+                raise AssertionError(f"{method} {path} on port {host or port} failed after {time.time() - t0:.1f}s: {e}")
             return r.status, dict(r.getheaders()), data
+
+        for _ in range(120):
+            st, _, data = api("GET", "/api/snapshot")
+            if st == 200 and json.loads(data).get("agents"):
+                break
+            time.sleep(0.5)
 
         st, _, data = api("POST", "/api/settings", {"values": {"notify": {"soon_pct": "77"}}})
         assert st == 200, data
@@ -373,7 +383,7 @@ def _():
         st, hd, _ = api("GET", f"/?key={key}", host=info["port"])
         assert st == 302 and "nyra_key=" in hd.get("Set-Cookie", ""), (st, hd)
         st, _, data = api("GET", "/api/snapshot", host=info["port"], headers={"Cookie": f"nyra_key={key}"})
-        assert st == 200 and json.loads(data).get("agents"), st
+        assert st == 200 and "agents" in json.loads(data), (st, data[:200])
         api("POST", "/api/phone", {"on": False})
     finally:
         p.terminate()

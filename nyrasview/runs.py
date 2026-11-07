@@ -90,7 +90,7 @@ def _context(prev):
     return "\n".join(lines) + "\n\nNow: "
 
 
-def start(agent, prompt, cwd, mode="ask", model=None, group=None, parent=None, api=False, sandboxed=None):
+def start(agent, prompt, cwd, mode="ask", model=None, group=None, parent=None, api=False, sandboxed=None, label=None):
     if mode not in MODES:
         raise ValueError("mode must be ask, edit or auto")
     cwd = os.path.realpath(os.path.expanduser(cwd or "~"))
@@ -109,7 +109,7 @@ def start(agent, prompt, cwd, mode="ask", model=None, group=None, parent=None, a
     rid = secrets.token_hex(4)
     meta = {"id": rid, "agent": agent, "cwd": cwd, "mode": mode, "model": model, "group": group,
             "prompt": prompt, "created": time.time(), "status": "running", "pid": None, "session": None,
-            "parent": parent, "api": bool(api), "turns": prev + [{"prompt": prompt}]}
+            "parent": parent, "api": bool(api), "label": label, "turns": prev + [{"prompt": prompt}]}
     from . import sandbox
     if sandboxed is None:
         sandboxed = sandbox.settings()["default"] and sandbox.ready()
@@ -186,7 +186,7 @@ def _maybe_retry(rid):
     if not _limit(text):
         return
     new = start(m["agent"], m["prompt"], m["cwd"], m["mode"], m.get("model"), m.get("group"), m.get("parent"), api=True,
-                sandboxed=m.get("sandbox"))
+                sandboxed=m.get("sandbox"), label=m.get("label"))
     m["retried_as"] = new["id"]
     _save(m)
 
@@ -380,7 +380,7 @@ def listing(limit=40):
             _finish(m)
             m = load(d.name)
         out.append({k: m.get(k) for k in ("id", "agent", "cwd", "mode", "model", "group", "prompt", "created",
-                                           "status", "finished", "pid", "cost", "error", "parent")})
+                                           "status", "finished", "pid", "cost", "error", "parent", "label")})
     children = {r["parent"] for r in out if r.get("parent")}
     return [r for r in out if r["id"] not in children][:limit]
 
