@@ -3,6 +3,7 @@ import json
 import os
 import sys
 import time
+from pathlib import Path
 
 from . import VERSION, collab
 from .registry import AGENTS, BY_KEY
@@ -82,6 +83,48 @@ def cmd_ps(a):
 
 
 def cmd_mcp(a):
+    from . import mcpman
+    act = getattr(a, "mcp_cmd", None)
+    if act:
+        tg = [t["key"] for t in mcpman.targets()]
+        to = [x for x in (a.to or "").split(",") if x] if hasattr(a, "to") else []
+        if to == ["all"]:
+            to = [t["key"] for t in mcpman.targets() if t["installed"]]
+        if act == "test":
+            spec = None
+            if getattr(a, "src", None):
+                spec = mcpman.full_spec(a.src, a.what)
+            if spec is None:
+                spec = mcpman.parse(a.what)[1]
+            print(dim("starting it and asking for its tools…"), flush=True)
+            r = mcpman.probe(spec)
+            if r["ok"]:
+                print(col("#22c55e", "✓ works") + f"  {r.get('server') or ''} {r.get('version') or ''}  " +
+                      (f"{len(r['tools'])} tools: " + ", ".join(r["tools"][:12]) if r.get("tools") is not None else r.get("note", "")) +
+                      dim(f"  ({r['ms']} ms)"))
+            else:
+                print(col("#ef4444", "✗ failed") + "  " + (r.get("error") or "")[:400])
+            return
+        if act == "add":
+            name, spec = mcpman.parse(a.what, a.name)
+        elif act == "copy":
+            name, spec = a.what, mcpman.full_spec(a.src, a.what)
+            if not spec:
+                sys.exit(f"{a.what} isn't configured for {a.src}")
+        else:
+            name, spec = a.what, None
+            if not to:
+                to = [t for t in tg]
+        if not to:
+            sys.exit("say where: --to claude,codex or --to all")
+        for ag in to:
+            try:
+                mcpman.set_server(ag, name, spec)
+                print(f"{'removed' if spec is None else 'added'} {name} {'from' if spec is None else 'to'} {ag}")
+            except Exception as e:
+                print(col("#ef4444", f"{ag}: {e}"))
+        print(dim("restart running agents to load the change · backups in ~/.local/state/nyrasview/backups"))
+        return
     s = snap()
     if a.json:
         return print(json.dumps(s["mcp"], indent=2))
@@ -162,7 +205,7 @@ def cmd_agents(a):
 def cmd_gui(a):
     from . import web
     from .collector import Collector
-    c = Collector(interval=a.interval)
+    c = Collector(interval=a.interval, relay=a.relay)
     web.serve(c, a.port, not a.no_open)
 
 
@@ -171,7 +214,7 @@ def cmd_tui(a):
         sys.exit("nyrasview needs a terminal (try: nyrasview status)")
     from . import tui
     from .collector import Collector
-    tui.run(Collector(interval=a.interval))
+    tui.run(Collector(interval=a.interval, relay=a.relay))
 
 
 def cmd_now(a):
@@ -342,6 +385,92 @@ def cmd_runs(a):
     table(["RUN", "AGENT", "STATUS", "MODE", "AGO", "FOLDER", "PROMPT"], rows) if rows else print("no runs yet")
 
 
+def _bar(u, w=24):
+    u = max(0.0, min(1.0, u or 0))
+    n = int(round(u * w))
+    c = "#22c55e" if u < 0.7 else "#f59e0b" if u < 0.9 else "#ef4444"
+    return col(c, "█" * n) + dim("░" * (w - n))
+
+
+def cmd_limits(a):
+    from . import limits
+    from .usage import UsageStore
+    u = UsageStore()
+    u.refresh()
+    snap = limits.snapshot(u.records)
+    if a.json:
+        return print(json.dumps(snap, indent=2))
+    if not snap:
+        return print("no limit data yet. Run any prompt from nyrasview (nyrasview ask claude \"hi\") to calibrate Claude.")
+    for agent, wins in snap.items():
+        g = BY_KEY.get(agent)
+        print(col(g.hex if g else None, g.name if g else agent))
+        for name, w in wins.items():
+            label = {"five_hour": "5-hour", "seven_day": "weekly"}.get(name, name)
+            ut = w.get("utilization")
+            line = f"  {label:<7} "
+            if ut is None:
+                line += dim(f"not calibrated · {hn(w.get('used_tokens'))} tokens in window · {hn(w.get('burn_per_hour'))}/h")
+            else:
+                line += _bar(ut) + f" {ut * 100:4.0f}%"
+                if w.get("resets"):
+                    line += dim(f"  resets {time.strftime('%a %H:%M', time.localtime(w['resets']))}")
+                if w.get("eta"):
+                    line += col("#f59e0b", f"  ~{w['eta'] / 60:.0f} min left at this pace")
+                if w.get("measured_at") and w.get("measured") is not None and abs((w["measured"] or 0) - ut) > 0.005:
+                    line += dim(f"  (measured {w['measured'] * 100:.0f}% {ago(w['measured_at'])} ago, estimated since)")
+            print(line)
+
+
+def cmd_events(a):
+    from . import notify
+    for e in notify.recent(a.limit):
+        g = BY_KEY.get(e.get("agent"))
+        mark = {"approval": "⚠", "limit": "⛔", "limit_soon": "▲", "failed": "✗", "finished": "✓", "done": "✓"}.get(e["kind"], "•")
+        print(f"{dim(ago(e['at']).rjust(4))} {mark} {col(g.hex if g else None, e['title'])}  {dim(e['body'][:120])}")
+
+
+def cmd_notify_test(a):
+    from . import notify
+    e = notify.emit("finished", "claude", "nyrasview test", "If you can read this, alerts work.", f"test|{time.time()}")
+    print("sent" if e else "notifications for this kind are switched off in config")
+
+
+def cmd_daemon(a):
+    from .collector import Collector
+    c = Collector(interval=3.0, relay=a.relay)
+    if a.relay:
+        import threading
+        from . import handoff
+        threading.Thread(target=handoff.relay, kwargs={"interval": 10.0}, daemon=True).start()
+    print(f"nyrasview daemon · alerts on{' · relay on' if a.relay else ''} · ctrl+c to stop", flush=True)
+    try:
+        while True:
+            time.sleep(3600)
+    except KeyboardInterrupt:
+        pass
+
+
+def cmd_service(a):
+    import shutil as sh
+    unit = Path(os.path.expanduser("~/.config/systemd/user/nyrasview.service"))
+    if a.service_cmd == "uninstall":
+        os.system("systemctl --user disable --now nyrasview.service >/dev/null 2>&1")
+        unit.unlink(missing_ok=True)
+        return print("removed nyrasview.service")
+    exe = sh.which("nyrasview") or f"{sys.executable} -m nyrasview"
+    unit.parent.mkdir(parents=True, exist_ok=True)
+    unit.write_text("[Unit]\nDescription=nyrasview alerts and relay\nAfter=graphical-session.target\n\n[Service]\n"
+                    f"ExecStart={exe} daemon{' --relay' if a.relay else ''}\nRestart=on-failure\nRestartSec=5\n\n"
+                    "[Install]\nWantedBy=default.target\n")
+    print(f"wrote {unit}")
+    if a.enable:
+        r = os.system("systemctl --user daemon-reload && systemctl --user enable --now nyrasview.service")
+        print("enabled and started" if r == 0 else "could not enable it, run: systemctl --user enable --now nyrasview.service")
+    else:
+        print(dim("start it now and on every login:  systemctl --user enable --now nyrasview.service"))
+
+
 def money(c):
     return f"${c:.2f}" if c >= 1 else f"${c:.4f}"
 
@@ -461,8 +590,23 @@ def main():
     s.add_argument("-a", "--all", action="store_true")
     p = sp.add_parser("ps", help="process tree per agent")
     p.add_argument("agent", nargs="?")
-    m = sp.add_parser("mcp", help="MCP servers across all agents")
+    m = sp.add_parser("mcp", help="MCP servers across all agents (add, copy, rm, test)")
     m.add_argument("--json", action="store_true")
+    ms = m.add_subparsers(dest="mcp_cmd")
+    x = ms.add_parser("add", help="add a server from a command, URL or JSON")
+    x.add_argument("what")
+    x.add_argument("--name")
+    x.add_argument("--to", required=True, help="claude,codex,… or all")
+    x = ms.add_parser("copy", help="copy a configured server to other agents")
+    x.add_argument("what")
+    x.add_argument("--from", dest="src", required=True)
+    x.add_argument("--to", required=True)
+    x = ms.add_parser("rm", help="remove a server")
+    x.add_argument("what")
+    x.add_argument("--to", dest="to", default="", help="agents to remove it from (default: all)")
+    x = ms.add_parser("test", help="start a server and list its tools")
+    x.add_argument("what", help="a configured name (with --from) or a command/URL")
+    x.add_argument("--from", dest="src")
     k = sp.add_parser("skills", help="skills, commands, subagents, rules")
     k.add_argument("query", nargs="?")
     k.add_argument("-a", "--agent")
@@ -511,6 +655,17 @@ def main():
     x.add_argument("-j", "--parallel", type=int, default=4)
     sp.add_parser("obsidian", help="list Obsidian vaults")
     sp.add_parser("now", help="what each running agent is working on")
+    x = sp.add_parser("limits", help="usage limit gauges and forecast")
+    x.add_argument("--json", action="store_true")
+    x = sp.add_parser("inbox", help="recent alerts")
+    x.add_argument("-n", "--limit", type=int, default=25)
+    sp.add_parser("notify-test", help="send a test alert")
+    x = sp.add_parser("daemon", help="run alerts (and relay) in the background without a UI")
+    x.add_argument("--relay", action="store_true")
+    x = sp.add_parser("service", help="run the daemon on login with systemd")
+    x.add_argument("service_cmd", choices=["install", "uninstall"])
+    x.add_argument("--relay", action="store_true")
+    x.add_argument("--enable", action="store_true")
     x = sp.add_parser("ask", help="prompt an agent (or several: claude,codex) and stream the answer")
     x.add_argument("agent")
     x.add_argument("prompt")
@@ -545,7 +700,8 @@ def main():
     x.add_argument("-m", "--model")
     a = ap.parse_args()
     fn = {"tui": cmd_tui, "gui": cmd_gui, "status": cmd_status, "ps": cmd_ps, "mcp": cmd_mcp,
-          "skills": cmd_skills, "usage": cmd_usage, "agents": cmd_agents, "collab": cmd_collab, "obsidian": cmd_obsidian, "now": cmd_now, "ask": cmd_ask, "runs": cmd_runs, "hook": cmd_hook, "hooks": cmd_hooks, "say": cmd_say, "handoff": cmd_handoff, "relay": cmd_relay, "local": cmd_local,
+          "skills": cmd_skills, "usage": cmd_usage, "agents": cmd_agents, "collab": cmd_collab, "obsidian": cmd_obsidian, "now": cmd_now, "limits": cmd_limits, "inbox": cmd_events, "notify-test": cmd_notify_test,
+          "daemon": cmd_daemon, "service": cmd_service, "ask": cmd_ask, "runs": cmd_runs, "hook": cmd_hook, "hooks": cmd_hooks, "say": cmd_say, "handoff": cmd_handoff, "relay": cmd_relay, "local": cmd_local,
           None: cmd_tui}[a.cmd]
     if a.relay and a.cmd in (None, "tui", "gui"):
         import threading

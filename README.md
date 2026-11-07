@@ -26,6 +26,10 @@ The only dependency is `psutil`. You need Python 3.11 or newer.
 | `nyrasview agents` | every known agent and how collab calls it |
 | `nyrasview ask <agent> "…"` | prompt one agent, or `claude,codex` to compare, and stream the answer |
 | `nyrasview runs` | prompts started from nyrasview |
+| `nyrasview limits` | usage limit gauges and time left at your pace |
+| `nyrasview inbox` | recent alerts (`notify-test` sends one) |
+| `nyrasview mcp add/copy/rm/test` | manage MCP servers for every agent at once |
+| `nyrasview daemon` / `service install` | alerts and relay without a UI, optionally on login |
 | `nyrasview now` | what every running agent is working on right now |
 | `nyrasview local` | local AI servers and their models; `local ask ollama "hi"` to try one |
 | `nyrasview handoff` | hand the current task to another agent (`--to codex`, `-w` new window, `-n` dry run) |
@@ -70,6 +74,59 @@ Click **👁 Watch** on any Claude Code or Codex session (or a row in the overvi
   - **Claude Code** gets it after its next tool call, through a hook. Turn it on once with `nyrasview hooks install`; a backup of `~/.claude/settings.json` is saved first.
   - **Other agents** get it copied to your clipboard, ready to paste.
 - From the terminal: `nyrasview say "make the header sticky" -f src/Header.tsx`
+
+## Alerts: know when you're needed
+
+nyrasview tells you when:
+
+- an agent **needs your permission** or is waiting for you
+- it **finished**
+- a prompt run or collab task **is done or failed**
+- an agent **hit its limit** or is **about to**
+
+Alerts arrive as desktop notifications, browser notifications (🔔 in the GUI), or on your phone through [ntfy](https://ntfy.sh). They all collect in the GUI inbox and in `nyrasview inbox`.
+
+- With `nyrasview hooks install`, Claude Code reports permission prompts and finishes the moment they happen. Without the hook, nyrasview works it out from the session logs.
+- To keep alerts running without the GUI open: `nyrasview service install --relay --enable` (a systemd user service).
+
+```toml
+[notify]
+desktop = true
+ntfy = "my-secret-topic"   # phone alerts via the ntfy app
+soon_pct = 90              # warn at 90% of a limit
+```
+
+## Limits: see the wall before you hit it
+
+`nyrasview limits` (and the Limits panel in the GUI) shows the 5-hour and weekly windows for Claude Code and Codex:
+
+- how full each window is
+- when it resets
+- how long you have left at your current pace
+
+**Where the numbers come from:**
+
+- **Claude:** nyrasview takes the real reading from any run it starts (or one tiny *Calibrate* call) and extrapolates it with the token burn rate from your local logs.
+- **Codex:** read straight from its own logs.
+
+With relay on, the handoff file is written as soon as a limit gets close, so the switch is instant.
+
+## MCP manager
+
+The MCP page shows every server against every agent in one grid. Click a cell to switch a server on or off for that agent.
+
+- **Add:** paste a command, a URL or a JSON snippet, or pick a preset (playwright, context7, fetch, memory…).
+- **Test:** starts the server and lists its tools before you commit to it.
+- **Add to all:** copies a server, env vars included, into every agent's own format.
+- **Formats written:** Claude (`claude mcp`), Codex TOML, opencode, Gemini, Qwen, Cursor, Kimi, Antigravity, Windsurf, Copilot, Droid, Crush, Amp.
+- **Backups:** every file is backed up before it changes.
+
+```sh
+nyrasview mcp add "npx -y @playwright/mcp@latest" --to all
+nyrasview mcp copy context7 --from claude --to codex,gemini
+nyrasview mcp test "uvx mcp-server-fetch"
+nyrasview mcp rm playwright
+```
 
 ## Relay: when one agent runs out, the next one takes over
 

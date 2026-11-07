@@ -6,7 +6,7 @@ from collections import defaultdict, deque
 
 import psutil
 
-from . import VERSION, activity, collab, local, mcp, net, skills
+from . import VERSION, activity, collab, limits, local, mcp, net, notify, skills
 from .registry import AGENTS, BY_KEY, identify
 from .usage import UsageStore
 
@@ -16,13 +16,14 @@ ATTRS = ["pid", "ppid", "name", "exe", "cmdline", "cpu_percent", "memory_info", 
 
 
 class Collector:
-    def __init__(self, interval=1.5, background=True):
+    def __init__(self, interval=1.5, background=True, watch=True, relay=False):
         self.interval = interval
         self.usage = UsageStore()
         self.resolver = net.Resolver()
         self.hist = defaultdict(lambda: deque(maxlen=90))
         self.slow = {"mcp": [], "skills": [], "usage": {}, "openrouter": {"configured": False},
-                     "local": [], "collab": []}
+                     "local": [], "collab": [], "limits": {}}
+        self.watcher = notify.Watcher(relay=relay) if watch else None
         self.cwds = set()
         self.snap = None
         self.lock = threading.Lock()
@@ -46,7 +47,7 @@ class Collector:
 
     def _slow_loop(self):
         last = defaultdict(float)
-        periods = {"usage": 12, "cfg": 20, "openrouter": 90, "local": 6, "collab": 2}
+        periods = {"usage": 12, "cfg": 20, "openrouter": 90, "local": 6, "collab": 2, "limits": 10, "watch": 2}
         while True:
             now = time.time()
             for k, p in periods.items():
@@ -69,6 +70,10 @@ class Collector:
             self.slow["openrouter"] = net.openrouter()
         if what in ("local", "all"):
             self.slow["local"] = local.scan()
+        if what in ("limits", "all"):
+            self.slow["limits"] = limits.snapshot(self.usage.records)
+        if what == "watch" and self.watcher:
+            self.watcher.tick(self.snapshot())
         if what in ("collab", "all"):
             self.slow["collab"] = collab.overview()
 
@@ -236,7 +241,7 @@ class Collector:
                        "mem_total": vm.total},
             "agents": agents_out, "mcp": cfg_mcp, "skills": self.slow["skills"],
             "openrouter": self.slow["openrouter"], "local": self.slow["local"],
-            "collab": self.slow["collab"],
+            "collab": self.slow["collab"], "limits": self.slow["limits"],
         }
 
 

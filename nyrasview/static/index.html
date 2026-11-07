@@ -167,7 +167,7 @@ textarea{width:100%;min-height:70px;resize:vertical}
 .typing::after{content:"▍";animation:blink 1s steps(1) infinite;margin-left:1px}
 @keyframes blink{50%{opacity:0}}
 .reply{white-space:pre-wrap;font-size:13.5px;line-height:1.6;background:var(--panel2);border-radius:10px;padding:14px;min-height:60px;margin-top:10px}
-.ov{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px}
+.ov{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px;grid-auto-flow:row dense}
 .ov>.panel{margin:0}
 .c3{grid-column:span 3}.c4{grid-column:span 4}.c5{grid-column:span 5}.c6{grid-column:span 6}.c7{grid-column:span 7}.c8{grid-column:span 8}.c12{grid-column:span 12}
 @media (max-width:1200px){.c3{grid-column:span 6}.c4,.c5{grid-column:span 6}.c7,.c8{grid-column:span 12}}
@@ -328,6 +328,36 @@ textarea{width:100%;min-height:70px;resize:vertical}
 .newp{display:flex;align-items:center;gap:8px;margin:0 6px;padding:9px 12px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--text);font:inherit;font-size:13.5px;cursor:pointer;transition:border-color .2s,transform .3s var(--spring)}
 .newp:hover{border-color:var(--dim);transform:translateY(-1px)}
 .newp .kbd{margin-left:auto}
+.lm{display:grid;gap:12px}
+.lm .ag{display:flex;align-items:center;gap:8px;font-weight:600;font-size:13px}
+.lm .w{display:grid;grid-template-columns:62px 1fr auto;gap:4px 10px;align-items:center;font-size:12px}
+.lm .w .lb{color:var(--dim)}
+.lm .w .pc{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:600}
+.lm .w .gb{height:8px;border-radius:4px;background:var(--panel2);overflow:hidden}
+.lm .w .gb i{display:block;height:100%;border-radius:4px;transition:width .9s var(--ease),background .4s}
+.lm .w .ft{grid-column:2/4;color:var(--dim);font-size:11.5px}
+.lm .w .ft b{color:var(--warn);font-weight:600}
+.ib{display:grid;gap:2px;margin-top:6px}
+.ib .e{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:8px;align-items:baseline;font-size:12.5px;padding:5px 2px;border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent)}
+.ib .e .t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ib .e .t small{color:var(--dim);margin-left:6px}
+.ib .e .a{font-size:11px;color:var(--dim)}
+.mx{width:100%;border-collapse:separate;border-spacing:0}
+.mx th.ag{text-align:center;font-size:11px;padding:6px 4px;white-space:nowrap}
+.mx th.ag span{display:inline-flex;align-items:center;gap:5px}
+.mx td.c{text-align:center;padding:4px}
+.mx .cell{width:30px;height:26px;border-radius:8px;border:1px dashed var(--line);background:transparent;color:var(--dim);cursor:pointer;font:inherit;font-size:12px;transition:all .2s var(--spring)}
+.mx .cell:hover{border-color:var(--dim);color:var(--text);transform:scale(1.08)}
+.mx .cell.on{border:1px solid color-mix(in srgb,var(--c) 60%,transparent);background:color-mix(in srgb,var(--c) 16%,transparent);color:var(--text)}
+.mx .cell.live{box-shadow:0 0 0 2px color-mix(in srgb,var(--good) 45%,transparent)}
+.mx .cell.busy{opacity:.4;pointer-events:none}
+.mx td.nm{font-weight:600;white-space:nowrap}
+.mx td.nm small{display:block;font-weight:400;color:var(--dim);font-family:var(--mono);font-size:11px;max-width:300px;overflow:hidden;text-overflow:ellipsis}
+.pre{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 2px}
+.pre button{border:1px solid var(--line);background:transparent;color:var(--text);border-radius:999px;padding:4px 11px;font:inherit;font-size:12px;cursor:pointer;transition:border-color .2s}
+.pre button:hover{border-color:var(--dim)}
+.pre button small{color:var(--dim);margin-left:5px}
+.tres{font-size:12.5px;margin-top:10px;font-family:var(--mono);white-space:pre-wrap}
 #tip{position:fixed;z-index:20;pointer-events:none;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-size:12px;box-shadow:0 6px 20px rgba(0,0,0,.18);opacity:0;transition:opacity .12s;white-space:nowrap}
 #tip.on{opacity:1}
 .toast{position:fixed;bottom:18px;right:18px;background:var(--panel);border:1px solid var(--line);padding:10px 14px;border-radius:12px;opacity:0;transform:translateY(8px);transition:all .3s var(--spring);pointer-events:none;z-index:9}
@@ -415,6 +445,21 @@ function paint(list){(list||[]).forEach(a=>{if(a&&a.key)a.hex=colorOf(a.key)})}
 paint(S&&S.agents);
 document.addEventListener("mousemove",e=>{const t=$("#tip");const el=e.target.closest&&e.target.closest("[data-tip]");if(!el){t.classList.remove("on");return}
   t.innerHTML=el.dataset.tip;t.classList.add("on");const w=t.offsetWidth,h=t.offsetHeight;let x=e.clientX+14,y=e.clientY-h-10;if(x+w>innerWidth-8)x=e.clientX-w-14;if(y<8)y=e.clientY+16;t.style.left=x+"px";t.style.top=y+"px"});
+let EVS=[],EVSEEN=+(localGet("evseen")||0),EVINIT=false;
+async function loadEvents(){try{const r=await fetch("/api/events?since="+(Date.now()/1000-86400));if(!r.ok)return;EVS=await r.json();
+  const fresh=EVS.filter(e=>e.at>EVSEEN);if(EVINIT&&fresh.length&&"Notification" in window&&Notification.permission==="granted"&&localGet("bnotify")==="1")fresh.slice(-3).forEach(e=>{try{new Notification(e.title,{body:e.body,tag:e.id})}catch(x){}});
+  if(EVS.length){EVSEEN=Math.max(EVSEEN,...EVS.map(e=>e.at));localSet("evseen",EVSEEN)}EVINIT=true}catch(e){}}
+const LWIN={five_hour:"5-hour",seven_day:"weekly"};
+const fmtIn=s=>{s=Math.max(0,s);const h=Math.floor(s/3600),m=Math.round(s%3600/60);return h?`${h}h ${m}m`:`${m}m`};
+function limitBlock(agentKey,wins){
+  const rows=Object.entries(wins).map(([n,w])=>{const u=w.utilization;const lab=LWIN[n]||n;
+    if(u==null)return `<div class="w"><span class="lb">${lab}</span><span class="muted">not calibrated · ${hn(w.used_tokens)} tokens in window · ${hn(w.burn_per_hour)}/h</span><span></span></div>`;
+    const pct=Math.min(100,u*100),col=u<.7?"var(--good)":u<.9?"var(--warn)":"var(--bad)";
+    const bits=[];if(w.resets)bits.push("resets in "+fmtIn(w.resets-Date.now()/1000));if(w.eta)bits.push(`<b>~${fmtIn(w.eta)} left at this pace</b>`);
+    if(w.measured!=null&&Math.abs(w.measured-u)>.005)bits.push(`measured ${(w.measured*100).toFixed(0)}% ${ago(w.measured_at)} ago`);
+    return `<div class="w" data-key="lw-${agentKey}-${n}"><span class="lb">${lab}</span><span class="gb"><i style="width:${pct.toFixed(1)}%;background:${col}"></i></span><span class="pc">${pct.toFixed(0)}%</span><span class="ft">${bits.join(" · ")}</span></div>`}).join("");
+  const unc=Object.values(wins).some(w=>w.utilization==null);
+  return `<div data-key="lb-${agentKey}"><div class="ag"><span class="sd" style="background:${colorOf(agentKey)}"></span>${esc(aname(agentKey))}${unc&&agentKey==="claude"?`<button class="btn sm" style="margin-left:auto" data-act="calib" title="one tiny Haiku call reads your real limits">Calibrate</button>`:""}</div>${rows}</div>`}
 let RUNS=[],RUNV={},P=(()=>{try{return JSON.parse(localStorage.getItem("nyra.p"))||{}}catch(e){return {}}})();
 P.agents=P.agents||["claude"];P.mode=P.mode||"ask";P.cwd=P.cwd||"";
 const saveP=()=>localSet("p",JSON.stringify(P));
@@ -599,9 +644,14 @@ function vOverview(){
   const o=S.openrouter||{};
   if(o.configured&&o.error) alerts.push(["warn","▲","OpenRouter key check failed",esc(o.error),""]);
   else if(o.configured&&o.limit&&o.remaining!=null&&o.remaining/o.limit<.1) alerts.push(["warn","▲","OpenRouter credit low",`${money(+o.remaining)} left of $${o.limit}`,""]);
-  h+=`<div class="panel c4"><div class="hd2"><h2>Alerts</h2><span class="muted" style="font-size:12px">${alerts.length||""}</span></div>`+
+  const bn="Notification" in window&&!(Notification.permission==="granted"&&localGet("bnotify")==="1");
+  const EI={approval:"⚠",limit:"⛔",limit_soon:"▲",failed:"✗",finished:"✓",done:"✓"};
+  h+=`<div class="panel c4"><div class="hd2"><h2>Alerts</h2><span class="muted" style="font-size:12px">${alerts.length||""}</span>${bn?`<a data-act="bnotify">🔔 browser alerts</a>`:""}</div>`+
     (alerts.length?alerts.map(([k,i,t,sm,btn],n)=>`<div class="al ${k}" data-key="al-${n}"><span class="i">${i}</span><div class="b">${t}<small>${sm}</small></div>${btn}</div>`).join("")
-     :`<div class="al good"><span class="i">✓</span><div class="b">All clear<small>No usage limits, failed tasks or memory hogs.</small></div></div>`)+`</div>`;
+     :`<div class="al good"><span class="i">✓</span><div class="b">All clear<small>No usage limits, failed tasks or memory hogs.</small></div></div>`)+
+    (EVS.length?`<h3 style="margin-top:12px">Inbox · 24h</h3><div class="ib">`+EVS.slice(-6).reverse().map(e=>`<div class="e" data-key="ev-${e.id}" ${e.run?`data-act="go" data-v="run:${e.run}" style="cursor:pointer"`:e.cwd&&(e.agent==="claude"||e.agent==="codex")?`data-act="watch" data-agent="${e.agent}" data-cwd="${esc(e.cwd)}" style="cursor:pointer"`:""}><span style="color:${e.kind==="approval"||e.kind==="limit"||e.kind==="failed"?"var(--bad)":e.kind==="limit_soon"?"var(--warn)":"var(--good)"}">${EI[e.kind]||"•"}</span><span class="t">${esc(e.title)}<small>${esc(e.body)}</small></span><span class="a">${ago(e.at)}</span></div>`).join("")+`</div>`:"")+`</div>`;
+  const LM=S.limits||{};
+  h+=`<div class="panel c4"><div class="hd2"><h2>Limits</h2><a data-act="go" data-v="usage">usage →</a></div>`+(Object.keys(LM).length?`<div class="lm">${Object.entries(LM).map(([k,w])=>limitBlock(k,w)).join("")}</div>`:`<div class="muted" style="font-size:12.5px">No limit data yet.${(S.agents||[]).some(a=>a.key==="claude"&&a.installed)?` <button class="btn sm" data-act="calib">Calibrate Claude</button>`:""}</div>`)+`</div>`;
 
   const segs=(items,total)=>items.map(x=>`<i style="flex-grow:${Math.max(0,x.v/total*1000).toFixed(1)};background:${x.c}" data-tip="${tip(x.tip)}"></i>`).join("");
   const agRes=bySlot(live);
@@ -612,7 +662,7 @@ function vOverview(){
   const ramItems=agRes.map(a=>({c:a.hex,v:a.rss,tip:`<b>${a.name}</b> · ${hb(a.rss)}`}));
   const otherRam=Math.max(0,sy.mem_used-rss);ramItems.push({c:"var(--other)",v:otherRam,tip:`<b>Everything else</b> · ${hb(otherRam)}`});
   const free=Math.max(0,sy.mem_total-sy.mem_used);ramItems.push({c:"transparent",v:free,tip:`<b>Free</b> · ${hb(free)}`});
-  h+=`<div class="panel c5"><div class="hd2"><h2>Machine share</h2><a data-act="go" data-v="overview">${ncpu} cores · ${hb(sy.mem_total)}</a></div>
+  h+=`<div class="panel c4"><div class="hd2"><h2>Machine share</h2><a data-act="go" data-v="overview">${ncpu} cores · ${hb(sy.mem_total)}</a></div>
     <div class="segl" style="margin-top:0"><span>CPU</span><span><b>${cpuShare.toFixed(1)}%</b> agents · ${sy.cpu.toFixed(0)}% total</span></div><div class="seg">${segs(cpuItems,100)}</div>
     <div class="segl"><span>Memory</span><span><b>${hb(rss)}</b> agents · ${hb(sy.mem_used)} used</span></div><div class="seg">${segs(ramItems,sy.mem_total)}</div>
     <div class="legend">${agRes.map(a=>`<span><i style="background:${a.hex}"></i>${esc(a.name)} <b>${hb(a.rss)}</b></span>`).join("")}<span><i style="background:var(--other)"></i>everything else</span></div></div>`;
@@ -620,7 +670,7 @@ function vOverview(){
   const ua=bySlot(vis.filter(a=>a.usage&&a.usage.daily&&a.usage.daily.some(v=>v)));
   const days=[...Array(14)].map((_,i)=>new Date(Date.now()-(13-i)*864e5));
   const totals=days.map((_,i)=>sum(ua,a=>a.usage.daily[i]));const mx=Math.max(...totals,1);
-  h+=`<div class="panel c7"><div class="hd2"><h2>Tokens · last 14 days</h2><span class="muted" style="font-size:12px">all tokens incl. cache</span><a data-act="go" data-v="usage">usage →</a></div>`;
+  h+=`<div class="panel c8"><div class="hd2"><h2>Tokens · last 14 days</h2><span class="muted" style="font-size:12px">all tokens incl. cache</span><a data-act="go" data-v="usage">usage →</a></div>`;
   h+=ua.length?`${ua.length>1?`<div class="legend" style="margin:0 0 10px">${ua.map(a=>`<span><i style="background:${a.hex}"></i>${esc(a.name)} <b>${hn(sum(a.usage.daily,v=>v))}</b></span>`).join("")}</div>`:""}
     <div class="stk"><div class="ya"><span>${hn(mx)}</span><span>${hn(mx/2)}</span><span>0</span></div>
     <div class="plot">${days.map((d,i)=>`<div class="col" data-key="d${i}">${ua.filter(a=>a.usage.daily[i]).map(a=>`<i style="height:calc(${(a.usage.daily[i]/mx*100).toFixed(2)}% - 2px);background:${a.hex}" data-tip="${tip(`<b>${a.name}</b> · ${d.toLocaleDateString(undefined,{month:"short",day:"numeric"})}: ${hn(a.usage.daily[i])}`)}"></i>`).join("")}</div>`).join("")}</div>
@@ -639,18 +689,18 @@ function vOverview(){
 
   const liveM={};S.agents.forEach(a=>Object.keys(a.mcp_live).forEach(n=>liveM[a.key+"|"+n]=1));
   const ms=[...(S.mcp||[])].sort((x,y)=>(liveM[y.agent+"|"+y.name]||0)-(liveM[x.agent+"|"+x.name]||0));
-  h+=`<div class="panel c4"><div class="hd2"><h2>MCP servers</h2><a data-act="go" data-v="mcp">all ${ms.length} →</a></div>`+
+  h+=`<div class="panel c3"><div class="hd2"><h2>MCP servers</h2><a data-act="go" data-v="mcp">all ${ms.length} →</a></div>`+
     (ms.length?`<div class="mini">`+ms.slice(0,7).map(m=>{const on=liveM[m.agent+"|"+m.name];return `<div class="r" data-key="mc-${esc(m.agent+m.name+m.scope)}"><span class="sd" style="background:${on?"var(--good)":m.transport!=="stdio"?"var(--cyan)":"var(--line)"}"></span><span class="n">${esc(m.name)}</span><span class="x">${on?"running":m.transport!=="stdio"?"remote":"idle"} · ${esc(aname(m.agent))}</span></div>`}).join("")+`</div>`:`<div class="muted">None configured in any agent.</div>`)+`</div>`;
 
   const sk={};(S.skills||[]).forEach(x=>{sk[x.agent]=sk[x.agent]||{};sk[x.agent][x.kind]=(sk[x.agent][x.kind]||0)+1});
-  h+=`<div class="panel c4"><div class="hd2"><h2>Skills & commands</h2><a data-act="go" data-v="skills">all ${(S.skills||[]).length} →</a></div>`+
+  h+=`<div class="panel c3"><div class="hd2"><h2>Skills & commands</h2><a data-act="go" data-v="skills">all ${(S.skills||[]).length} →</a></div>`+
     (Object.keys(sk).length?`<div class="mini">`+Object.entries(sk).map(([ag,kinds])=>`<div class="r" data-key="sk-${ag}"><span class="sd" style="background:${colorOf(ag)}"></span><span class="n">${esc(aname(ag))}</span><span class="x">${Object.entries(kinds).map(([k,n])=>`${n} ${k}${n>1?"s":""}`).join(" · ")}</span></div>`).join("")+`</div>`:`<div class="muted">No skills found.</div>`)+`</div>`;
 
-  h+=`<div class="panel c4"><div class="hd2"><h2>Local AI</h2><a data-act="go" data-v="local">try a model →</a></div>`+
+  h+=`<div class="panel c3"><div class="hd2"><h2>Local AI</h2><a data-act="go" data-v="local">try a model →</a></div>`+
     `<div class="mini">`+L.map(x=>`<div class="r" data-key="lo-${x.key}"><span class="sd" style="background:${x.up?"var(--good)":"var(--line)"}"></span><span class="n">${esc(x.name)}${x.up?"":` <span class="muted">· down</span>`}</span><span class="x">${x.up?`${x.models.length} models${x.loaded.length?" · "+esc(x.loaded.map(l=>l.id).join(", ")):""}`:esc(x.url.replace(/^https?:\/\//,""))}</span></div>`).join("")+`</div></div>`;
 
   const docs=S.collab||[];
-  h+=`<div class="panel c4"><div class="hd2"><h2>Collab docs</h2><a data-act="go" data-v="new">new →</a></div>`+
+  h+=`<div class="panel c3"><div class="hd2"><h2>Collab docs</h2><a data-act="go" data-v="new">new →</a></div>`+
     (docs.length?`<div class="mini">`+docs.slice(0,6).map(d=>{const dn=d.tasks.filter(t=>t.status==="done").length,rn=d.tasks.filter(t=>t.status==="running").length,n=d.tasks.length;
       return `<div class="r" data-act="go" data-v="doc:${esc(d.doc)}" style="cursor:pointer" data-key="cd-${esc(d.doc)}">${ic("doc",14)}<span class="n">${esc(d.name.replace(/\.md$/,""))}</span><span class="pb"><i style="width:${n?dn/n*100:0}%"></i></span><span class="x">${rn?`<span style="color:var(--warn)">${rn} running</span> · `:""}${dn}/${n}</span></div>`}).join("")+`</div>`
      :`<div class="muted">No shared documents. Split one into sections and give each to a different AI.</div>`)+`</div>`;
@@ -770,7 +820,7 @@ function vAgent(k){
   const a=agent(k);if(!a.key) return `<div class="empty">Agent not found.</div>`;
   const u=a.usage||{};
   let h=`<div class="ph" style="--c:${a.hex}"><span class="dot ${a.running?"live":""}" style="width:12px;height:12px"></span><h1>${esc(a.name)}</h1><span class="pill ${a.running?"live":""}">${a.running?"live":"idle"}</span><span class="sub">${esc(a.binary||"")}${a.listen.length?" · listening "+a.listen.join(", "):""}</span><div class="grow"></div>${a.headless?`<button class="btn" data-act="pfor" data-agent="${a.key}" data-cwd="${esc(((a.work||[]).find(w=>w.cwd&&!w.collab)||{}).cwd||"")}">✦ Prompt ${esc(a.name)}</button>`:""}</div>
-  <div class="panel" style="--c:${a.hex}"><div class="kv" style="grid-template-columns:repeat(auto-fit,minmax(110px,1fr))"><div><span>cpu</span><b>${a.cpu.toFixed(1)}%</b></div><div><span>ram</span><b>${hb(a.rss)}</b></div><div><span>sessions</span><b>${a.sessions}</b></div><div><span>processes</span><b>${a.nprocs}</b></div><div><span>connections</span><b>${Object.values(a.providers).reduce((x,y)=>x+y,0)}</b></div><div><span>out today</span><b>${u.today?hn(u.today.out):"–"}</b></div><div><span>out 7d</span><b>${u.week?hn(u.week.out):"–"}</b></div></div>${spark(a.hist,a.hex,64)}</div>`+vSessions(a);
+  <div class="panel" style="--c:${a.hex}"><div class="kv" style="grid-template-columns:repeat(auto-fit,minmax(110px,1fr))"><div><span>cpu</span><b>${a.cpu.toFixed(1)}%</b></div><div><span>ram</span><b>${hb(a.rss)}</b></div><div><span>sessions</span><b>${a.sessions}</b></div><div><span>processes</span><b>${a.nprocs}</b></div><div><span>connections</span><b>${Object.values(a.providers).reduce((x,y)=>x+y,0)}</b></div><div><span>out today</span><b>${u.today?hn(u.today.out):"–"}</b></div><div><span>out 7d</span><b>${u.week?hn(u.week.out):"–"}</b></div></div>${spark(a.hist,a.hex,64)}</div>`+((S.limits||{})[k]?`<div class="panel"><h2>Limits</h2><div class="lm">${limitBlock(k,S.limits[k])}</div></div>`:"")+vSessions(a);
   if(a.procs.length) h+=`<div class="panel"><h2>Processes</h2><table><thead><tr><th>pid</th><th>role</th><th class="r">cpu%</th><th class="r">ram</th><th class="r">thr</th><th>network</th><th>command</th><th></th></tr></thead><tbody>`+
     a.procs.map(p=>`<tr data-key="p${p.pid}" class="${p.role.startsWith("mcp")?"mcp":p.role==="collab"?"collab":""}"><td class="m">${p.pid}</td><td>${p.role.startsWith("mcp")?"◆ "+esc(p.mcp):esc(p.role)}${p.collab?" ✎"+p.collab:""}</td><td class="r m">${p.cpu}</td><td class="r m">${hb(p.rss)}</td><td class="r m">${p.threads}</td><td class="m">${p.conns.map(c=>esc(c.host)).slice(0,3).join("<br>")}</td><td class="cmd" title="${esc(p.cmd)}">${"&nbsp;&nbsp;".repeat(Math.min(p.depth,6))}${esc(p.cmd)}</td><td><button class="btn sm" data-act="kill" data-pid="${p.pid}">kill</button></td></tr>`).join("")+`</tbody></table></div>`;
   const mcfg=(S.mcp||[]).filter(m=>m.agent===k);
@@ -779,11 +829,37 @@ function vAgent(k){
   if(u.models&&u.models.length) h+=`<div class="panel"><h2>Models</h2><table><tbody>${u.models.map(m=>`<tr><td class="m">${esc(m.model)}</td><td class="r m">${hn(m.tokens)} tok</td><td class="r m muted">${m.msgs} msgs</td></tr>`).join("")}</tbody></table></div>`;
   return h}
 
+let MX=null,MSEL=null;
+async function loadMX(){try{MX=await (await fetch("/api/mcp/matrix")).json();if(!MSEL)MSEL=MX.targets.filter(t=>t.installed).map(t=>t.key)}catch(e){}if(view==="mcp")render()}
 function vMCP(){
+  let h=`<div class="ph"><h1>MCP servers</h1><span class="sub">add once, switch on for any agent</span></div>`;
+  h+=`<div class="panel" data-static data-key="mcpadd"><h2>Add a server</h2>
+    <div class="row"><input id="mpaste" placeholder="paste a command, URL or JSON, e.g. npx -y @playwright/mcp@latest" style="flex:1;min-width:260px"><input id="mname" placeholder="name (auto)" style="width:160px"></div>
+    <div class="pre" id="mpre"></div>
+    <div class="row" style="margin-top:10px"><span class="muted" style="font-size:12px">add to</span><div class="agc" id="mtg" style="margin:0"></div><div class="grow"></div><button class="btn" data-act="mtest">Test</button><button class="btn pri" data-act="madd">Add</button></div>
+    <div class="tres" id="mres"></div></div>`;
+  if(!MX) return h+`<div class="empty">loading…</div>`;
+  const live={};S.agents.forEach(a=>Object.keys(a.mcp_live).forEach(n=>live[a.key+"|"+n]=1));
+  const used=new Set(MX.servers.flatMap(r=>Object.keys(r.agents)));
+  const cols=MX.targets.filter(t=>t.installed||used.has(t.key));
+  h+=`<div class="panel"><div class="hd2"><h2>Who has what</h2><span class="muted" style="font-size:12px">click a cell to switch a server on or off for that agent · green ring = running now</span></div>`;
+  h+=MX.servers.length?`<div style="overflow:auto"><table class="mx"><thead><tr><th>server</th>${cols.map(t=>`<th class="ag"><span><span class="sd" style="background:${colorOf(t.key)}"></span>${esc(t.name)}</span></th>`).join("")}<th></th></tr></thead><tbody>`+
+    MX.servers.map(r=>{const src=Object.keys(r.agents)[0];const missing=cols.filter(t=>t.installed&&!r.agents[t.key]).map(t=>t.key);
+      return `<tr data-key="mx-${esc(r.name)}"><td class="nm">${esc(r.name)}<small title="${esc(r.target)}">${esc(r.transport)} · ${esc(r.target)}</small></td>${cols.map(t=>{const on=!!r.agents[t.key];
+        return `<td class="c"><button class="cell ${on?"on":""} ${live[t.key+"|"+r.name]?"live":""}" style="--c:${colorOf(t.key)}" data-act="mcell" data-name="${esc(r.name)}" data-ag="${t.key}" data-src="${src}" data-on="${on?1:0}" title="${on?"on for "+esc(t.name)+" · click to remove":"click to add to "+esc(t.name)}">${on?"✓":"+"}</button></td>`}).join("")}
+        <td style="white-space:nowrap"><button class="btn sm" data-act="mrowtest" data-name="${esc(r.name)}" data-src="${src}">Test</button> ${missing.length?`<button class="btn sm" data-act="mall" data-name="${esc(r.name)}" data-src="${src}" data-to="${missing.join(",")}">Add to all</button>`:""} <button class="btn sm" data-act="mrm" data-name="${esc(r.name)}" data-ags="${Object.keys(r.agents).join(",")}">Remove</button></td></tr>`}).join("")+`</tbody></table></div><div class="tres" id="mrowres"></div>`
+    :`<div class="muted">No user-level MCP servers yet. Add one above, or pick a preset.</div>`;
+  h+=`</div><h3>Every config, including project ones</h3>`+vMCPDetail();
+  return h}
+function syncMCP(){
+  const pre=$("#mpre");if(pre&&MX&&!pre._h){pre.innerHTML=MX.presets.map(x=>`<button data-act="mpre" data-line="${esc(x.line)}" data-name="${esc(x.name)}" title="${esc(x.line)}">${esc(x.name)}<small>${esc(x.about)}</small></button>`).join("");pre._h=1}
+  const tg=$("#mtg");if(tg&&MX){const html=MX.targets.filter(t=>t.installed).map(t=>`<button data-act="mtg" data-k="${t.key}" class="${MSEL.includes(t.key)?"on":""}" style="--c:${colorOf(t.key)}"><i></i>${esc(t.name)}</button>`).join("")||`<span class="muted" style="font-size:12px">no supported agents installed</span>`;if(tg._h!==html){tg.innerHTML=html;tg._h=html}}}
+function showTest(el,r,name){el.innerHTML=r.ok?`<span style="color:var(--good)">✓ ${esc(name||r.server||"server")} works</span>${r.server?` · ${esc(r.server)} ${esc(r.version||"")}`:""}${r.tools?` · ${r.tools.length} tools: ${esc(r.tools.slice(0,14).join(", "))}`:r.note?" · "+esc(r.note):""} <span class="muted">(${(r.ms/1000).toFixed(1)}s)</span>`:`<span style="color:var(--bad)">✗ ${esc(name||"server")} failed</span> · ${esc(r.error||"")}`}
+function vMCPDetail(){
   const live={};S.agents.forEach(a=>Object.entries(a.mcp_live).forEach(([n,m])=>live[a.key+"|"+n]=m));
   const rows=S.mcp.map(m=>{const l=live[m.agent+"|"+m.name];delete live[m.agent+"|"+m.name];return {m,l}});
   Object.entries(live).forEach(([k,l])=>{const [ag,name]=k.split("|");rows.push({m:{agent:ag,name,transport:"stdio",scope:"unlisted",enabled:true,command:"(detected from process)",args:[]},l})});
-  const head=`<div class="ph"><h1>MCP servers</h1><span class="sub">${rows.length} across all agents</span></div>`;
+  const head="";
   if(!rows.length) return head+`<div class="empty">No MCP servers configured in any agent.</div>`;
   return head+`<div class="panel"><table><thead><tr><th>agent</th><th>server</th><th>type</th><th>status</th><th>pids</th><th class="r">cpu%</th><th class="r">ram</th><th>scope</th><th>target</th></tr></thead><tbody>`+
    rows.map(({m,l})=>`<tr data-key="${esc(m.agent+m.name+m.scope)}"><td><span style="color:${hex(m.agent)};font-weight:600">${esc(m.agent)}</span></td><td>${esc(m.name)}</td><td class="m">${m.transport}</td>
@@ -893,7 +969,7 @@ function render(){
   else html=vOverview();
   const main=$("#view");
   if(main._v!==view){main.innerHTML=html;main._v=view;bindView()}else morph(main,html);
-  syncSections();syncLocal();syncComposer();
+  syncSections();syncLocal();syncComposer();syncMCP();
   if(view.startsWith("run:"))document.querySelectorAll(".tb").forEach(tb=>{if(tb._n!==tb.childElementCount){const stick=!tb._n||tb.scrollHeight-tb.scrollTop-tb.clientHeight<120;tb._n=tb.childElementCount;if(stick)tb.scrollTop=tb.scrollHeight}});
 }
 
@@ -901,6 +977,7 @@ function bindView(){
   const sq=$("#sq");if(sq){sq.value=skillQ;sq.oninput=()=>{skillQ=sq.value;render()}}
   if(view==="new"){fetch("/api/collab").then(r=>r.json()).then(l=>{const v=$("#vlist");if(v)v.innerHTML=(l.vaults||[]).map(x=>`<option value="${esc(x.name)}:">${esc(x.path)}</option>`).join("")})}
   if(view.startsWith("doc:")) loadDoc();
+  if(view==="mcp")loadMX();
   if(view==="prompt"){loadRuns().then(render);setTimeout(()=>{const q=$("#pq");if(q)q.focus()},30)}
   if(view.startsWith("run:"))loadRun(view.slice(4));
   if(view.startsWith("watch:")){W={key:view,data:null,pick:null,prev:null,pvOrigin:null,pvPort:null,focusKey:null,sel:null};loadWatch()}
@@ -934,6 +1011,23 @@ document.addEventListener("click",async e=>{
     if(act==="rm"){await post("/api/collab/remove",{doc,id:el.dataset.id});return loadDoc()}
     if(act==="undo"){const r=await post("/api/collab/undo",{doc});toast(r.ok?"Restored previous version":"Nothing to undo");return loadDoc()}
     if(act==="pag"){const k=el.dataset.k;P.agents=P.agents.includes(k)?P.agents.filter(x=>x!==k):[...P.agents,k];saveP();return syncComposer()}
+    if(act==="mpre"){$("#mpaste").value=el.dataset.line;$("#mname").value=el.dataset.name;return}
+    if(act==="mtg"){const k=el.dataset.k;MSEL=MSEL.includes(k)?MSEL.filter(x=>x!==k):[...MSEL,k];return syncMCP()}
+    if(act==="mtest"){const text=$("#mpaste").value.trim();if(!text)return toast("Paste a command, URL or JSON first");const out=$("#mres");out.innerHTML=`<span class="muted typing">starting it and asking for its tools</span>`;
+      const r=await post("/api/mcp/test",{text});return showTest(out,r,$("#mname").value)}
+    if(act==="madd"){const text=$("#mpaste").value.trim();if(!text)return toast("Paste a command, URL or JSON first");if(!MSEL.length)return toast("Pick at least one agent");
+      const r=await post("/api/mcp/add",{text,name:$("#mname").value.trim(),agents:MSEL});const errs=Object.entries(r.errors);
+      $("#mres").innerHTML=`<span style="color:var(--good)">✓ added ${esc(r.name)} to ${r.done.map(aname).join(", ")||"nothing"}</span>${errs.length?` · <span style="color:var(--bad)">${errs.map(([k,v])=>esc(aname(k)+": "+v)).join(" · ")}</span>`:""} <span class="muted">· restart running agents to load it</span>`;
+      $("#mpaste").value="";$("#mname").value="";return loadMX()}
+    if(act==="mcell"){const on=el.dataset.on==="1",name=el.dataset.name,ag=el.dataset.ag;
+      if(on&&!confirm(`Remove ${name} from ${aname(ag)}?`))return;el.classList.add("busy");
+      const r=await post(on?"/api/mcp/remove":"/api/mcp/copy",on?{name,agents:[ag]}:{name,from:el.dataset.src,agents:[ag]});
+      const e=Object.values(r.errors)[0];toast(e?aname(ag)+": "+e:`${on?"Removed":"Added"} ${name} ${on?"from":"to"} ${aname(ag)} · restart it to apply`);return loadMX()}
+    if(act==="mall"){const r=await post("/api/mcp/copy",{name:el.dataset.name,from:el.dataset.src,agents:el.dataset.to.split(",")});toast(`Added ${el.dataset.name} to ${r.done.length} agents`);return loadMX()}
+    if(act==="mrm"){if(!confirm(`Remove ${el.dataset.name} from every agent?`))return;await post("/api/mcp/remove",{name:el.dataset.name,agents:el.dataset.ags.split(",")});toast("Removed");return loadMX()}
+    if(act==="mrowtest"){const out=$("#mrowres");out.innerHTML=`<span class="muted typing">testing ${esc(el.dataset.name)}</span>`;const r=await post("/api/mcp/test",{name:el.dataset.name,from:el.dataset.src});return showTest(out,r,el.dataset.name)}
+    if(act==="calib"){const r=await post("/api/runs",{agents:["claude"],prompt:"Reply with just: ok",cwd:"~",mode:"ask",model:"haiku"});toast("Calibrating… the gauge fills in a few seconds");return}
+    if(act==="bnotify"){const p=await Notification.requestPermission();if(p==="granted"){localSet("bnotify","1");toast("Browser alerts on")}else toast("Browser blocked notifications");return render()}
     if(act==="pmore"){P.more=!P.more;return syncComposer()}
     if(act==="pmode"){P.mode=el.dataset.m;saveP();return syncComposer()}
     if(act==="prun"){const prompt=$("#pq").value.trim();if(!prompt)return toast("Write a prompt first");if(!P.agents.length)return toast("Pick at least one agent");
@@ -975,7 +1069,7 @@ function tick(){
   requestAnimationFrame(tick)}
 
 async function refresh(){try{S=await (await fetch("/api/snapshot")).json();paint(S.agents)}catch(e){}}
-async function poll(){await refresh();await loadRuns();if(view.startsWith("run:")){const v=RUNV[view.slice(4)];if(!v||[view.slice(4),...(v.siblings||[])].some(x=>!RUNV[x]||RUNV[x].status==="running"))await loadRun(view.slice(4))}render();if(view.startsWith("doc:"))loadDoc();if(view.startsWith("watch:"))loadWatch();setTimeout(poll,1500)}
+async function poll(){await refresh();await loadRuns();await loadEvents();if(view.startsWith("run:")){const v=RUNV[view.slice(4)];if(!v||[view.slice(4),...(v.siblings||[])].some(x=>!RUNV[x]||RUNV[x].status==="running"))await loadRun(view.slice(4))}render();if(view.startsWith("doc:"))loadDoc();if(view.startsWith("watch:"))loadWatch();setTimeout(poll,1500)}
 
 {const h=decodeURIComponent(location.hash.slice(1));if(h)view=h}
 if(STALE)$("#stale").innerHTML=`<div class="hookbar">⚠ nyrasview was updated since this server started. Restart it to get the new features: press Ctrl+C where <code>nyrasview gui</code> runs, then run it again.</div>`;

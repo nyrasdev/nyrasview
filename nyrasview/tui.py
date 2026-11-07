@@ -168,6 +168,9 @@ class UI:
         parts = [f" nyrasview {s['version']} ", f" {s['host']} ", f" cpu {sy['cpu']:.0f}% ",
                  f" ram {hb(sy['mem_used'])}/{hb(sy['mem_total'])} ",
                  f" {len(live)} agents live ", f" {hn(tok)} out-tok today ",
+                 *[f" {k} {({'five_hour': '5h', 'seven_day': '7d'}).get(wn, wn)} {w['utilization'] * 100:.0f}% "
+                   for k, ws in (s.get("limits") or {}).items() for wn, w in ws.items()
+                   if w.get("utilization") is not None and wn == "five_hour"],
                  f" {time.strftime('%H:%M:%S')} "]
         self.put(0, 0, " " * W, self.A("bar"))
         x = 0

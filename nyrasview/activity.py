@@ -82,6 +82,7 @@ def _claude_file(path):
     limit = None
     title = prompt = action = text = None
     ts = 0.0
+    open_tools = {}
     for o in _tail(path):
         t = o.get("type")
         if t == "ai-title" and o.get("aiTitle"):
@@ -95,6 +96,8 @@ def _claude_file(path):
                 action, text, limit = None, None, None
             elif isinstance(c, list):
                 for b in c:
+                    if isinstance(b, dict) and b.get("type") == "tool_result":
+                        open_tools.pop(b.get("tool_use_id"), None)
                     if b.get("type") == "text" and not str(b.get("text", "")).startswith("<"):
                         prompt = b["text"]
                         action, text, limit = None, None, None
@@ -102,6 +105,7 @@ def _claude_file(path):
             for b in (o.get("message") or {}).get("content") or []:
                 if b.get("type") == "tool_use":
                     action = describe_tool(b.get("name"), b.get("input"))
+                    open_tools[b.get("id")] = action
                 elif b.get("type") == "text" and b.get("text", "").strip():
                     lim = _limit(b["text"], bool(o.get("isApiErrorMessage") or o.get("error")))
                     if lim:
@@ -110,8 +114,9 @@ def _claude_file(path):
                         text = b["text"]
         if o.get("timestamp"):
             ts = max(ts, parse_ts(o["timestamp"]))
+    pending = list(open_tools.values())[-1] if open_tools else None
     return {"limit": limit, "title": title, "prompt": _short(prompt, 220) if prompt else None,
-            "action": action, "reply": _short(text, 160) if text else None, "at": ts}
+            "action": action, "reply": _short(text, 160) if text else None, "at": ts, "pending": pending}
 
 
 def claude(cwd):
@@ -133,6 +138,7 @@ def _codex_file(path):
     limit = None
     cwd = prompt = action = text = None
     ts = 0.0
+    open_calls = {}
     try:
         with open(path) as f:
             first = json.loads(f.readline() or "{}")
@@ -154,6 +160,9 @@ def _codex_file(path):
                 except ValueError:
                     args = {"command": args}
             action = describe_tool(p.get("name") or "shell", args)
+            open_calls[p.get("call_id") or p.get("id")] = action
+        elif pt in ("function_call_output", "custom_tool_call_output", "local_shell_call_output"):
+            open_calls.pop(p.get("call_id") or p.get("id"), None)
         elif pt == "agent_message" and p.get("message"):
             text = p["message"]
         elif pt == "agent_reasoning" and p.get("text"):
@@ -161,7 +170,8 @@ def _codex_file(path):
         if o.get("timestamp"):
             ts = max(ts, parse_ts(o["timestamp"]))
     return {"limit": limit, "cwd": cwd, "title": None, "prompt": _short(prompt, 220) if prompt else None,
-            "action": action, "reply": _short(text, 160) if text else None, "at": ts}
+            "action": action, "reply": _short(text, 160) if text else None, "at": ts,
+            "pending": list(open_calls.values())[-1] if open_calls else None}
 
 
 def codex(cwd):

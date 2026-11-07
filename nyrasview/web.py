@@ -112,6 +112,12 @@ def make_handler(collector, token, port):
                 if v and v.get("group"):
                     v["siblings"] = [r["id"] for r in runs.listing(200) if r.get("group") == v["group"]]
                 return self._send(200 if v else 404, v or {"error": "no such run"})
+            if u.path == "/api/mcp/matrix":
+                from . import mcpman
+                return self._send(200, mcpman.matrix())
+            if u.path == "/api/events":
+                from . import notify
+                return self._send(200, notify.recent(40, float(q.get("since", ["0"])[0] or 0)))
             if u.path == "/api/handoff/targets":
                 from . import handoff
                 return self._send(200, [{"key": k, "name": BY_KEY[k].name, "hex": BY_KEY[k].hex}
@@ -202,6 +208,43 @@ def make_handler(collector, token, port):
                 if "{prompt}" in " ".join(cmd):
                     cmd = [c.replace("{prompt}", pr) for c in cmd] if pr else [c for c in cmd if c != "{prompt}" and c not in ("-i", "--prompt")]
                 return {"terminal": handoff.terminal(cwd, cmd)}
+            if p.startswith("/api/mcp/"):
+                from . import mcpman
+                act = p[len("/api/mcp/"):]
+                tg = [t["key"] for t in mcpman.targets()]
+                want = b.get("agents") or []
+                if want == ["all"]:
+                    want = [t["key"] for t in mcpman.targets() if t["installed"]]
+                if act == "test":
+                    spec = mcpman.full_spec(b["from"], b["name"]) if b.get("from") else mcpman.parse(b.get("text"))[1]
+                    if not spec:
+                        raise ValueError("server not found")
+                    return mcpman.probe(spec)
+                if act == "parse":
+                    name, spec = mcpman.parse(b.get("text"), b.get("name") or None)
+                    return {"name": name, "spec": {**spec, "env": {k: "•••" for k in spec.get("env") or {}}}}
+                done, errs = [], {}
+                if act == "add":
+                    name, spec = mcpman.parse(b.get("text"), b.get("name") or None)
+                elif act == "copy":
+                    name, spec = b["name"], mcpman.full_spec(b["from"], b["name"])
+                    if not spec:
+                        raise ValueError("server not found")
+                elif act == "remove":
+                    name, spec = b["name"], None
+                else:
+                    raise ValueError("unknown action")
+                for ag in want:
+                    if ag not in tg:
+                        errs[ag] = "not supported"
+                        continue
+                    try:
+                        mcpman.set_server(ag, name, spec)
+                        done.append(ag)
+                    except Exception as e:
+                        errs[ag] = str(e)[:200]
+                collector.refresh("cfg")
+                return {"name": name, "done": done, "errors": errs}
             if p == "/api/preview":
                 from . import proxy
                 pp = proxy.start(int(b["port"]), origin)

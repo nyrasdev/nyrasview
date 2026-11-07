@@ -11,7 +11,7 @@ from .util import HOME, STATE
 
 DIR = STATE / "feedback"
 SETTINGS = HOME / ".claude/settings.json"
-EVENTS = ("PostToolUse", "Stop", "UserPromptSubmit")
+EVENTS = ("PostToolUse", "Stop", "UserPromptSubmit", "Notification")
 
 
 def _file(cwd):
@@ -94,6 +94,14 @@ def hook():
         return
     cwd = data.get("cwd") or os.getcwd()
     event = data.get("hook_event_name") or ""
+    if event in ("Notification", "Stop"):
+        try:
+            from .notify import from_hook
+            from_hook(data)
+        except Exception:
+            pass
+    if event == "Notification":
+        return
     if event == "Stop" and data.get("stop_hook_active"):
         return
     items = take(cwd)
