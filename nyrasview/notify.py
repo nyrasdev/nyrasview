@@ -162,9 +162,10 @@ class Watcher:
                 u = w.get("utilization")
                 if u is None:
                     continue
-                label = {"five_hour": "5-hour", "seven_day": "weekly"}.get(name, name)
+                label = w.get("label") or {"five_hour": "5-hour", "seven_day": "weekly"}.get(name, name)
                 eta = w.get("eta")
-                soon = u * 100 >= st["soon_pct"] or (eta is not None and eta < st["soon_minutes"] * 60)
+                soon = u * 100 >= st["soon_pct"] or (eta is not None and eta < st["soon_minutes"] * 60) or \
+                    (w.get("severity") or "normal") not in ("normal", "low")
                 if soon and u < 1:
                     body = f"{u * 100:.0f}% of the {label} limit used"
                     if eta:

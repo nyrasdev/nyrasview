@@ -402,23 +402,33 @@ def cmd_limits(a):
     u = UsageStore()
     u.refresh()
     snap = limits.snapshot(u.records)
+    meta = limits.META
     if a.json:
-        return print(json.dumps(snap, indent=2))
+        return print(json.dumps({"limits": snap, "meta": meta}, indent=2))
     if not snap:
         return print("no limit data yet. Run any prompt from nyrasview (nyrasview ask claude \"hi\") to calibrate Claude.")
     for agent, wins in snap.items():
         g = BY_KEY.get(agent)
-        print(col(g.hex if g else None, g.name if g else agent))
+        m = meta.get(agent) or {}
+        head = col(g.hex if g else None, g.name if g else agent)
+        if m.get("plan"):
+            head += dim(f"  {m['plan']}")
+        head += dim("  · live from Anthropic" if m.get("source") == "anthropic" else "  · estimated" if agent == "claude" else "")
+        print(head)
+        if m.get("error"):
+            print("  " + col("#f59e0b", m["error"]))
         for name, w in wins.items():
-            label = {"five_hour": "5-hour", "seven_day": "weekly"}.get(name, name)
+            label = w.get("label") or {"five_hour": "5-hour", "seven_day": "weekly"}.get(name, name)
             ut = w.get("utilization")
-            line = f"  {label:<7} "
+            line = f"  {label:<13} "
             if ut is None:
                 line += dim(f"not calibrated · {hn(w.get('used_tokens'))} tokens in window · {hn(w.get('burn_per_hour'))}/h")
             else:
                 line += _bar(ut) + f" {ut * 100:4.0f}%"
                 if w.get("resets"):
                     line += dim(f"  resets {time.strftime('%a %H:%M', time.localtime(w['resets']))}")
+                if w.get("pace") is not None:
+                    line += dim(f"  {'↑' if w['pace'] > 0 else '↓'}{abs(w['pace'])} {'over' if w['pace'] > 0 else 'under'} pace")
                 if w.get("eta"):
                     line += col("#f59e0b", f"  ~{w['eta'] / 60:.0f} min left at this pace")
                 if w.get("measured_at") and w.get("measured") is not None and abs((w["measured"] or 0) - ut) > 0.005:

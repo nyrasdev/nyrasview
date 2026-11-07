@@ -74,6 +74,7 @@ class Collector:
             self.slow["local"] = local.scan()
         if what in ("limits", "all"):
             self.slow["limits"] = limits.snapshot(self.usage.records)
+            self.slow["limits_meta"] = dict(limits.META)
         if what == "watch" and self.watcher:
             self.watcher.tick(self.snapshot())
         if what in ("collab", "all"):
@@ -248,7 +249,7 @@ class Collector:
                        "mem_total": vm.total},
             "agents": agents_out, "mcp": cfg_mcp, "skills": self.slow["skills"],
             "openrouter": self.slow["openrouter"], "local": self.slow["local"],
-            "collab": self.slow["collab"], "limits": self.slow["limits"],
+            "collab": self.slow["collab"], "limits": self.slow["limits"], "limits_meta": self.slow.get("limits_meta", {}),
         }
 
 

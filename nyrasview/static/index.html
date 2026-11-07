@@ -331,7 +331,7 @@ textarea{width:100%;min-height:70px;resize:vertical}
 .newp .kbd{margin-left:auto}
 .lm{display:grid;gap:12px}
 .lm .ag{display:flex;align-items:center;gap:8px;font-weight:600;font-size:13px}
-.lm .w{display:grid;grid-template-columns:62px 1fr auto;gap:4px 10px;align-items:center;font-size:12px}
+.lm .w{display:grid;grid-template-columns:96px 1fr auto;gap:4px 10px;align-items:center;font-size:12px}
 .lm .w .lb{color:var(--dim)}
 .lm .w .pc{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:600}
 .lm .w .gb{height:8px;border-radius:4px;background:var(--panel2);overflow:hidden}
@@ -456,14 +456,15 @@ async function loadEvents(){try{const r=await fetch("/api/events?since="+(Date.n
 const LWIN={five_hour:"5-hour",seven_day:"weekly"};
 const fmtIn=s=>{s=Math.max(0,s);const h=Math.floor(s/3600),m=Math.round(s%3600/60);return h?`${h}h ${m}m`:`${m}m`};
 function limitBlock(agentKey,wins){
-  const rows=Object.entries(wins).map(([n,w])=>{const u=w.utilization;const lab=LWIN[n]||n;
+  const meta=((S.limits_meta||{})[agentKey])||{};
+  const rows=Object.entries(wins).map(([n,w])=>{const u=w.utilization;const lab=w.label||LWIN[n]||n;
     if(u==null)return `<div class="w"><span class="lb">${lab}</span><span class="muted">not calibrated · ${hn(w.used_tokens)} tokens in window · ${hn(w.burn_per_hour)}/h</span><span></span></div>`;
-    const pct=Math.min(100,u*100),col=u<.7?"var(--good)":u<.9?"var(--warn)":"var(--bad)";
-    const bits=[];if(w.resets)bits.push("resets in "+fmtIn(w.resets-Date.now()/1000));if(w.eta)bits.push(`<b>~${fmtIn(w.eta)} left at this pace</b>`);
-    if(w.measured!=null&&Math.abs(w.measured-u)>.005)bits.push(`measured ${(w.measured*100).toFixed(0)}% ${ago(w.measured_at)} ago`);
+    const sev=w.severity||"normal";const pct=Math.min(100,u*100),col=sev==="critical"||u>=.9?"var(--bad)":sev==="high"||u>=.7||(w.pace||0)>10?"var(--warn)":"var(--good)";
+    const bits=[];if(w.resets)bits.push("resets in "+fmtIn(w.resets-Date.now()/1000));if(w.pace!=null)bits.push(w.pace>0?`↑${w.pace} over pace`:`↓${-w.pace} under pace`);if(w.eta)bits.push(`<b>~${fmtIn(w.eta)} left at this pace</b>`);
+    if(w.source!=="api"&&w.measured!=null&&Math.abs(w.measured-u)>.005)bits.push(`measured ${(w.measured*100).toFixed(0)}% ${ago(w.measured_at)} ago`);
     return `<div class="w" data-key="lw-${agentKey}-${n}"><span class="lb">${lab}</span><span class="gb"><i style="width:${pct.toFixed(1)}%;background:${col}"></i></span><span class="pc">${pct.toFixed(0)}%</span><span class="ft">${bits.join(" · ")}</span></div>`}).join("");
   const unc=Object.values(wins).some(w=>w.utilization==null);
-  return `<div data-key="lb-${agentKey}"><div class="ag"><span class="sd" style="background:${colorOf(agentKey)}"></span>${esc(aname(agentKey))}${unc&&agentKey==="claude"?`<button class="btn sm" style="margin-left:auto" data-act="calib" title="one tiny Haiku call reads your real limits">Calibrate</button>`:""}</div>${rows}</div>`}
+  return `<div data-key="lb-${agentKey}"><div class="ag"><span class="sd" style="background:${colorOf(agentKey)}"></span>${esc(aname(agentKey))}${meta.plan?`<span class="muted" style="font-weight:400;font-size:12px">${esc(meta.plan)}</span>`:""}${meta.source?`<span class="chip" style="margin-left:auto" title="${meta.source==="anthropic"?"read from Anthropic's usage API with Claude Code's own login":"estimated from your local token logs"}">${meta.source==="anthropic"?"live":"estimated"}</span>`:""}${unc&&agentKey==="claude"?`<button class="btn sm" style="margin-left:auto" data-act="calib" title="one tiny Haiku call reads your real limits">Calibrate</button>`:""}</div>${meta.error?`<div class="muted" style="font-size:11.5px;color:var(--warn)">${esc(meta.error)}</div>`:""}${rows}</div>`}
 let RUNS=[],RUNV={},P=(()=>{try{return JSON.parse(localStorage.getItem("nyra.p"))||{}}catch(e){return {}}})();
 P.agents=P.agents||["claude"];P.mode=P.mode||"ask";P.cwd=P.cwd||"";
 const saveP=()=>localSet("p",JSON.stringify(P));
