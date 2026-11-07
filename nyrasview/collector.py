@@ -123,6 +123,8 @@ class Collector:
                 if t.get("status") == "running" and t.get("pid"):
                     collab_pids[t["pid"]] = (d["doc"], t)
 
+        from . import runs as _runs
+        run_pids = _runs.active_pids()
         ncpu = psutil.cpu_count() or 1
         agents_out = []
         cwds = set()
@@ -137,7 +139,7 @@ class Collector:
                         continue
                     argv = i.get("cmdline") or []
                     if pid == r:
-                        role = "collab" if pid in collab_pids else "main"
+                        role = "collab" if pid in collab_pids else "run" if pid in run_pids else "main"
                     elif mname is None:
                         hit = next((s for s in cfg_mcp if s["agent"] in (a.key,) and mcp.matches(argv, s)), None)
                         if hit is None:
@@ -195,13 +197,14 @@ class Collector:
                     m["rss"] += p["rss"]
             sessions = []
             for p in procs:
-                if p["role"] in ("main", "collab") and p["depth"] == 0:
+                if p["role"] in ("main", "collab", "run") and p["depth"] == 0:
                     act = activity.get(a.key, p["cwd"]) if p["role"] == "main" else None
                     tree_cpu = sum(q["cpu"] for q in procs if q["pid"] == p["pid"] or q["depth"] > 0)
                     if act and act["state"] not in ("working", "limited") and tree_cpu > 3 and time.time() - (act.get("mtime") or 0) < 1800:
                         act["state"] = "working"
                     sessions.append({"pid": p["pid"], "cwd": p["cwd"], "started": p["started"],
-                                     "cpu": p["cpu"], "collab": p["role"] == "collab", "activity": act})
+                                     "cpu": p["cpu"], "collab": p["role"] in ("collab", "run"),
+                                     "run": run_pids[p["pid"]]["id"] if p["pid"] in run_pids else None, "activity": act})
             usage = self.slow["usage"].get(a.key, {})
             nskills = sum(1 for s in self.slow["skills"] if s["agent"] == a.key)
             installed = a.installed()

@@ -24,6 +24,8 @@ The only dependency is `psutil`. You need Python 3.11 or newer.
 | `nyrasview gui` | the same dashboard in your browser (localhost only) |
 | `nyrasview status` / `ps` / `mcp` / `skills` / `usage` | one-shot CLI views, most of which take `--json` |
 | `nyrasview agents` | every known agent and how collab calls it |
+| `nyrasview ask <agent> "…"` | prompt one agent, or `claude,codex` to compare, and stream the answer |
+| `nyrasview runs` | prompts started from nyrasview |
 | `nyrasview now` | what every running agent is working on right now |
 | `nyrasview local` | local AI servers and their models; `local ask ollama "hi"` to try one |
 | `nyrasview handoff` | hand the current task to another agent (`--to codex`, `-w` new window, `-n` dry run) |
@@ -41,6 +43,22 @@ The only dependency is `psutil`. You need Python 3.11 or newer.
 - **Skills:** skills, slash commands, subagents, rules, workflows, extensions and memory files
 - **Usage:** tokens today / 7 days / all time per model, read from each tool's local logs, plus OpenRouter credit usage via `OPENROUTER_API_KEY`
 - **Working on:** for each Claude Code, Codex, Gemini or Qwen session: the project, the session title, your last prompt and the tool it is running right now
+
+## Prompt from inside nyrasview
+
+Press **Ctrl+K** in the GUI (or click ✦ New prompt). Write the prompt, pick one or more agents, a folder and a mode:
+
+| mode | what the agent may do |
+|---|---|
+| **Ask** | read and look around, no changes |
+| **Edit** | create and change files in the folder |
+| **Auto** | everything, including commands, without asking |
+
+- **Transcript:** answers stream in live, with tool calls shown as chips (click one to see its output). Each run ends with time, tokens and cost.
+- **Follow up:** continues the same conversation; Claude Code resumes its real session.
+- **Compare:** pick several agents and they answer the same prompt side by side.
+- **Terminal:** opens the agent interactively with your prompt. **Send to running session** delivers it into an agent that is already working in that folder.
+- From the terminal: `nyrasview ask claude "why is the build slow?" -d ~/app`, `nyrasview ask claude,codex "…"` to compare, `-c <run>` to follow up, `nyrasview runs` for history. In the TUI, press `p` on an agent.
 
 ## Watch: see exactly what an agent is touching
 

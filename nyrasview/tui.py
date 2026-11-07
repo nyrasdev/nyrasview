@@ -183,7 +183,7 @@ class UI:
             foot = msg
         else:
             foot = {
-                0: "↑↓ agent  enter/→ processes  h hand off  k kill  a show all  g gui  q quit",
+                0: "↑↓ agent  enter/→ processes  p prompt  h hand off  k kill  a show all  g gui  q quit",
                 1: "↑↓ scroll  g gui  q quit",
                 2: "↑↓ scroll  / filter  esc clear  g gui  q quit",
                 3: "↑↓ agent  g gui  q quit",
@@ -572,6 +572,8 @@ class UI:
             self.sel[t] = 0
         elif t == 0 and k in (10, 13, curses.KEY_ENTER, curses.KEY_RIGHT):
             self.focus, self.psel, self.poff = 1, 0, 0
+        elif t == 0 and k == ord("p"):
+            self.prompt_agent(s)
         elif t == 0 and k == ord("h"):
             self.handoff(s)
         elif t == 0 and k == ord("a"):
@@ -587,6 +589,28 @@ class UI:
         elif t == 5:
             self.collab_key(k, s)
         self.sel[t] = max(0, self.sel[t])
+
+    def prompt_agent(self, s):
+        from . import runs
+        ag = self.agents(s)
+        if not ag:
+            return
+        a = ag[max(0, min(self.sel[0], len(ag) - 1))]
+        if not a["headless"]:
+            self.flash(f"{a['name']} can't be prompted headlessly")
+            return
+        work = [w for w in a.get("work") or [] if w.get("cwd") and not w.get("collab")]
+        cwd = work[0]["cwd"] if work else os.getcwd()
+        text = self.ask(f"prompt {a['name']} in {cwd.replace(os.path.expanduser('~'), '~')}: ")
+        if not text:
+            return
+        mode = self.ask("mode: ask (read-only) / edit / auto [ask]: ") or "ask"
+        if mode not in runs.MODES:
+            self.flash("mode must be ask, edit or auto")
+            return
+        m = runs.start(a["key"], text, cwd, mode)
+        self.flash(f"run {m['id']} started · follow it in the GUI (g) or: nyrasview runs" if m["status"] == "running"
+                   else f"failed: {m.get('error')}")
 
     def handoff(self, s):
         from . import handoff

@@ -272,6 +272,62 @@ textarea{width:100%;min-height:70px;resize:vertical}
 #stale .hookbar{background:color-mix(in srgb,var(--bad) 12%,transparent)}
 .hookbar{display:flex;gap:10px;align-items:center;padding:10px 14px;border-radius:12px;background:color-mix(in srgb,var(--warn) 12%,transparent);font-size:13px;margin-bottom:14px}
 .hookbar .btn{margin-left:auto}
+.cmp{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:16px;transition:border-color .2s,box-shadow .3s}
+.cmp:focus-within{border-color:var(--dim);box-shadow:0 8px 30px rgba(0,0,0,.12)}
+.cmp textarea{border:0;background:transparent;font-size:15px;line-height:1.5;padding:4px 4px 10px;min-height:84px;max-height:40vh}
+.cmp textarea:focus{border:0}
+.agc{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.agc button{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--dim);font:inherit;font-size:12.5px;cursor:pointer;transition:all .2s var(--ease)}
+.agc button i{width:8px;height:8px;border-radius:50%;background:var(--c);opacity:.5;transition:opacity .2s,transform .3s var(--spring)}
+.agc button.on{color:var(--text);border-color:var(--c);background:color-mix(in srgb,var(--c) 10%,transparent)}
+.agc button.on i{opacity:1;transform:scale(1.2)}
+.agc button.na{opacity:.45}
+.seg2{display:inline-flex;background:var(--panel2);border-radius:10px;padding:3px;gap:2px}
+.seg2 button{border:0;background:transparent;color:var(--dim);font:inherit;font-size:12.5px;padding:4px 11px;border-radius:8px;cursor:pointer;transition:all .2s}
+.seg2 button.on{background:var(--panel);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.seg2 button.on.auto{color:var(--bad)}
+.kbd{font-family:var(--mono);font-size:10.5px;border:1px solid var(--line);border-radius:5px;padding:0 5px;color:var(--dim)}
+.runs{display:grid;gap:8px}
+.rr{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:2px 12px;align-items:center;padding:10px 12px;border-radius:12px;background:var(--panel);border:1px solid var(--line);cursor:pointer;transition:border-color .2s,transform .3s var(--spring);animation:rise .35s var(--ease) both}
+.rr:hover{border-color:var(--dim);transform:translateY(-1px)}
+.rr .ic{grid-row:span 2;width:28px;height:28px;border-radius:9px;background:var(--panel2);display:grid;place-items:center}
+.rr .q{font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rr .mt{font-size:11.5px;color:var(--dim);display:flex;gap:8px;align-items:center;min-width:0;white-space:nowrap;overflow:hidden}
+.rr .rt{grid-row:span 2;font-size:11.5px;color:var(--dim);text-align:right;white-space:nowrap}
+.tcols{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px;align-items:start}
+.tr{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+.tr .th{display:flex;gap:8px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);font-size:13px}
+.tr .tb{padding:14px;display:grid;gap:10px;max-height:72vh;overflow:auto}
+.ub{justify-self:end;max-width:85%;background:var(--panel2);border-radius:14px 14px 4px 14px;padding:9px 13px;font-size:13.5px;white-space:pre-wrap;animation:rise .3s var(--ease) both}
+.ab{font-size:13.5px;line-height:1.6;animation:rise .3s var(--ease) both;min-width:0;overflow-wrap:anywhere}
+.ab pre{background:var(--panel2);border-radius:10px;padding:10px 12px;overflow:auto;font-size:12px;line-height:1.5;margin:6px 0}
+.ab code{font-family:var(--mono);font-size:12px;background:var(--panel2);padding:1px 5px;border-radius:5px}
+.ab pre code{background:none;padding:0}
+.ab .h{font-weight:700;display:block;margin-top:6px}
+.ab.prev{opacity:.7;font-size:13px}
+.tc{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:9px;align-items:center;padding:5px 8px 5px 5px;border-radius:10px;background:var(--panel2);font-size:12.5px;position:relative;overflow:hidden;animation:rise .3s var(--ease) both;cursor:pointer}
+.tc .i{width:26px;height:26px;border-radius:8px;background:var(--panel);display:grid;place-items:center;color:var(--c)}
+.tc.ok .i{color:var(--good)}.tc.bad{animation:shake .45s var(--ease)}.tc.bad .i{color:var(--bad)}
+.tc .n{font-family:var(--mono);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tc .n b{font-weight:600}
+.tc .n span{color:var(--dim)}
+.tc .s{font-size:11px;color:var(--dim)}
+.tc .o{grid-column:1/4;font-family:var(--mono);font-size:11.5px;color:var(--dim);white-space:pre-wrap;max-height:160px;overflow:auto;display:none;padding:4px 4px 2px}
+.tc.open .o{display:block}
+.tc.run::after{content:"";position:absolute;left:0;bottom:0;height:2px;width:40%;background:var(--c);animation:slide 1.2s ease-in-out infinite}
+@keyframes slide{0%{transform:translateX(-100%)}100%{transform:translateX(260%)}}
+.dn{font-size:12px;color:var(--dim);display:flex;gap:8px;align-items:center;padding-top:4px}
+.dn.ok{color:var(--good)}
+.er{background:color-mix(in srgb,var(--bad) 12%,transparent);color:var(--bad);border-radius:10px;padding:9px 12px;font-size:12.5px;font-family:var(--mono);white-space:pre-wrap}
+.typing2{display:inline-flex;gap:4px;padding:4px 0}
+.typing2 i{width:6px;height:6px;border-radius:50%;background:var(--c);animation:dots 1.2s infinite ease-in-out}
+.typing2 i:nth-child(2){animation-delay:.15s}.typing2 i:nth-child(3){animation-delay:.3s}
+@keyframes dots{0%,80%,100%{opacity:.25;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
+.fu{display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--line);align-items:flex-end}
+.fu textarea{min-height:40px;font-size:13px}
+.newp{display:flex;align-items:center;gap:8px;margin:0 6px;padding:9px 12px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--text);font:inherit;font-size:13.5px;cursor:pointer;transition:border-color .2s,transform .3s var(--spring)}
+.newp:hover{border-color:var(--dim);transform:translateY(-1px)}
+.newp .kbd{margin-left:auto}
 #tip{position:fixed;z-index:20;pointer-events:none;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-size:12px;box-shadow:0 6px 20px rgba(0,0,0,.18);opacity:0;transition:opacity .12s;white-space:nowrap}
 #tip.on{opacity:1}
 .toast{position:fixed;bottom:18px;right:18px;background:var(--panel);border:1px solid var(--line);padding:10px 14px;border-radius:12px;opacity:0;transform:translateY(8px);transition:all .3s var(--spring);pointer-events:none;z-index:9}
@@ -285,6 +341,7 @@ textarea{width:100%;min-height:70px;resize:vertical}
   <aside>
     <div class="brand"><i class="beat"></i><div>nyras<span>view</span></div></div>
     <div class="sys" id="sys"></div>
+    <button class="newp" data-act="go" data-v="prompt">✦ New prompt <span class="kbd">Ctrl K</span></button>
     <nav class="bm" id="nav"></nav>
     <div class="foot"><button class="btn sm" id="theme" title="theme">◐ theme</button><span id="ver"></span></div>
   </aside>
@@ -299,7 +356,7 @@ const loadTargets=()=>fetch("/api/handoff/targets").then(r=>r.json()).then(l=>{h
 const canHand=k=>k==="claude"||k==="codex";
 function limitBar(a,w){const t=w.activity||{},l=t.limit||{};const tg=handT.filter(x=>x.key!==a.key);
   return `<div class="lim">⚠ <span><b>Limit reached</b> · ${esc(l.message||"")}${l.reset?" · resets "+esc(l.reset):""}</span>${tg.length?`<button class="btn sm" data-act="handoff" data-agent="${a.key}" data-cwd="${esc(w.cwd)}" data-to="${tg[0].key}">Hand off to ${esc(tg[0].name)} →</button>`:""}</div>`}
-let S=__NYRA_SNAP__, view=localGet("view")||"overview", skillQ="", docData=null, agentsList=[], open=new Set(JSON.parse(localGet("open")||'["agents","toolbox","insights","collab"]'));
+let S=__NYRA_SNAP__, view=localGet("view")||"overview", skillQ="", docData=null, agentsList=[], open=new Set(JSON.parse(localGet("open")||'["agents","toolbox","insights","prompt","collab"]'));
 function localGet(k){try{return localStorage.getItem("nyra."+k)}catch(e){return null}}
 function localSet(k,v){try{localStorage.setItem("nyra."+k,v)}catch(e){}}
 const $=s=>document.querySelector(s);
@@ -358,6 +415,86 @@ function paint(list){(list||[]).forEach(a=>{if(a&&a.key)a.hex=colorOf(a.key)})}
 paint(S&&S.agents);
 document.addEventListener("mousemove",e=>{const t=$("#tip");const el=e.target.closest&&e.target.closest("[data-tip]");if(!el){t.classList.remove("on");return}
   t.innerHTML=el.dataset.tip;t.classList.add("on");const w=t.offsetWidth,h=t.offsetHeight;let x=e.clientX+14,y=e.clientY-h-10;if(x+w>innerWidth-8)x=e.clientX-w-14;if(y<8)y=e.clientY+16;t.style.left=x+"px";t.style.top=y+"px"});
+let RUNS=[],RUNV={},P=(()=>{try{return JSON.parse(localStorage.getItem("nyra.p"))||{}}catch(e){return {}}})();
+P.agents=P.agents||["claude"];P.mode=P.mode||"ask";P.cwd=P.cwd||"";
+const saveP=()=>localSet("p",JSON.stringify(P));
+async function loadRuns(){try{const r=await fetch("/api/runs",{headers:{"X-Nyra-Token":TOKEN}});if(r.ok)RUNS=await r.json()}catch(e){}}
+function md(t){
+  const parts=String(t||"").split(/```[\w-]*\n?/);
+  return parts.map((p,i)=>{if(i%2)return `<pre><code>${esc(p.replace(/\n$/,""))}</code></pre>`;
+    return esc(p).replace(/^#{1,6} (.+)$/gm,'<span class="h">$1</span>').replace(/\*\*([^*]+)\*\*/g,"<b>$1</b>").replace(/`([^`\n]+)`/g,"<code>$1</code>").replace(/\n/g,"<br>")}).join("")}
+const MODEDESC={ask:"Ask · read-only, it can look around but not change anything",edit:"Edit · may create and change files in the folder",auto:"Auto · full access, runs commands without asking. Use with care"};
+function promptable(){return agentsList.filter(a=>a.installed||(S.local||[]).some(x=>x.key===a.key&&x.up))}
+function knownDirs(){const d=new Set();(S.agents||[]).forEach(a=>(a.work||[]).forEach(w=>w.cwd&&d.add(w.cwd)));RUNS.forEach(r=>d.add(r.cwd));(S.collab||[]).forEach(c=>d.add(c.doc.replace(/\/[^/]+$/,"")));return [...d].slice(0,20)}
+function runIcon(st){return st==="running"?`<svg class="spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">${I.loader}</svg>`:st==="done"?`<span style="color:var(--good)">${ic("check",14)}</span>`:st==="stopped"?`<span class="muted">■</span>`:`<span style="color:var(--bad)">${ic("x",14)}</span>`}
+
+function vPrompt(){
+  const list=promptable(),all=agentsList;
+  let h=`<div class="ph"><h1>Prompt</h1><span class="sub">ask one agent, or several at once to compare</span></div>
+  <div class="cmp" data-static data-key="cmp"><textarea id="pq" placeholder="Ask anything, or describe a change… (Ctrl+Enter to run)"></textarea>
+    <div class="agc" id="pag"></div>
+    <div class="row"><input id="pcwd" list="pdirs" placeholder="folder (default: home)" style="flex:1;min-width:220px"><datalist id="pdirs"></datalist>
+      <div class="seg2" id="pmode">${["ask","edit","auto"].map(m=>`<button data-act="pmode" data-m="${m}" class="${m}">${m[0].toUpperCase()+m.slice(1)}</button>`).join("")}</div>
+      <input id="pmodel" placeholder="model (optional)" style="width:160px"></div>
+    <div class="row" style="margin-top:10px"><span class="muted" id="pdesc" style="font-size:12px;flex:1"></span>
+      <span id="plive"></span><button class="btn" data-act="pterm" title="open the first selected agent in a terminal with this prompt">${ic("term",14)} Terminal</button><button class="btn pri" data-act="prun">${ic("play",13)} Run</button></div></div>`;
+  h+=`<div class="hd2" style="display:flex;align-items:baseline;gap:8px;margin:6px 0 10px"><h2 style="margin:0">Recent</h2><span class="muted" style="font-size:12px">${RUNS.length}</span></div>`;
+  const groups=[],seen={};
+  RUNS.forEach(r=>{if(r.group){if(seen[r.group]){seen[r.group].items.push(r);return}seen[r.group]={g:r.group,items:[r]};groups.push(seen[r.group])}else groups.push({items:[r]})});
+  h+=groups.length?`<div class="runs">`+groups.slice(0,25).map((g,i)=>{const r=g.items[0];const st=g.items.some(x=>x.status==="running")?"running":g.items.every(x=>x.status==="done")?"done":g.items.some(x=>x.status==="failed")?"failed":r.status;
+    return `<div class="rr" data-act="go" data-v="run:${r.id}" data-key="rr-${r.id}" style="--i:${i}"><div class="ic">${runIcon(st)}</div><div class="q">${esc(r.prompt)}</div>
+      <div class="rt">${ago(r.created)}${g.items.some(x=>x.cost)?"<br>"+money(sum(g.items,x=>x.cost||0)):""}</div>
+      <div class="mt">${g.items.map(x=>`<span style="display:inline-flex;gap:5px;align-items:center"><span class="sd" style="background:${colorOf(x.agent)}"></span>${esc(aname(x.agent))}</span>`).join("")}<span>· ${esc(r.mode)}</span><span>· ${esc(r.cwd.replace(/^\/home\/[^/]+/,"~"))}</span></div></div>`}).join("")+`</div>`
+    :`<div class="muted" style="padding:10px 2px">Nothing yet. Write a prompt above, pick one or more agents and hit Run.</div>`;
+  return h}
+
+function syncComposer(){
+  const box=$("#pag");if(!box)return;
+  const okk=new Set(promptable().map(x=>x.key));const list=agentsList.filter(a=>P.more||okk.has(a.key)||P.agents.includes(a.key));const hidden=agentsList.length-list.length;
+  const html=list.map(a=>{const ok=okk.has(a.key);return `<button data-act="pag" data-k="${a.key}" class="${P.agents.includes(a.key)?"on":""} ${ok?"":"na"}" style="--c:${colorOf(a.key)}" title="${ok?"":"not installed / not running"}"><i></i>${esc(a.name)}</button>`}).join("")+(hidden||P.more?`<button data-act="pmore" style="--c:var(--dim)">${P.more?"fewer":"+"+hidden+" more"}</button>`:"");
+  if(box._h!==html){box.innerHTML=html;box._h=html}
+  document.querySelectorAll("#pmode button").forEach(b=>b.classList.toggle("on",b.dataset.m===P.mode));
+  const d=$("#pdesc");if(d)d.textContent=(P.agents.length>1?`Compare · ${P.agents.length} agents in parallel · `:"")+MODEDESC[P.mode];
+  const dl=$("#pdirs");if(dl){const o=knownDirs().map(x=>`<option value="${esc(x)}">`).join("");if(dl._h!==o){dl.innerHTML=o;dl._h=o}}
+  const cw=$("#pcwd");if(cw&&!cw._init){cw.value=P.cwd;cw._init=1;cw.oninput=()=>{P.cwd=cw.value;saveP()}}
+  const live=$("#plive");if(live){const cwd=(cw&&cw.value)||"";const ses=(S.agents||[]).find(a=>P.agents.length===1&&a.key===P.agents[0]&&(a.work||[]).some(w=>!w.collab&&w.cwd&&cwd&&w.cwd.replace(/\/$/,"")===cwd.replace(/^~/,"").replace(/\/$/,"")||(!w.collab&&w.cwd&&cwd&&w.cwd.endsWith(cwd.replace(/^~/,"")))));
+    const html2=ses?`<button class="btn" data-act="psay" title="deliver into the running session">${ic("plus",13)} Send to running session</button>`:"";if(live._h!==html2){live.innerHTML=html2;live._h=html2}}}
+
+async function loadRun(id){
+  try{const r=await fetch("/api/runs/"+id,{headers:{"X-Nyra-Token":TOKEN}});if(!r.ok)return;const v=await r.json();RUNV[id]=v;
+    for(const sib of v.siblings||[]) if(sib!==id){const r2=await fetch("/api/runs/"+sib,{headers:{"X-Nyra-Token":TOKEN}});if(r2.ok)RUNV[sib]=await r2.json()}
+  }catch(e){}
+  if(view==="run:"+id)render()}
+
+function transcript(v,single){
+  const a=agent(v.agent);const c=colorOf(v.agent);let h="";
+  (v.turns||[]).slice(0,-1).forEach((t,i)=>{h+=`<div class="ub" data-key="pu${i}">${esc(t.prompt)}</div>${t.answer?`<div class="ab prev" data-key="pa${i}">${md(t.answer)}</div>`:""}`});
+  h+=`<div class="ub" data-key="cu">${esc(v.prompt)}</div>`;
+  const res={};v.events.forEach(e=>{if(e.k==="result")res[e.id]=e});
+  v.events.forEach((e,i)=>{
+    if(e.k==="text")h+=`<div class="ab" data-key="ev${i}">${md(e.text)}</div>`;
+    else if(e.k==="tool"){const r=res[e.id];const st=r?(r.ok?"ok":"bad"):(v.status==="running"?"run":"ok");
+      const icn=/bash|shell|exec/i.test(e.name)?"term":/read|edit|write|patch|file|glob|grep/i.test(e.name)?"doc":/web|fetch|search/i.test(e.name)?"globe":"spark";
+      h+=`<div class="tc ${st}" data-key="ev${i}" data-act="tcx" style="--c:${c}"><span class="i">${st==="run"?`<svg class="spin" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">${I.loader}</svg>`:ic(icn,14)}</span><span class="n"><b>${esc(e.name)}</b> <span>${esc(e.detail||"")}</span></span><span class="s">${st==="run"?"running":st==="bad"?"failed":"done"}</span>${r&&r.out?`<div class="o">${esc(r.out)}</div>`:""}</div>`}});
+  if(v.status==="running"&&!v.events.some(e=>e.k==="text"||e.k==="tool"))h+=`<div class="typing2" style="--c:${c}" data-key="ty"><i></i><i></i><i></i></div>`;
+  else if(v.status==="running")h+=`<div class="typing2" style="--c:${c}" data-key="ty2"><i></i><i></i><i></i></div>`;
+  if(v.status==="failed")h+=`<div class="er" data-key="er">${esc(v.error||"failed")}</div>`;
+  if(v.status!=="running"){const bits=[v.status==="stopped"?"stopped":v.status==="done"?"done":"failed",v.elapsed.toFixed(1)+"s"];if(v.tokens)bits.push(hn(v.tokens)+" tokens");if(v.cost)bits.push(money(v.cost));
+    h+=`<div class="dn ${v.status==="done"?"ok":""}" data-key="dn">${v.status==="done"?ic("check",13):""}${bits.join(" · ")}</div>`}
+  return h}
+
+function vRun(id){
+  const v=RUNV[id];if(!v)return `<div class="empty">loading…</div>`;
+  const ids=(v.siblings&&v.siblings.length?v.siblings:[id]).filter(x=>RUNV[x]);
+  const any=ids.some(x=>RUNV[x].status==="running");
+  let h=`<div class="ph"><h1 style="max-width:70%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(v.prompt)}</h1><span class="pill">${esc(v.mode)}</span><span class="sub">${esc(v.cwd.replace(/^\/home\/[^/]+/,"~"))}</span><div class="grow"></div>
+    ${any?`<button class="btn" data-act="pstop" data-ids="${ids.join(",")}">■ Stop</button>`:""}<button class="btn" data-act="go" data-v="prompt">✦ New prompt</button></div>`;
+  h+=`<div class="tcols">`+ids.map(x=>{const r=RUNV[x];const c=colorOf(r.agent);
+    return `<div class="tr" data-key="col-${x}" style="--c:${c}"><div class="th"><span class="dot ${r.status==="running"?"live":""}" style="--c:${c}"></span><b>${esc(aname(r.agent))}</b>${r.model?`<span class="chip">${esc(r.model)}</span>`:""}<div class="grow"></div><span class="muted" style="font-size:12px">${r.status==="running"?(r.elapsed).toFixed(0)+"s":esc(r.status)}</span>${r.cwd&&(r.agent==="claude"||r.agent==="codex")?`<button class="btn sm" data-act="watch" data-agent="${r.agent}" data-cwd="${esc(r.cwd)}">👁</button>`:""}</div>
+      <div class="tb" id="tb-${x}">${transcript(r)}</div>
+      ${r.status!=="running"?`<div class="fu" data-static data-key="fu-${x}"><textarea id="fu-${x}" placeholder="Follow up with ${esc(aname(r.agent))}…"></textarea><button class="btn pri sm" data-act="pfollow" data-id="${x}">Send</button></div>`:""}</div>`}).join("")+`</div>`;
+  return h}
+
 function visible(){return (S&&S.agents||[]).filter(a=>a.visible)}
 function agent(k){return (S&&S.agents||[]).find(a=>a.key===k)||agentsList.find(a=>a.key===k)||{}}
 const hex=k=>agent(k).hex||"#999";
@@ -370,6 +507,7 @@ function navModel(){
       ...ag.map(a=>({v:"agent:"+a.key,label:a.name,dot:a.hex,live:a.running,badge:a.running?a.cpu.toFixed(0)+"%":""}))]},
     {id:"toolbox",label:"Toolbox",items:[{v:"mcp",label:"MCP servers",icon:"plug",badge:(S.mcp||[]).length||""},{v:"skills",label:"Skills",icon:"spark",badge:(S.skills||[]).length||""}]},
     {id:"insights",label:"Insights",items:[{v:"usage",label:"Usage",icon:"chart"},{v:"network",label:"Network",icon:"globe"},{v:"local",label:"Local AI",icon:"chip",badge:(S.local||[]).filter(x=>x.up).length?(S.local||[]).filter(x=>x.up).length+" up":""}]},
+    {id:"prompt",label:"Prompts",items:[{v:"prompt",label:"New prompt",icon:"wand"},...(()=>{const out=[],sg={};RUNS.forEach(r=>{if(r.group){if(sg[r.group])return;sg[r.group]=1}out.push(r)});return out.slice(0,5)})().map(r=>({v:"run:"+r.id,label:r.prompt,dot:colorOf(r.agent),live:r.status==="running",badge:r.status==="running"?"…":r.status==="failed"?"✗":""}))]},
     {id:"collab",label:"Collab",items:[...(S.collab||[]).map(d=>{const run=d.tasks.filter(t=>t.status==="running").length;return {v:"doc:"+d.doc,label:d.name.replace(/\.md$/,""),icon:"doc",badge:run?"✎ "+run:d.tasks.length?d.tasks.filter(t=>t.status==="done").length+"/"+d.tasks.length:""}}),{v:"new",label:"New document",icon:"plus"}]},
   ]}
 
@@ -592,7 +730,7 @@ function fbToast(it){toast(it.status==="copied"?"Copied to clipboard: paste it i
 function vWatch(){
   const {agent:k,cwd}=watchParts();const a=agent(k);const d=W.data;
   const w=(a.work||[]).find(x=>x.cwd===cwd)||{};const t=w.activity||{};
-  let h=`<div class="ph" style="--c:${a.hex||"var(--other)"}"><span class="dot ${a.running?"live":""}" style="width:12px;height:12px"></span><h1>${esc(t.title||a.name||k)}</h1><span class="pill ${t.state==="working"?"live":""}">${esc(t.state||"watching")}</span><span class="sub">${esc(a.name||k)} · ${esc(cwd.replace(/^\/home\/[^/]+/,"~"))}${t.action?" · now ▸ "+esc(t.action):""}</span><div class="grow"></div><button class="btn" data-act="go" data-v="agent:${k}">← ${esc(a.name||k)}</button></div>`;
+  let h=`<div class="ph" style="--c:${a.hex||"var(--other)"}"><span class="dot ${a.running?"live":""}" style="width:12px;height:12px"></span><h1>${esc(t.title||a.name||k)}</h1><span class="pill ${t.state==="working"?"live":""}">${esc(t.state||"watching")}</span><span class="sub">${esc(a.name||k)} · ${esc(cwd.replace(/^\/home\/[^/]+/,"~"))}${t.action?" · now ▸ "+esc(t.action):""}</span><div class="grow"></div><button class="btn" data-act="pfor" data-agent="${k}" data-cwd="${esc(cwd)}">✦ Prompt</button><button class="btn" data-act="go" data-v="agent:${k}">← ${esc(a.name||k)}</button></div>`;
   if(W.err) return h+`<div class="hookbar" style="background:color-mix(in srgb,var(--bad) 12%,transparent)">⚠ ${esc(W.err)}</div>`;
   if(!d) return h+`<div class="empty">loading…</div>`;
   if(k==="claude"&&!d.hooks) h+=`<div class="hookbar">💬 To send live notes straight into Claude Code, nyrasview needs a small hook in ~/.claude/settings.json. Until then notes are copied to your clipboard.<button class="btn sm" data-act="hooks">Enable live feedback</button></div>`;
@@ -621,12 +759,17 @@ document.addEventListener("mouseover",e=>{
   clearTimeout(W.ht);W.ht=setTimeout(()=>{const f=W.data&&W.data.focus;if(f&&f.range&&view.startsWith("watch:")){const first=document.querySelector(".ln[data-hl]");openCodeBubble(f.range[0],f.range[1],first||hl)}},450)});
 document.addEventListener("mouseout",e=>{if(e.target.closest&&e.target.closest(".ln[data-hl]"))clearTimeout(W.ht)});
 document.addEventListener("mousedown",e=>{const b=$("#cbub");if(b.classList.contains("on")&&!b.contains(e.target)&&!(e.target.closest&&e.target.closest("[data-act=line]"))){b.classList.remove("on");W.sel=null;render()}});
+document.addEventListener("keydown",e=>{
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();if(view!=="prompt")go("prompt");else{const q=$("#pq");q&&q.focus()}return}
+  if((e.ctrlKey||e.metaKey)&&e.key==="Enter"&&e.target.id==="pq"){e.preventDefault();document.querySelector("[data-act=prun]").click();return}
+  if((e.ctrlKey||e.metaKey)&&e.key==="Enter"&&e.target.id&&e.target.id.startsWith("fu-")){e.preventDefault();document.querySelector(`[data-act=pfollow][data-id="${e.target.id.slice(3)}"]`).click();return}
+});
 document.addEventListener("keydown",e=>{if(e.target.id==="cbubt"&&e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();document.querySelector("[data-act=csend]").click()}if(e.target.id==="cbubt"&&e.key==="Escape"){$("#cbub").classList.remove("on");W.sel=null;render()}});
 
 function vAgent(k){
   const a=agent(k);if(!a.key) return `<div class="empty">Agent not found.</div>`;
   const u=a.usage||{};
-  let h=`<div class="ph" style="--c:${a.hex}"><span class="dot ${a.running?"live":""}" style="width:12px;height:12px"></span><h1>${esc(a.name)}</h1><span class="pill ${a.running?"live":""}">${a.running?"live":"idle"}</span><span class="sub">${esc(a.binary||"")}${a.listen.length?" · listening "+a.listen.join(", "):""}</span></div>
+  let h=`<div class="ph" style="--c:${a.hex}"><span class="dot ${a.running?"live":""}" style="width:12px;height:12px"></span><h1>${esc(a.name)}</h1><span class="pill ${a.running?"live":""}">${a.running?"live":"idle"}</span><span class="sub">${esc(a.binary||"")}${a.listen.length?" · listening "+a.listen.join(", "):""}</span><div class="grow"></div>${a.headless?`<button class="btn" data-act="pfor" data-agent="${a.key}" data-cwd="${esc(((a.work||[]).find(w=>w.cwd&&!w.collab)||{}).cwd||"")}">✦ Prompt ${esc(a.name)}</button>`:""}</div>
   <div class="panel" style="--c:${a.hex}"><div class="kv" style="grid-template-columns:repeat(auto-fit,minmax(110px,1fr))"><div><span>cpu</span><b>${a.cpu.toFixed(1)}%</b></div><div><span>ram</span><b>${hb(a.rss)}</b></div><div><span>sessions</span><b>${a.sessions}</b></div><div><span>processes</span><b>${a.nprocs}</b></div><div><span>connections</span><b>${Object.values(a.providers).reduce((x,y)=>x+y,0)}</b></div><div><span>out today</span><b>${u.today?hn(u.today.out):"–"}</b></div><div><span>out 7d</span><b>${u.week?hn(u.week.out):"–"}</b></div></div>${spark(a.hist,a.hex,64)}</div>`+vSessions(a);
   if(a.procs.length) h+=`<div class="panel"><h2>Processes</h2><table><thead><tr><th>pid</th><th>role</th><th class="r">cpu%</th><th class="r">ram</th><th class="r">thr</th><th>network</th><th>command</th><th></th></tr></thead><tbody>`+
     a.procs.map(p=>`<tr data-key="p${p.pid}" class="${p.role.startsWith("mcp")?"mcp":p.role==="collab"?"collab":""}"><td class="m">${p.pid}</td><td>${p.role.startsWith("mcp")?"◆ "+esc(p.mcp):esc(p.role)}${p.collab?" ✎"+p.collab:""}</td><td class="r m">${p.cpu}</td><td class="r m">${hb(p.rss)}</td><td class="r m">${p.threads}</td><td class="m">${p.conns.map(c=>esc(c.host)).slice(0,3).join("<br>")}</td><td class="cmd" title="${esc(p.cmd)}">${"&nbsp;&nbsp;".repeat(Math.min(p.depth,6))}${esc(p.cmd)}</td><td><button class="btn sm" data-act="kill" data-pid="${p.pid}">kill</button></td></tr>`).join("")+`</tbody></table></div>`;
@@ -744,17 +887,22 @@ function render(){
   else if(view==="new") html=vNew();
   else if(view==="local") html=vLocal();
   else if(view.startsWith("watch:")) html=vWatch();
+  else if(view==="prompt") html=vPrompt();
+  else if(view.startsWith("run:")) html=vRun(view.slice(4));
   else if(view.startsWith("doc:")) html=vDoc(view.slice(4));
   else html=vOverview();
   const main=$("#view");
   if(main._v!==view){main.innerHTML=html;main._v=view;bindView()}else morph(main,html);
-  syncSections();syncLocal();
+  syncSections();syncLocal();syncComposer();
+  if(view.startsWith("run:"))document.querySelectorAll(".tb").forEach(tb=>{if(tb._n!==tb.childElementCount){const stick=!tb._n||tb.scrollHeight-tb.scrollTop-tb.clientHeight<120;tb._n=tb.childElementCount;if(stick)tb.scrollTop=tb.scrollHeight}});
 }
 
 function bindView(){
   const sq=$("#sq");if(sq){sq.value=skillQ;sq.oninput=()=>{skillQ=sq.value;render()}}
   if(view==="new"){fetch("/api/collab").then(r=>r.json()).then(l=>{const v=$("#vlist");if(v)v.innerHTML=(l.vaults||[]).map(x=>`<option value="${esc(x.name)}:">${esc(x.path)}</option>`).join("")})}
   if(view.startsWith("doc:")) loadDoc();
+  if(view==="prompt"){loadRuns().then(render);setTimeout(()=>{const q=$("#pq");if(q)q.focus()},30)}
+  if(view.startsWith("run:"))loadRun(view.slice(4));
   if(view.startsWith("watch:")){W={key:view,data:null,pick:null,prev:null,pvOrigin:null,pvPort:null,focusKey:null,sel:null};loadWatch()}
 }
 
@@ -785,6 +933,22 @@ document.addEventListener("click",async e=>{
     if(act==="reopen"){await post("/api/collab/reset",{doc,id:el.dataset.id});return loadDoc()}
     if(act==="rm"){await post("/api/collab/remove",{doc,id:el.dataset.id});return loadDoc()}
     if(act==="undo"){const r=await post("/api/collab/undo",{doc});toast(r.ok?"Restored previous version":"Nothing to undo");return loadDoc()}
+    if(act==="pag"){const k=el.dataset.k;P.agents=P.agents.includes(k)?P.agents.filter(x=>x!==k):[...P.agents,k];saveP();return syncComposer()}
+    if(act==="pmore"){P.more=!P.more;return syncComposer()}
+    if(act==="pmode"){P.mode=el.dataset.m;saveP();return syncComposer()}
+    if(act==="prun"){const prompt=$("#pq").value.trim();if(!prompt)return toast("Write a prompt first");if(!P.agents.length)return toast("Pick at least one agent");
+      if(P.mode==="auto"&&!confirm("Auto mode lets the agent run commands and change files without asking. Continue?"))return;
+      const r=await post("/api/runs",{agents:P.agents,prompt,cwd:$("#pcwd").value.trim()||"~",mode:P.mode,model:$("#pmodel").value.trim()});
+      const bad=r.runs.filter(x=>x.status==="failed");if(bad.length)toast(bad.map(x=>aname(x.agent)+": "+x.error).join(" · "));
+      $("#pq").value="";await loadRuns();return go("run:"+r.runs[0].id)}
+    if(act==="pterm"){const k=P.agents[0];if(!k)return toast("Pick an agent");const r=await post("/api/open",{agent:k,cwd:$("#pcwd").value.trim()||"~",prompt:$("#pq").value});return toast(`Opened ${aname(k)} in ${r.terminal}`)}
+    if(act==="psay"){const text=$("#pq").value.trim();if(!text)return toast("Write something first");const a=(S.agents||[]).find(x=>x.key===P.agents[0]);const w=(a.work||[]).find(x=>!x.collab&&x.cwd);
+      const it=await post("/api/feedback",{agent:a.key,cwd:w.cwd,text});$("#pq").value="";return toast(it.status==="copied"?"Copied to clipboard: paste it into the session":"Sent: it arrives after its next step")}
+    if(act==="pstop"){for(const id of el.dataset.ids.split(","))await post("/api/runs/stop",{id});toast("Stopped");return loadRun(view.slice(4))}
+    if(act==="pfollow"){const id=el.dataset.id,ta=$("#fu-"+id),text=ta.value.trim();if(!text)return;const v=RUNV[id];
+      const r=await post("/api/runs",{agents:[v.agent],prompt:text,cwd:v.cwd,mode:v.mode,model:v.model,parent:id});ta.value="";await loadRuns();return go("run:"+r.runs[0].id)}
+    if(act==="pfor"){P.agents=[el.dataset.agent];if(el.dataset.cwd)P.cwd=el.dataset.cwd;saveP();go("prompt");const cw=$("#pcwd");if(cw){cw.value=P.cwd}return}
+    if(act==="tcx"){el.classList.toggle("open");return}
     if(act==="watch") return go("watch:"+el.dataset.agent+":"+el.dataset.cwd);
     if(act==="wpick"){W.pick=+el.dataset.i;W.focusKey=null;return loadWatch()}
     if(act==="wlatest"){W.pick=null;W.focusKey=null;return loadWatch()}
@@ -811,11 +975,12 @@ function tick(){
   requestAnimationFrame(tick)}
 
 async function refresh(){try{S=await (await fetch("/api/snapshot")).json();paint(S.agents)}catch(e){}}
-async function poll(){await refresh();render();if(view.startsWith("doc:"))loadDoc();if(view.startsWith("watch:"))loadWatch();setTimeout(poll,1500)}
+async function poll(){await refresh();await loadRuns();if(view.startsWith("run:")){const v=RUNV[view.slice(4)];if(!v||[view.slice(4),...(v.siblings||[])].some(x=>!RUNV[x]||RUNV[x].status==="running"))await loadRun(view.slice(4))}render();if(view.startsWith("doc:"))loadDoc();if(view.startsWith("watch:"))loadWatch();setTimeout(poll,1500)}
 
 {const h=decodeURIComponent(location.hash.slice(1));if(h)view=h}
 if(STALE)$("#stale").innerHTML=`<div class="hookbar">⚠ nyrasview was updated since this server started. Restart it to get the new features: press Ctrl+C where <code>nyrasview gui</code> runs, then run it again.</div>`;
-fetch("/api/agents").then(r=>r.json()).then(l=>{agentsList=l;paint(agentsList);if(view.startsWith("doc:")){$("#view")._v=null;render()}});
+loadRuns().then(()=>{renderNav()});
+fetch("/api/agents").then(r=>r.json()).then(l=>{agentsList=l;paint(agentsList);if(view==="prompt")syncComposer();if(view.startsWith("doc:")){$("#view")._v=null;render()}});
 render();bindView();
 requestAnimationFrame(tick);
 setTimeout(poll,1500);

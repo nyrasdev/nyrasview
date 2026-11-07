@@ -280,6 +280,68 @@ def cmd_say(a):
            "copied": "copied to clipboard, paste it into the agent"}.get(it["status"], it["status"]))
 
 
+def cmd_ask(a):
+    from . import runs
+    ags = [x.strip() for x in a.agent.split(",") if x.strip()]
+    for g in ags:
+        if g not in BY_KEY:
+            sys.exit(f"unknown agent {g}; see: nyrasview agents")
+    group = os.urandom(3).hex() if len(ags) > 1 else None
+    started = [runs.start(g, a.prompt, a.dir, a.mode, a.model, group, a.cont) for g in ags]
+    seen = {m["id"]: 0 for m in started}
+    tools = {}
+    try:
+        while True:
+            busy = False
+            for m in started:
+                v = runs.view(m["id"])
+                g = BY_KEY[v["agent"]]
+                tag = col(g.hex, g.name) + " " if len(started) > 1 else ""
+                for e in v["events"][seen[m["id"]]:]:
+                    if e["k"] == "text":
+                        print(tag + e["text"].strip(), flush=True)
+                    elif e["k"] == "tool":
+                        tools[e.get("id")] = e
+                        print(tag + dim(f"  ⚙ {e['name']} {e.get('detail', '')}"[:160]), flush=True)
+                    elif e["k"] == "result" and not e.get("ok"):
+                        print(tag + col("#f87171", "  ✗ " + (e.get("out") or "")[:160]), flush=True)
+                seen[m["id"]] = len(v["events"])
+                if v["status"] == "running":
+                    busy = True
+                elif not v.get("_shown"):
+                    pass
+            if not busy:
+                break
+            time.sleep(0.4)
+    except KeyboardInterrupt:
+        for m in started:
+            runs.stop(m["id"])
+        print(dim("stopped"))
+        return
+    for m in started:
+        v = runs.view(m["id"])
+        g = BY_KEY[v["agent"]]
+        bits = [v["status"], f"{v['elapsed']:.0f}s"]
+        if v.get("tokens"):
+            bits.append(f"{hn(v['tokens'])} tok")
+        if v.get("cost"):
+            bits.append(money(v["cost"]))
+        line = f"{g.name}: " + " · ".join(bits) + f" · run {v['id']}"
+        print(col("#f87171", line + " · " + (v.get("error") or "")[:200]) if v["status"] == "failed" else dim(line))
+    if len(started) == 1:
+        print(dim(f"follow up:  nyrasview ask {ags[0]} \"…\" -c {started[0]['id']}"))
+
+
+def cmd_runs(a):
+    from . import runs
+    rows = []
+    for r in runs.listing(a.limit):
+        g = BY_KEY.get(r["agent"])
+        rows.append([dim(r["id"]), col(g.hex if g else None, g.name if g else r["agent"]), r["status"], r["mode"],
+                     ago(r["created"]), r["cwd"].replace(os.path.expanduser("~"), "~"), (r["prompt"] or "").replace("\n", " ")])
+    table(["RUN", "AGENT", "STATUS", "MODE", "AGO", "FOLDER", "PROMPT"], rows) if rows else print("no runs yet")
+
+
 def money(c):
     return f"${c:.2f}" if c >= 1 else f"${c:.4f}"
 
@@ -449,6 +511,15 @@ def main():
     x.add_argument("-j", "--parallel", type=int, default=4)
     sp.add_parser("obsidian", help="list Obsidian vaults")
     sp.add_parser("now", help="what each running agent is working on")
+    x = sp.add_parser("ask", help="prompt an agent (or several: claude,codex) and stream the answer")
+    x.add_argument("agent")
+    x.add_argument("prompt")
+    x.add_argument("-d", "--dir", default=".")
+    x.add_argument("--mode", choices=["ask", "edit", "auto"], default="ask")
+    x.add_argument("-m", "--model")
+    x.add_argument("-c", "--continue", dest="cont", metavar="RUN", help="follow up on an earlier run")
+    x = sp.add_parser("runs", help="recent prompts started from nyrasview")
+    x.add_argument("-n", "--limit", type=int, default=20)
     sp.add_parser("hook", help=argparse.SUPPRESS)
     x = sp.add_parser("hooks", help="Claude Code hooks for live feedback")
     x.add_argument("hooks_cmd", nargs="?", choices=["install", "uninstall", "status"], default="status")
@@ -474,7 +545,7 @@ def main():
     x.add_argument("-m", "--model")
     a = ap.parse_args()
     fn = {"tui": cmd_tui, "gui": cmd_gui, "status": cmd_status, "ps": cmd_ps, "mcp": cmd_mcp,
-          "skills": cmd_skills, "usage": cmd_usage, "agents": cmd_agents, "collab": cmd_collab, "obsidian": cmd_obsidian, "now": cmd_now, "hook": cmd_hook, "hooks": cmd_hooks, "say": cmd_say, "handoff": cmd_handoff, "relay": cmd_relay, "local": cmd_local,
+          "skills": cmd_skills, "usage": cmd_usage, "agents": cmd_agents, "collab": cmd_collab, "obsidian": cmd_obsidian, "now": cmd_now, "ask": cmd_ask, "runs": cmd_runs, "hook": cmd_hook, "hooks": cmd_hooks, "say": cmd_say, "handoff": cmd_handoff, "relay": cmd_relay, "local": cmd_local,
           None: cmd_tui}[a.cmd]
     if a.relay and a.cmd in (None, "tui", "gui"):
         import threading

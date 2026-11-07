@@ -101,6 +101,17 @@ def make_handler(collector, token, port):
                 v["feedback"] = feedback.listing(cwd)
                 v["hooks"] = feedback.installed()
                 return self._send(200, v)
+            if u.path.startswith("/api/runs"):
+                if self.headers.get("X-Nyra-Token") != token:
+                    return self._send(403, {"error": "forbidden"})
+                from . import runs
+                rid = u.path[len("/api/runs"):].strip("/")
+                if not rid:
+                    return self._send(200, runs.listing())
+                v = runs.view(rid)
+                if v and v.get("group"):
+                    v["siblings"] = [r["id"] for r in runs.listing(200) if r.get("group") == v["group"]]
+                return self._send(200 if v else 404, v or {"error": "no such run"})
             if u.path == "/api/handoff/targets":
                 from . import handoff
                 return self._send(200, [{"key": k, "name": BY_KEY[k].name, "hex": BY_KEY[k].hex}
@@ -166,6 +177,31 @@ def make_handler(collector, token, port):
             if p == "/api/collab/save":
                 Path(doc).write_text(b.get("text") or "")
                 return {"ok": True}
+            if p == "/api/runs":
+                from . import runs
+                import secrets as _s
+                ags = [a for a in (b.get("agents") or [b.get("agent")]) if a]
+                if not ags or not (b.get("prompt") or "").strip():
+                    raise ValueError("pick at least one agent and write a prompt")
+                group = _s.token_hex(3) if len(ags) > 1 else None
+                out = [runs.start(a, b["prompt"], b.get("cwd") or "~", b.get("mode") or "ask", b.get("model") or None,
+                                  group, b.get("parent")) for a in ags]
+                collector.refresh("collab")
+                return {"runs": [{"id": m["id"], "agent": m["agent"], "status": m["status"], "error": m.get("error")} for m in out],
+                        "group": group}
+            if p == "/api/runs/stop":
+                from . import runs
+                return {"ok": runs.stop(b["id"])}
+            if p == "/api/open":
+                from . import handoff
+                cwd = os.path.realpath(os.path.expanduser(b.get("cwd") or "~"))
+                cmd = handoff.interactive(b["agent"])
+                if not cmd:
+                    raise ValueError(f"no interactive mode known for {b['agent']}")
+                pr = (b.get("prompt") or "").strip()
+                if "{prompt}" in " ".join(cmd):
+                    cmd = [c.replace("{prompt}", pr) for c in cmd] if pr else [c for c in cmd if c != "{prompt}" and c not in ("-i", "--prompt")]
+                return {"terminal": handoff.terminal(cwd, cmd)}
             if p == "/api/preview":
                 from . import proxy
                 pp = proxy.start(int(b["port"]), origin)
