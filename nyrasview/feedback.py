@@ -91,15 +91,31 @@ def hook():
         return
     cwd = data.get("cwd") or os.getcwd()
     event = data.get("hook_event_name") or ""
-    if event in ("Notification", "Stop"):
+    if event == "Notification":
         try:
             from .notify import from_hook
             from_hook(data)
         except Exception:
             pass
-    if event == "Notification":
         return
-    if event == "Stop" and data.get("stop_hook_active"):
+    if event == "Stop":
+        items = take(cwd)
+        if items:
+            print(json.dumps({"decision": "block", "reason": "\n".join(i["message"] for i in items)}))
+            return
+        try:
+            from .heal import stop_hook
+            r = stop_hook(data)
+        except Exception:
+            r = None
+        if r:
+            print(json.dumps(r))
+            return
+        try:
+            from .notify import from_hook
+            from_hook(data)
+        except Exception:
+            pass
         return
     items = take(cwd)
     if not items:
@@ -142,7 +158,9 @@ def install():
     for ev in EVENTS:
         lst = hooks.setdefault(ev, [])
         lst[:] = [m for m in lst if not any("nyrasview" in h.get("command", "") and h.get("command", "").endswith(" hook") for h in m.get("hooks", []))]
-        entry = {"hooks": [{"type": "command", "command": cmd, "timeout": 10}]}
+        from .heal import settings as heal_settings
+        entry = {"hooks": [{"type": "command", "command": cmd,
+                            "timeout": heal_settings()["timeout"] + 30 if ev == "Stop" else 10}]}
         if ev == "PostToolUse":
             entry["matcher"] = "*"
         lst.append(entry)

@@ -10,6 +10,8 @@ SCHEMA = [
     {"id": "gui", "title": "App", "fields": [
         ("port", "int", 7341, "Port for nyrasview gui"),
         ("interval", "float", 1.5, "Seconds between refreshes"),
+        ("phone", "bool", False, "Always open the phone server when the GUI starts"),
+        ("phone_port", "int", 7342, "Port for the phone server"),
     ]},
     {"id": "notify", "title": "Alerts", "fields": [
         ("desktop", "bool", True, "Desktop notifications"),
@@ -49,6 +51,12 @@ SCHEMA = [
         ("home", "str", "/root", "Home folder inside the container"),
         ("network", "str", "", "Docker network (empty = default, 'none' = offline)"),
         ("extra_args", "list", [], "Extra docker run arguments, comma separated"),
+    ]},
+    {"id": "heal", "title": "Self-heal", "fields": [
+        ("tries", "int", 3, "How many fixes to try before alerting you"),
+        ("timeout", "int", 600, "Seconds a check may run"),
+        ("agent", "str", "claude", "Agent that fixes failures"),
+        ("mode", "str", "edit", "edit (change files) or auto (also run commands)"),
     ]},
     {"id": "collab", "title": "Collab", "fields": [
         ("timeout", "int", 900, "Seconds before a collab task gives up"),

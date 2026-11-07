@@ -209,7 +209,7 @@ def cmd_gui(a):
     from .util import config as _cfg
     g = _cfg().get("gui", {})
     c = Collector(interval=a.interval if a.interval != 1.5 else float(g.get("interval", 1.5)), relay=a.relay)
-    web.serve(c, a.port if a.port != 7341 else int(g.get("port", 7341)), not a.no_open)
+    web.serve(c, a.port if a.port != 7341 else int(g.get("port", 7341)), not a.no_open, a.phone)
 
 
 def cmd_tui(a):
@@ -564,6 +564,51 @@ def cmd_skill(a):
               [[s["folder"], *[col("#22c55e", "✓") if c in s["agents"] else dim("·") for c in cols], s["description"][:60]] for s in m["skills"]])
 
 
+def cmd_heal(a):
+    from . import feedback, heal
+    cwd = os.path.realpath(a.dir)
+    if a.live is not None:
+        cmd = a.live or a.check or heal.detect(cwd)
+        if a.off:
+            heal.set_project(cwd, None)
+            return print(f"live self-heal off for {cwd}")
+        if not cmd:
+            sys.exit("pass a check command, e.g. nyrasview heal --live \"npm test\"")
+        heal.set_project(cwd, cmd)
+        if not feedback.installed():
+            feedback.install()
+            print(dim("installed the Claude Code hook (restart running Claude sessions once)"))
+        return print(f"live self-heal on: when Claude Code finishes in {cwd.replace(os.path.expanduser('~'), '~')}, nyrasview runs `{cmd}` "
+                     f"and sends failures back, up to {heal.settings()['tries']} times")
+    if a.list:
+        for j in heal.listing(15):
+            mark = {"passed": col("#22c55e", "✓"), "failed": col("#ef4444", "✗")}.get(j["status"], "…")
+            print(f"{mark} {dim(j['id'])} {j['cmd']}  " + dim(f"{j['cwd'].replace(os.path.expanduser('~'), '~')} · {len(j['attempts'])} checks · {ago(j['created'])}"))
+        return
+    g = BY_KEY.get(a.agent or heal.settings()["agent"])
+
+    def ev(kind, j):
+        last = j["attempts"][-1] if j["attempts"] else {}
+        if kind == "check":
+            print(dim(f"▶ check {len(j['attempts']) + 1}: {j['cmd']}"), flush=True)
+        elif kind == "passed":
+            fixes = len(j["attempts"]) - 1
+            print(col("#22c55e", f"✓ passes{f' after {fixes} fix' + ('es' if fixes > 1 else '') if fixes else ''}") + dim(f"  ({last['check']['dur']}s)"), flush=True)
+        elif kind == "failing":
+            tail = "\n".join(last["check"]["tail"].splitlines()[-6:])
+            print(col("#ef4444", f"✗ exit {last['check']['code']}") + dim(f"  ({last['check']['dur']}s)\n" + "\n".join("    " + l for l in tail.splitlines())), flush=True)
+        elif kind == "fixing":
+            print(f"⚙ {g.name if g else j['agent']} is fixing it " + dim(f"(try {len(j['attempts'])}/{j['tries']}, run {last.get('run')})"), flush=True)
+        elif kind == "failed":
+            print(col("#ef4444", f"✗ {j.get('error')}"), flush=True)
+    try:
+        j = heal.start(a.dir, a.check, a.agent, a.tries, a.mode, a.model, True if a.sandbox else None, background=False, on_event=ev)
+    except KeyboardInterrupt:
+        return
+    if j["status"] != "passed":
+        sys.exit(1)
+
+
 def money(c):
     return f"${c:.2f}" if c >= 1 else f"${c:.4f}"
 
@@ -676,7 +721,7 @@ def main():
                                      env=dict(os.environ, NYRA_NO_REEXEC="1")))
         except KeyboardInterrupt:
             sys.exit(130)
-    ap = argparse.ArgumentParser(prog="nyrasview", description="monitor and orchestrate your AI coding agents")
+    ap = argparse.ArgumentParser(prog="nyrasview", description="control center for AI-driven development: see, steer and coordinate your AI agents")
     ap.add_argument("-v", "--version", action="version", version=f"nyrasview {VERSION}")
     ap.add_argument("-i", "--interval", type=float, default=1.5)
     ap.add_argument("--relay", action="store_true", help="also run relay mode in the background")
@@ -685,6 +730,7 @@ def main():
     g = sp.add_parser("gui", help="web dashboard in your browser")
     g.add_argument("-p", "--port", type=int, default=7341)
     g.add_argument("--no-open", action="store_true")
+    g.add_argument("--phone", action="store_true", help="also serve it to your phone on Wi-Fi/Tailscale (shows a QR code)")
     s = sp.add_parser("status", help="one-shot summary of every agent")
     s.add_argument("--json", action="store_true")
     s.add_argument("-a", "--all", action="store_true")
@@ -755,6 +801,17 @@ def main():
     x.add_argument("-j", "--parallel", type=int, default=4)
     sp.add_parser("obsidian", help="list Obsidian vaults")
     sp.add_parser("now", help="what each running agent is working on")
+    x = sp.add_parser("heal", help="run a check and let an agent fix it until it passes")
+    x.add_argument("check", nargs="?", help="check command (default: detected, e.g. npm test, pytest -q)")
+    x.add_argument("-d", "--dir", default=".")
+    x.add_argument("-a", "--agent")
+    x.add_argument("-n", "--tries", type=int)
+    x.add_argument("--mode", choices=["edit", "auto"])
+    x.add_argument("-m", "--model")
+    x.add_argument("--sandbox", action="store_true")
+    x.add_argument("--live", nargs="?", const="", help="also check live Claude Code sessions in this folder when they finish")
+    x.add_argument("--off", action="store_true", help="with --live: turn it off")
+    x.add_argument("--list", action="store_true")
     sk = sp.add_parser("skill", help="add, create, copy or remove skills for your agents")
     sks = sk.add_subparsers(dest="skill_cmd")
     x = sks.add_parser("add", help="install skills from a GitHub URL, a folder or a SKILL.md URL")
@@ -833,7 +890,7 @@ def main():
     x.add_argument("-m", "--model")
     a = ap.parse_args()
     fn = {"tui": cmd_tui, "gui": cmd_gui, "status": cmd_status, "ps": cmd_ps, "mcp": cmd_mcp,
-          "skills": cmd_skills, "usage": cmd_usage, "agents": cmd_agents, "collab": cmd_collab, "obsidian": cmd_obsidian, "now": cmd_now, "skill": cmd_skill, "keys": cmd_keys, "plan": cmd_plan, "limits": cmd_limits, "inbox": cmd_events, "notify-test": cmd_notify_test,
+          "skills": cmd_skills, "usage": cmd_usage, "agents": cmd_agents, "collab": cmd_collab, "obsidian": cmd_obsidian, "now": cmd_now, "heal": cmd_heal, "skill": cmd_skill, "keys": cmd_keys, "plan": cmd_plan, "limits": cmd_limits, "inbox": cmd_events, "notify-test": cmd_notify_test,
           "daemon": cmd_daemon, "service": cmd_service, "ask": cmd_ask, "runs": cmd_runs, "hook": cmd_hook, "hooks": cmd_hooks, "say": cmd_say, "handoff": cmd_handoff, "relay": cmd_relay, "local": cmd_local,
           None: cmd_tui}[a.cmd]
     if a.relay and a.cmd in (None, "tui", "gui"):

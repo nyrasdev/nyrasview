@@ -1,14 +1,16 @@
 # nyrasview
 
-A monitor and control panel for your AI coding agents, not your whole system.
+The control center for **AI-driven development**: one place to see, steer and coordinate every AI coding agent you run.
 
-See how much CPU, RAM and network every vibe-coding tool is using, which MCP servers it has spawned, what skills it can use and how many tokens it has burned. Then hand different sections of the same document to different AIs and watch them write it together.
+- **See:** what each agent is doing right now, down to the file and the part of the page it's editing; its CPU, RAM and network; MCP servers and skills; tokens, cost and your real plan limits.
+- **Steer:** prompt any agent from one box, compare several side by side, leave notes on its work while it runs, and let it fix failing checks on its own.
+- **Coordinate:** split a goal across agents with a planner that runs on your cheapest model, have several agents co-write one document, and hand work to another agent (or the same one on an API key) when a limit hits.
 
 ![nyrasview demo: overview, watching Claude edit a website and leaving it a note, then Claude and Codex answering the same prompt side by side](docs/media/demo.gif)
 
 <sub>[Full-quality MP4](docs/media/demo.mp4) · the demo uses fake agents and data from <code>tools/demo.py</code></sub>
 
-Supports Claude Code, Codex, Gemini CLI, opencode, Kimi CLI, Antigravity, Cursor, Qwen Code, Copilot CLI, Crush, Amp, Factory Droid, Goose, Aider, Windsurf, Ollama, LM Studio and OpenRouter. You can add more in a config file.
+Works with Claude Code, Codex, Gemini CLI, opencode, Kimi CLI, Antigravity, Cursor, Qwen Code, Copilot CLI, Crush, Amp, Factory Droid, Goose, Aider, Windsurf, Ollama, LM Studio and OpenRouter. You can add more in a config file.
 
 ## A look around
 
@@ -100,6 +102,8 @@ Every push is tested on Linux, Windows and macOS with Python 3.11 and 3.13.
 | `nyrasview plan "<goal>"` | the cheapest model splits a goal into tasks for your agents |
 | `nyrasview keys` | connect API keys to keep working past plan limits |
 | `nyrasview skill add/new/copy/rm/list` | install and manage skills for every agent |
+| `nyrasview heal ["check"]` | run a check and let an agent fix it until it passes (`--live` for Claude sessions) |
+| `nyrasview gui --phone` | also open it on your phone (QR code) |
 | `nyrasview now` | what every running agent is working on right now |
 | `nyrasview local` | local AI servers and their models; `local ask ollama "hi"` to try one |
 | `nyrasview handoff` | hand the current task to another agent (`--to codex`, `-w` new window, `-n` dry run) |
@@ -253,6 +257,38 @@ nyrasview mcp copy context7 --from claude --to codex,gemini
 nyrasview mcp test "uvx mcp-server-fetch"
 nyrasview mcp rm playwright
 ```
+
+## Self-heal: agents fix failing checks on their own
+
+nyrasview runs your check: tests, build or typecheck. It suggests one from `package.json`, `pyproject`, `Cargo.toml`, `go.mod` or the `Makefile`. When the check fails:
+
+1. it gives the error output to an agent
+2. re-runs the check
+3. repeats until it passes, or until N tries are used up, and then alerts you
+
+Each new try continues the same conversation, so the agent knows what it already tried.
+
+```sh
+nyrasview heal                      # detect the check and fix until it passes
+nyrasview heal "npm test" -n 5      # your check, up to 5 fixes
+nyrasview heal --live "pytest -q"   # live Claude Code sessions here fix failures before they stop
+```
+
+With **live** mode, whenever Claude Code says it's done in that project, its Stop hook runs the check. If the check fails, Claude gets the errors and keeps going on its own. You only hear about it once it passes, or once the tries are used up. All of this is also on the **Self-heal** page.
+
+## Hand off
+
+Every Claude Code or Codex session has a **⇢ Hand off** button: on its agent page, on the Watch view, and on the overview when it hits a limit. The dialog shows:
+
+- what will be passed on: your prompts, the changed files, the commands it ran, the git diff
+- who can take over
+- why an option isn't available yet (e.g. "connect your Anthropic API key to keep this same session going"), with a button to fix it
+
+## On your phone
+
+Turn it on from the **Phone** page, or run `nyrasview gui --phone`. nyrasview also listens on your Wi-Fi (and Tailscale) and shows a QR code. Scan it with your phone camera and you're signed in; without that code, nobody can open it.
+
+You get the full app in a phone layout. Use **Add to Home Screen** to open it like an app. **Sign out all phones** makes a new code.
 
 ## Relay: when one agent runs out, the next one takes over
 

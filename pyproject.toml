@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "nyrasview"
 version = "2.0.0"
-description = "Monitor and orchestrate your AI coding agents: Claude Code, Codex, Gemini, opencode, Kimi, Antigravity, OpenRouter and more"
+description = "Control center for AI-driven development: see, steer and coordinate your AI coding agents (Claude Code, Codex, Gemini, opencode, local models and more)"
 readme = "README.md"
 requires-python = ">=3.11"
 classifiers = ["Operating System :: POSIX :: Linux", "Operating System :: Microsoft :: Windows", "Operating System :: MacOS"]

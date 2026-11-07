@@ -2,7 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0b0f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg">
+<link rel="apple-touch-icon" href="/icon.svg">
 <title>nyrasview</title>
 <style>
 :root{
@@ -359,18 +365,34 @@ textarea{width:100%;min-height:70px;resize:vertical}
 .pre button:hover{border-color:var(--dim)}
 .pre button small{color:var(--dim);margin-left:5px}
 .tres{font-size:12.5px;margin-top:10px;font-family:var(--mono);white-space:pre-wrap}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:30;padding:16px}
+.modal.on{display:flex;animation:rise .2s var(--ease) both}
+.modal .box{background:var(--panel);border:1px solid var(--line);border-radius:16px;width:min(560px,100%);max-height:90vh;overflow:auto;padding:18px;box-shadow:0 30px 80px rgba(0,0,0,.4)}
+.opt{display:flex;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:12px;margin-bottom:8px;cursor:pointer;transition:border-color .2s}
+.opt:hover{border-color:var(--dim)}.opt.sel{border-color:var(--c);background:color-mix(in srgb,var(--c) 8%,transparent)}
+.opt.no{opacity:.55;cursor:default}
+.opt small{display:block;color:var(--dim);font-size:12px}
+.gs{display:grid;gap:6px}
+.gs .it{display:flex;gap:10px;align-items:center;font-size:13px;padding:6px 2px}
+.gs .it .ck{width:20px;height:20px;border-radius:7px;display:grid;place-items:center;font-size:12px;flex:none;border:1.5px solid var(--branch)}
+.gs .it.done .ck{background:var(--good);border-color:var(--good);color:#fff}
+.gs .it.done .tx{color:var(--dim);text-decoration:line-through}
+.gs .it .btn{margin-left:auto}
 #tip{position:fixed;z-index:20;pointer-events:none;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-size:12px;box-shadow:0 6px 20px rgba(0,0,0,.18);opacity:0;transition:opacity .12s;white-space:nowrap}
 #tip.on{opacity:1}
 .toast{position:fixed;bottom:18px;right:18px;background:var(--panel);border:1px solid var(--line);padding:10px 14px;border-radius:12px;opacity:0;transform:translateY(8px);transition:all .3s var(--spring);pointer-events:none;z-index:9}
 .toast.on{opacity:1;transform:none}
-@media (max-width:860px){.app{grid-template-columns:1fr}aside{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line)}main{padding:18px 16px 40px}.cols{grid-template-columns:1fr}.kv{grid-template-columns:repeat(2,1fr)}}
+.menu{display:none;margin-left:auto}
+@media (max-width:860px){.app{grid-template-columns:1fr}aside{position:sticky;top:0;z-index:12;background:var(--bg);height:auto;max-height:100vh;border-right:0;border-bottom:1px solid var(--line);padding:12px 12px 10px;gap:10px}
+.menu{display:inline-flex}aside .sys,aside #nav,aside .foot,aside .newp{display:none}aside.open .sys,aside.open #nav,aside.open .foot,aside.open .newp{display:flex}aside.open #nav{display:block}aside.open{overflow:auto;padding-bottom:24px}
+.tiles{grid-template-columns:repeat(2,minmax(0,1fr))!important}.ph h1{font-size:19px}.fr{grid-template-columns:22px minmax(0,1fr)}.fr .what{grid-column:2}.fr .act{grid-column:2}main{padding:14px 12px 40px}.cols{grid-template-columns:1fr}.kv{grid-template-columns:repeat(2,1fr)}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
 <div class="app">
   <aside>
-    <div class="brand"><i class="beat"></i><div>nyras<span>view</span></div></div>
+    <div class="brand"><i class="beat"></i><div>nyras<span>view</span></div><button class="btn sm menu" data-act="menu">☰</button></div>
     <div class="sys" id="sys"></div>
     <button class="newp" data-act="go" data-v="prompt">✦ New prompt <span class="kbd">Ctrl K</span></button>
     <nav class="bm" id="nav"></nav>
@@ -378,7 +400,7 @@ textarea{width:100%;min-height:70px;resize:vertical}
   </aside>
   <main id="main"><div id="stale"></div><div id="view"></div></main>
 </div>
-<div class="toast" id="toast"></div><div id="tip"></div><div class="cbub" id="cbub"><div class="h" id="cbubh"></div><textarea id="cbubt" placeholder="e.g. rename this to something clearer"></textarea><div class="row" style="margin-top:8px"><span class="muted" style="font-size:11px;flex:1">Ctrl+Enter to send</span><button class="btn pri sm" data-act="csend">Send</button></div></div>
+<div class="toast" id="toast"></div><div id="tip"></div><div class="modal" id="hmodal"><div class="box" id="hbox"></div></div><div class="cbub" id="cbub"><div class="h" id="cbubh"></div><textarea id="cbubt" placeholder="e.g. rename this to something clearer"></textarea><div class="row" style="margin-top:8px"><span class="muted" style="font-size:11px;flex:1">Ctrl+Enter to send</span><button class="btn pri sm" data-act="csend">Send</button></div></div>
 <script>
 const TOKEN="__NYRA_TOKEN__";
 const STALE_RAW="__NYRA_STALE__";const STALE=STALE_RAW==="true"||STALE_RAW.startsWith("__");
@@ -387,7 +409,7 @@ const quiet=new Set(),seenTask=new Set();let handT=[];
 const loadTargets=()=>getJSON("/api/handoff/targets",[]).then(l=>{handT=l;paint(handT)});loadTargets();setInterval(loadTargets,30000);
 const canHand=k=>k==="claude"||k==="codex";
 function limitBar(a,w){const t=w.activity||{},l=t.limit||{};const tg=handT.filter(x=>x.key!==a.key);
-  return `<div class="lim">⚠ <span><b>Limit reached</b> · ${esc(l.message||"")}${l.reset?" · resets "+esc(l.reset):""}</span>${tg.length?`<button class="btn sm" data-act="handoff" data-agent="${a.key}" data-cwd="${esc(w.cwd)}" data-to="${tg[0].key}">Hand off to ${esc(tg[0].name)} →</button>`:""}</div>`}
+  return `<div class="lim">⚠ <span><b>Limit reached</b> · ${esc(l.message||"")}${l.reset?" · resets "+esc(l.reset):""}</span><button class="btn sm" data-act="hopen" data-agent="${a.key}" data-cwd="${esc(w.cwd)}">⇢ Hand off</button></div>`}
 let S=__NYRA_SNAP__, view=localGet("view")||"overview", skillQ="", docData=null, agentsList=[], open=new Set(JSON.parse(localGet("open")||'["agents","toolbox","insights","prompt","collab"]'));
 async function getJSON(url,fallback,opts){try{const r=await fetch(url,opts);if(!r.ok)return fallback;const j=await r.json();return (Array.isArray(fallback)?Array.isArray(j):j&&typeof j==="object")?j:fallback}catch(e){return fallback}}
 function localGet(k){try{return localStorage.getItem("nyra."+k)}catch(e){return null}}
@@ -423,6 +445,7 @@ const I={
   undo:'<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>',
   wand:'<path d="M15 4V2M15 10V8M11 6H9M21 6h-2M18 3l-1 1M18 9l-1-1M4 20L14 10"/>',
   chip:'<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/>',
+  phone:'<rect x="7" y="2" width="10" height="20" rx="2.5"/><path d="M11 18h2"/>',
   gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
   loader:'<path d="M12 3a9 9 0 1 0 9 9"/>',
 };
@@ -562,9 +585,9 @@ function navModel(){
   return [
     {id:"agents",label:"Agents",items:[{v:"overview",label:"Overview",icon:"grid",badge:ag.filter(a=>a.running).length+" live"},
       ...ag.map(a=>({v:"agent:"+a.key,label:a.name,dot:a.hex,live:a.running,badge:a.running?a.cpu.toFixed(0)+"%":""}))]},
-    {id:"toolbox",label:"Toolbox",items:[{v:"mcp",label:"MCP servers",icon:"plug",badge:(S.mcp||[]).length||""},{v:"skills",label:"Skills",icon:"spark",badge:(S.skills||[]).length||""},{v:"settings",label:"Settings",icon:"gear"},{v:"keys",label:"API keys",icon:"plug",badge:KEYS.filter(k=>k.connected).length?KEYS.filter(k=>k.connected).length+" on":""}]},
+    {id:"toolbox",label:"Toolbox",items:[{v:"phone",label:"Phone",icon:"phone"},{v:"mcp",label:"MCP servers",icon:"plug",badge:(S.mcp||[]).length||""},{v:"skills",label:"Skills",icon:"spark",badge:(S.skills||[]).length||""},{v:"settings",label:"Settings",icon:"gear"},{v:"keys",label:"API keys",icon:"plug",badge:KEYS.filter(k=>k.connected).length?KEYS.filter(k=>k.connected).length+" on":""}]},
     {id:"insights",label:"Insights",items:[{v:"usage",label:"Usage",icon:"chart"},{v:"network",label:"Network",icon:"globe"},{v:"local",label:"Local AI",icon:"chip",badge:(S.local||[]).filter(x=>x.up).length?(S.local||[]).filter(x=>x.up).length+" up":""}]},
-    {id:"prompt",label:"Prompts",items:[{v:"prompt",label:"New prompt",icon:"wand"},...(()=>{const out=[],sg={};RUNS.forEach(r=>{if(r.group){if(sg[r.group])return;sg[r.group]=1}out.push(r)});return out.slice(0,5)})().map(r=>({v:"run:"+r.id,label:r.prompt,dot:colorOf(r.agent),live:r.status==="running",badge:r.status==="running"?"…":r.status==="failed"?"✗":""}))]},
+    {id:"prompt",label:"Prompts",items:[{v:"prompt",label:"New prompt",icon:"wand"},{v:"heal",label:"Self-heal",icon:"retry",badge:HEAL.filter(j=>!["passed","failed","stopped"].includes(j.status)).length?"…":""},...(()=>{const out=[],sg={};RUNS.forEach(r=>{if(r.group){if(sg[r.group])return;sg[r.group]=1}out.push(r)});return out.slice(0,5)})().map(r=>({v:"run:"+r.id,label:r.prompt,dot:colorOf(r.agent),live:r.status==="running",badge:r.status==="running"?"…":r.status==="failed"?"✗":""}))]},
     {id:"collab",label:"Collab",items:[...(S.collab||[]).map(d=>{const run=d.tasks.filter(t=>t.status==="running").length;return {v:"doc:"+d.doc,label:d.name.replace(/\.md$/,""),icon:"doc",badge:run?"✎ "+run:d.tasks.length?d.tasks.filter(t=>t.status==="done").length+"/"+d.tasks.length:""}}),{v:"new",label:"New document",icon:"plus"}]},
   ]}
 
@@ -606,6 +629,20 @@ const sum=(arr,f)=>arr.reduce((x,a)=>x+(+f(a)||0),0);
 const tip=s=>esc(s).replace(/&lt;b&gt;/g,"<b>").replace(/&lt;\/b&gt;/g,"</b>");
 function bySlot(list){return [...list].sort((a,b)=>slotOf(a.key)-slotOf(b.key)||a.name.localeCompare(b.name))}
 
+function getStarted(){
+  if(localGet("gsdone")==="1")return "";
+  const hooks=SET0&&SET0._hooks,keys=KEYS.some(k=>k.connected),lm=(S.limits_meta||{}).claude||{};
+  const claude=(S.agents||[]).find(a=>a.key==="claude"&&a.installed);
+  const items=[
+    [(S.agents||[]).some(a=>a.visible&&a.kind!=="api"),"nyrasview found your AI agents","They show up on the left. Click one to see its sessions, processes and limits.",""],
+    [!claude||hooks,"Connect Claude Code","Instant alerts when it needs you, live notes from the Watch view, and self-heal for live sessions.",`<button class="btn sm" data-act="gshooks">Turn on</button>`],
+    [!claude||lm.source==="anthropic","See your real Claude limits","Read straight from Anthropic with the login Claude Code already has.",`<button class="btn sm" data-act="calib">Check now</button>`],
+    [RUNS.length>0,"Ask something from here","Press Ctrl+K anywhere. Pick one agent, or several to compare their answers.",`<button class="btn sm" data-act="go" data-v="prompt">Try it</button>`],
+    [HEAL.length>0,"Let an agent fix failing tests","Self-heal runs your check and hands errors to an agent until it passes.",`<button class="btn sm" data-act="go" data-v="heal">Set up</button>`],
+    [keys,"Never get stuck on a limit (optional)","Connect an API key and Claude Code keeps going on API billing when the plan runs out.",`<button class="btn sm" data-act="go" data-v="keys">Connect</button>`],
+  ];
+  const done=items.filter(i=>i[0]).length;
+  return `<div class="panel" data-key="gs"><div class="hd2"><h2>Get started</h2><span class="muted" style="font-size:12px">${done} of ${items.length} done</span><a data-act="gshide">hide</a></div><div class="gs">${items.map(([ok,t,d,btn])=>`<div class="it ${ok?"done":""}"><span class="ck">${ok?"✓":""}</span><div style="min-width:0"><div class="tx">${t}</div><div class="muted" style="font-size:12px">${d}</div></div>${ok?"":btn}</div>`).join("")}</div></div>`}
 function vOverview(){
   const vis=visible(),live=vis.filter(a=>a.running),sy=S.system,ncpu=sy.ncpu||1;
   const day=a=>(a.usage||{}).today||{};
@@ -632,7 +669,7 @@ function vOverview(){
     ["local","Local AI",lUp.length,lUp.length?`${sum(lUp,x=>x.models.length)} models · ${sum(lUp,x=>x.loaded.length)} loaded`:"no servers up"],
     [S.collab&&S.collab[0]?"doc:"+S.collab[0].doc:"new","Collab",tRun?tRun+" running":tDone+"/"+tasks.length,tasks.length?`${tDone} of ${tasks.length} tasks done · ${(S.collab||[]).length} docs`:"no shared docs yet"],
   ];
-  let h=`<div class="ph"><h1>Overview</h1><span class="sub">${esc(S.host)} · everything your AI tools are doing</span></div><div class="ov">`;
+  let h=`<div class="ph"><h1>Overview</h1><span class="sub">${esc(S.host)} · everything your AI agents are doing</span></div>${getStarted()}<div class="ov">`;
   h+=`<div class="tiles">`+tiles.map(([v,k,val,sub],i)=>`<div class="tile" style="--i:${i}" data-act="go" data-v="${esc(v)}" data-key="tile-${i}"><span class="k">${k}</span><b class="v">${esc(val)}</b><span class="s">${esc(sub)}</span></div>`).join("")+`</div>`;
 
   const chips=callChips(S.collab||[]);
@@ -641,7 +678,7 @@ function vOverview(){
       const icon=st==="limited"?`<span style="color:var(--bad)">⚠</span>`:st==="working"?`<span style="color:var(--good);display:inline-flex">${stateIcon("working")}</span>`:`<span class="muted">${st==="waiting"?"◐":"○"}</span>`;
       const what=w.collab?"collab job":t.title||(w.cwd||"").replace(HOMERE,"~");
       const act=st==="limited"?`limit reached${(t.limit||{}).reset?" · resets "+t.limit.reset:""}`:(t.action||t.reply||t.prompt||"");
-      return `<div class="fr" ${w.cwd&&!w.collab?`data-act="watch" data-agent="${a.key}" data-cwd="${esc(w.cwd)}"`:`data-act="go" data-v="agent:${a.key}"`} data-key="fr-${w.pid}" style="--c:${a.hex}">${icon}<div class="who"><span class="dot"></span>${esc(a.name)}</div>
+      return `<div class="fr" ${w.cwd&&!w.collab?`data-act="watch" data-agent="${a.key}" data-cwd="${esc(w.cwd)}" title="click to watch it live"`:`data-act="go" data-v="agent:${a.key}"`} data-key="fr-${w.pid}" style="--c:${a.hex}">${icon}<div class="who"><span class="dot"></span>${esc(a.name)}</div>
         <div class="what">${esc(what)}<span class="st">${esc(st)}${t.at?" · "+ago(t.at):""} · ${esc(t.project||(w.cwd||"").replace(HOMERE,"~"))}</span></div>
         <div class="act ${st==="working"?"on":""}">${act?(st==="working"?"now ▸ ":"▸ ")+esc(act):""}</div></div>`}).join("")+`</div>`
     :`<div class="muted" style="padding:14px 2px">No agent sessions running. Start Claude Code, Codex, Gemini… and they show up here live.</div>`;
@@ -649,7 +686,7 @@ function vOverview(){
 
   const alerts=[];
   work.filter(x=>x.st==="limited").forEach(({a,w})=>{const l=(w.activity||{}).limit||{};const tg=handT.filter(x=>x.key!==a.key);
-    alerts.push(["bad","!",`<b>${esc(a.name)}</b> hit its limit`,`${esc((w.cwd||"").replace(HOMERE,"~"))}${l.reset?" · resets "+esc(l.reset):""}`,tg.length&&(a.key==="claude"||a.key==="codex")?`<button class="btn sm" data-act="handoff" data-agent="${a.key}" data-cwd="${esc(w.cwd)}" data-to="${tg[0].key}">Hand off →</button>`:""])});
+    alerts.push(["bad","!",`<b>${esc(a.name)}</b> hit its limit`,`${esc((w.cwd||"").replace(HOMERE,"~"))}${l.reset?" · resets "+esc(l.reset):""}`,(a.key==="claude"||a.key==="codex")?`<button class="btn sm" data-act="hopen" data-agent="${a.key}" data-cwd="${esc(w.cwd)}">⇢ Hand off</button>`:""])});
   tasks.filter(t=>t.status==="failed").slice(0,4).forEach(t=>alerts.push(["bad","✗",`<b>${esc(aname(t.agent))}</b> failed on ${esc(t.section||"whole doc")}`,`${esc(t.dname)} · ${esc((t.error||"").slice(0,90))}`,`<button class="btn sm" data-act="retry" data-doc="${esc(t.doc)}" data-id="${t.id}">Retry</button>`]));
   vis.filter(a=>a.rss/sy.mem_total>.2).forEach(a=>alerts.push(["warn","▲",`<b>${esc(a.name)}</b> is using ${hb(a.rss)} of RAM`,`${(a.rss/sy.mem_total*100).toFixed(0)}% of this machine`,""]));
   if(sy.mem_used/sy.mem_total>.9) alerts.push(["warn","▲","System RAM almost full",`${hb(sy.mem_used)} of ${hb(sy.mem_total)} used`,""]);
@@ -727,6 +764,23 @@ function vOverview(){
     ${spark(a.hist,a.hex)}${nowLine(a)}
     <div class="chips">${Object.entries(a.providers).sort((x,y)=>y[1]-x[1]).map(([p,n])=>`<span class="chip">${esc(p)}×${n}</span>`).join("")}${mc.map(m=>`<span class="chip mcp">◆ ${esc(m)}</span>`).join("")}</div></div>`}).join("")+`</div></div></div>`}
 
+let HO=null;
+async function openHandoff(agentKey,cwd){
+  HO={agent:agentKey,cwd,pick:null,data:null};const m=$("#hmodal");m.classList.add("on");
+  $("#hbox").innerHTML=`<div class="muted typing">reading the session</div>`;
+  const d=await getJSON(`/api/handoff/options?agent=${encodeURIComponent(agentKey)}&cwd=${encodeURIComponent(cwd)}`,null);
+  if(!d){$("#hbox").innerHTML=`<div class="er">Couldn't read this session. Restart nyrasview gui if it's an old version.</div><div class="row" style="margin-top:12px"><div class="grow"></div><button class="btn" data-act="hclose">Close</button></div>`;return}
+  HO.data=d;HO.pick=(d.targets.find(t=>t.ok)||{}).key||null;drawHandoff()}
+function drawHandoff(){
+  const d=HO.data,s=d.summary;
+  $("#hbox").innerHTML=`<div class="row" style="margin-bottom:6px"><h2 style="margin:0">Hand off ${esc(HO.cwd.replace(HOMERE,"~"))}</h2><div class="grow"></div><button class="btn sm" data-act="hclose">✕</button></div>
+   <div class="muted" style="font-size:13px;margin-bottom:12px">Another agent takes over where ${esc(aname(HO.agent))} left off. It gets <b>.nyrasview/HANDOFF.md</b> with ${s.prompts} of your prompts, ${s.files} changed files, ${s.commands} commands${s.git?" and the git diff":""}.${s.limit?` <span style="color:var(--bad)">${esc(aname(HO.agent))} hit its limit${s.limit.reset?" (resets "+esc(s.limit.reset)+")":""}.</span>`:""}</div>
+   ${s.latest?`<div class="ub" style="justify-self:start;max-width:100%;margin-bottom:12px;font-size:12.5px">${esc(s.latest)}</div>`:""}
+   <div style="font-size:12px;color:var(--dim);margin:4px 0 8px;text-transform:uppercase;letter-spacing:.6px">Who takes over</div>
+   ${d.targets.filter(t=>t.ok||t.fix==="keys").map(t=>`<div class="opt ${t.ok?"":"no"} ${HO.pick===t.key?"sel":""}" style="--c:${t.hex||"var(--dim)"}" ${t.ok?`data-act="hpick" data-k="${esc(t.key)}"`:""}><span class="sd" style="background:${t.hex||"var(--dim)"}"></span><div style="flex:1">${esc(t.name)}<small>${esc(t.why||"opens in a new terminal with the handoff")}</small></div>${!t.ok&&t.fix==="keys"?`<button class="btn sm" data-act="hkeys">Connect</button>`:""}</div>`).join("")}
+   ${d.targets.some(t=>t.fix==="install")?`<div class="muted" style="font-size:12px;margin:2px 2px 8px">Not installed: ${d.targets.filter(t=>t.fix==="install").map(t=>esc(t.name)).join(", ")}. Install one and it shows up here.</div>`:""}
+   ${d.targets.some(t=>t.ok)?"":`<div class="muted" style="font-size:12.5px;margin:6px 0">Nothing can take over yet. Install another agent (Codex, Gemini CLI, opencode…) or connect an API key so Claude Code keeps going on API billing.</div>`}
+   <div class="row" style="margin-top:12px"><button class="btn" data-act="hwrite">Only write HANDOFF.md</button><div class="grow"></div><button class="btn" data-act="hclose">Cancel</button><button class="btn pri" data-act="hgo" ${HO.pick?"":"disabled"}>Hand off →</button></div>`}
 function stateIcon(st){return st==="working"?`<svg class="spin" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">${I.loader}</svg>`:st==="waiting"?"◐":"○"}
 function nowLine(a){
   const w=(a.work||[]).find(x=>x.activity&&x.activity.state==="limited")||(a.work||[]).find(x=>x.activity)||null;if(!w) return "";
@@ -742,7 +796,8 @@ function vSessions(a){
      <div class="muted m" style="font-size:12px">${st} · pid ${w.pid}${t.at?" · "+ago(t.at):""}${w.cwd&&!w.collab?` <button class="btn sm" data-act="watch" data-agent="${a.key}" data-cwd="${esc(w.cwd)}">👁 Watch</button>`:""}</div>
      ${t.prompt?`<div class="pr">you ▸ ${esc(t.prompt)}</div>`:""}
      ${t.action||t.reply?`<div class="ac">${st==="working"?"now":"last"} ▸ ${esc(t.action||t.reply)}</div>`:""}
-     ${st==="limited"?`<div style="grid-column:2/4">${limitBar(a,w)}</div>`:canHand(a.key)&&!w.collab&&handT.some(x=>x.key!==a.key)?`<div class="ho"><span class="muted" style="font-size:12px">hand off to</span><select data-hsel="${w.pid}">${handT.filter(x=>x.key!==a.key).map(x=>`<option value="${x.key}">${esc(x.name)}</option>`).join("")}</select><button class="btn sm" data-act="handoff" data-agent="${a.key}" data-cwd="${esc(w.cwd)}" data-pick="${w.pid}">Go →</button></div>`:""}</div>`}).join("")+`</div>`}
+     ${st==="limited"?`<div style="grid-column:2/4">${limitBar(a,w)}</div>`:""}
+     ${canHand(a.key)&&!w.collab&&w.cwd?`<div class="ho"><button class="btn sm" data-act="hopen" data-agent="${a.key}" data-cwd="${esc(w.cwd)}">⇢ Hand off</button></div>`:""}</div>`}).join("")+`</div>`}
 
 function vLocal(){
   const L=S.local||[];const up=L.filter(x=>x.up);
@@ -792,7 +847,7 @@ function fbToast(it){toast(it.status==="copied"?"Copied to clipboard: paste it i
 function vWatch(){
   const {agent:k,cwd}=watchParts();const a=agent(k);const d=W.data;
   const w=(a.work||[]).find(x=>x.cwd===cwd)||{};const t=w.activity||{};
-  let h=`<div class="ph" style="--c:${a.hex||"var(--other)"}"><span class="dot ${a.running?"live":""}" style="width:12px;height:12px"></span><h1>${esc(t.title||a.name||k)}</h1><span class="pill ${t.state==="working"?"live":""}">${esc(t.state||"watching")}</span><span class="sub">${esc(a.name||k)} · ${esc(cwd.replace(HOMERE,"~"))}${t.action?" · now ▸ "+esc(t.action):""}</span><div class="grow"></div><button class="btn" data-act="pfor" data-agent="${k}" data-cwd="${esc(cwd)}">✦ Prompt</button><button class="btn" data-act="go" data-v="agent:${k}">← ${esc(a.name||k)}</button></div>`;
+  let h=`<div class="ph" style="--c:${a.hex||"var(--other)"}"><span class="dot ${a.running?"live":""}" style="width:12px;height:12px"></span><h1>${esc(t.title||a.name||k)}</h1><span class="pill ${t.state==="working"?"live":""}">${esc(t.state||"watching")}</span><span class="sub">${esc(a.name||k)} · ${esc(cwd.replace(HOMERE,"~"))}${t.action?" · now ▸ "+esc(t.action):""}</span><div class="grow"></div><button class="btn" data-act="pfor" data-agent="${k}" data-cwd="${esc(cwd)}">✦ Prompt</button>${canHand(k)?`<button class="btn" data-act="hopen" data-agent="${k}" data-cwd="${esc(cwd)}">⇢ Hand off</button>`:""}<button class="btn" data-act="go" data-v="agent:${k}">← ${esc(a.name||k)}</button></div>`;
   if(W.err) return h+`<div class="hookbar" style="background:color-mix(in srgb,var(--bad) 12%,transparent)">⚠ ${esc(W.err)}</div>`;
   if(!d) return h+`<div class="empty">loading…</div>`;
   if(k==="claude"&&!d.hooks) h+=`<div class="hookbar">💬 To send live notes straight into Claude Code, nyrasview needs a small hook in ~/.claude/settings.json. Until then notes are copied to your clipboard.<button class="btn sm" data-act="hooks">Enable live feedback</button></div>`;
@@ -841,8 +896,40 @@ function vAgent(k){
   if(u.models&&u.models.length) h+=`<div class="panel"><h2>Models</h2><table><tbody>${u.models.map(m=>`<tr><td class="m">${esc(m.model)}</td><td class="r m">${hn(m.tokens)} tok</td><td class="r m muted">${m.msgs} msgs</td></tr>`).join("")}</tbody></table></div>`;
   return h}
 
-let MX=null,MSEL=null,KEYS=[],SET=null,SET0=null;
-getJSON("/api/settings",null).then(v=>{if(v){SET0={};v.sections.forEach(sec=>{SET0[sec.id]={};sec.fields.forEach(f=>SET0[sec.id][f.name]=f.value)})}});
+let MX=null,MSEL=null,KEYS=[],SET=null,SET0=null,HEAL=[],HEALINFO={},PH=null;
+async function loadPhone(){PH=await getJSON("/api/phone",null);if(view==="phone"){FORCE=true;render()}}
+function vPhone(){
+  let h=`<div class="ph"><h1>Phone</h1><span class="sub">watch your agents, get alerts and prompt from your phone</span></div>`;
+  if(location.port&&PH&&PH.port&&+location.port===PH.port)return h+`<div class="panel">You're on the phone connection. Manage it from the computer.</div>`;
+  if(!PH)return h+`<div class="empty">loading…</div>`;
+  if(!PH.on)return h+`<div class="panel"><div style="font-size:14px;line-height:1.7">Turn this on and nyrasview also listens on your Wi-Fi (and Tailscale, if you use it). You get a QR code: scan it with your phone camera and you're signed in. Nobody without that code can open it.</div>
+    <div class="row" style="margin-top:12px"><button class="btn pri" data-act="phon">Turn on phone access</button><span class="muted" style="font-size:12px">or start with <code>nyrasview gui --phone</code></span></div></div>`;
+  h+=`<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">`+PH.urls.map(u=>`<div class="panel" style="margin:0;text-align:center"><div class="row" style="justify-content:center;margin-bottom:8px"><b>${esc(u.kind)}</b><span class="muted m" style="font-size:12px">${esc(u.ip)}</span></div>
+    ${u.qr?`<div style="background:#fff;border-radius:12px;padding:8px;display:inline-block;line-height:0">${u.qr.replace('width="','data-w="').replace('height="','data-h="').replace("<svg ",'<svg style="width:220px;height:220px" ')}</div>`:""}
+    <div class="m" style="font-size:11px;word-break:break-all;margin-top:8px;color:var(--dim)">${esc(u.url)}</div></div>`).join("")+`</div>`;
+  h+=`<div class="panel" style="margin-top:16px"><div style="font-size:13px;line-height:1.8">1. Phone on the same Wi-Fi (or Tailscale), open the camera, point it at the code.<br>2. In the browser menu choose <b>Add to Home Screen</b> to open it like an app.<br>3. Turn on browser alerts in the overview to get notified there too.</div>
+    <div class="row" style="margin-top:12px"><button class="btn" data-act="phrot">Sign out all phones (new code)</button><button class="btn" data-act="phoff">Turn off</button></div></div>`;
+  return h}
+async function loadHeal(cwd){const d=await getJSON("/api/heal"+(cwd?"?cwd="+encodeURIComponent(cwd):""),null);if(d&&Array.isArray(d.jobs)){HEAL=d.jobs;HEALINFO=d}return d}
+loadHeal();
+function vHeal(){
+  let h=`<div class="ph"><h1>Self-heal</h1><span class="sub">run a check, let an agent fix what fails, repeat until it passes</span></div>
+  <div class="panel" data-static data-key="healform"><div style="display:grid;gap:8px">
+    <div class="row"><input id="hcwd" list="pdirs" placeholder="project folder" style="flex:1;min-width:240px"><datalist id="pdirs"></datalist><button class="btn sm" data-act="hdetect">suggest check</button></div>
+    <div class="row"><input id="hcmd" placeholder="check command, e.g. npm test, pytest -q, cargo test, tsc --noEmit" style="flex:1;font-family:var(--mono);font-size:12.5px"></div>
+    <div class="row"><select id="hag">${agentsList.filter(a=>a.installed&&a.kind!=="local").map(a=>`<option value="${a.key}">${esc(a.name)}</option>`).join("")}</select>
+      <label class="muted" style="font-size:12.5px">tries <input id="htries" type="number" min="1" max="10" value="${(HEALINFO.settings||{}).tries||3}" style="width:64px"></label>
+      <select id="hmode"><option value="edit">edit files</option><option value="auto">auto (can run commands)</option></select>
+      <div class="grow"></div><button class="btn" data-act="hlive" title="when Claude Code finishes in this folder, run the check and send failures back to it">Live for Claude sessions</button><button class="btn pri" data-act="hrun">${ic("retry",13)} Fix until it passes</button></div>
+    <div class="muted" id="hinfo" style="font-size:12px"></div></div></div>`;
+  h+=HEAL.length?HEAL.map(j=>{const st=j.status,c=colorOf(j.agent);
+    return `<div class="panel" data-key="hj-${j.id}" style="--c:${c}"><div class="row" style="margin-bottom:8px"><span class="st ${st==="passed"?"done":st==="failed"||st==="stopped"?"failed":"running"}">${st==="checking"||st==="fixing"||st==="queued"?`<span class="spin" style="display:inline-block">◐</span> `:""}${esc(st)}</span><b class="m" style="font-size:13px">${esc(j.cmd)}</b><span class="muted" style="font-size:12px">${esc(j.cwd.replace(HOMERE,"~"))} · ${esc(aname(j.agent))} · ${j.tries} tries · ${ago(j.created)}</span><div class="grow"></div>${["checking","fixing","queued"].includes(st)?`<button class="btn sm" data-act="hstop" data-id="${j.id}">Stop</button>`:""}</div>
+      <div style="display:grid;gap:6px">${j.attempts.map(a=>`<div class="tc ${a.check.ok?"ok":"bad"}" data-act="tcx" style="--c:${c};animation:none"><span class="i">${a.check.ok?ic("check",14):ic("x",14)}</span><span class="n"><b>check ${a.n}</b> <span>${a.check.ok?"passes":"exit "+a.check.code} · ${a.check.dur}s</span></span><span class="s">${a.check.ok?"":"output"}</span>${a.check.ok?"":`<div class="o">${esc(a.check.tail.split("\n").slice(-40).join("\n"))}</div>`}</div>
+        ${a.run?`<div class="tc ${a.fix==="done"?"ok":a.fix==="failed"?"bad":"run"}" data-act="go" data-v="run:${a.run}" style="--c:${c};margin-left:22px;animation:none"><span class="i">${ic("wand",14)}</span><span class="n"><b>${esc(aname(j.agent))} fix</b> <span>${esc(a.said||"working on it…")}</span></span><span class="s">open →</span></div>`:""}`).join("")}</div>
+      ${j.error&&st==="failed"?`<div class="er" style="margin-top:8px">${esc(j.error)}</div>`:""}</div>`}).join(""):`<div class="muted" style="padding:8px 2px">No self-heal runs yet.</div>`;
+  return h}
+function syncHeal(){const dl=$("#pdirs");if(dl&&view==="heal"){const o=knownDirs().map(x=>`<option value="${esc(x)}">`).join("");if(dl._h!==o){dl.innerHTML=o;dl._h=o}}}
+getJSON("/api/settings",null).then(v=>{if(v){SET0={_hooks:!!v.hooks};v.sections.forEach(sec=>{SET0[sec.id]={};sec.fields.forEach(f=>SET0[sec.id][f.name]=f.value)})}});
 async function loadSettings(){SET=await getJSON("/api/settings",null);if(view==="settings"){FORCE=true;render()}}
 function field(sec,f){const id=`set-${sec}-${f.name}`;const v=f.value;
   let inp;if(f.type==="bool")inp=`<input type="checkbox" id="${id}" ${v?"checked":""}>`;
@@ -1027,6 +1114,8 @@ function render(){
   else if(view==="local") html=vLocal();
   else if(view==="keys") html=vKeys();
   else if(view==="settings") html=vSettings();
+  else if(view==="heal") html=vHeal();
+  else if(view==="phone") html=vPhone();
   else if(view.startsWith("watch:")) html=vWatch();
   else if(view==="prompt") html=vPrompt();
   else if(view.startsWith("run:")) html=vRun(view.slice(4));
@@ -1034,7 +1123,7 @@ function render(){
   else html=vOverview();
   const main=$("#view");
   if(main._v!==view||FORCE){const first=main._v!==view;main.innerHTML=html;main._v=view;FORCE=false;if(first)bindView()}else morph(main,html);
-  syncSections();syncLocal();syncComposer();syncMCP();syncSK();
+  syncSections();syncLocal();syncComposer();syncMCP();syncSK();syncHeal();
   if(view.startsWith("run:"))document.querySelectorAll(".tb").forEach(tb=>{if(tb._n!==tb.childElementCount){const stick=!tb._n||tb.scrollHeight-tb.scrollTop-tb.clientHeight<120;tb._n=tb.childElementCount;if(stick)tb.scrollTop=tb.scrollHeight}});
 }
 
@@ -1050,6 +1139,8 @@ function bindView(){
   if(view==="mcp")loadMX();
   if(view==="skills")loadSKM();
   if(view==="settings")loadSettings();
+  if(view==="phone")loadPhone();
+  if(view==="heal")loadHeal().then(()=>{FORCE=true;render()});
   if(view==="keys")loadKeys().then(()=>{FORCE=true;render()});
   if(view==="prompt"){loadRuns().then(render);setTimeout(()=>{const q=$("#pq");if(q)q.focus()},30)}
   if(view.startsWith("run:"))loadRun(view.slice(4));
@@ -1070,7 +1161,7 @@ document.addEventListener("click",async e=>{
   const el=e.target.closest("[data-act]");if(!el)return;
   const act=el.dataset.act,doc=view.startsWith("doc:")?view.slice(4):null;
   try{
-    if(act==="go") return go(el.dataset.v);
+    if(act==="go"){document.querySelector("aside").classList.remove("open");return go(el.dataset.v)}
     if(act==="fold"){const g=el.dataset.g;open.has(g)?open.delete(g):open.add(g);localSet("open",JSON.stringify([...open]));return renderNav()}
     if(act==="kill"){if(!confirm("Send SIGTERM to "+el.dataset.pid+"?"))return;await post("/api/kill",{pid:+el.dataset.pid});return toast("Signal sent")}
     if(act==="plan"){const goal=$("#pgoal").value.trim();if(!goal)return toast("Describe the goal first");el.disabled=true;el.textContent="Planning…";
@@ -1115,6 +1206,14 @@ document.addEventListener("click",async e=>{
     if(act==="skcell"){const on=el.dataset.on==="1";if(on&&!confirm(`Remove ${el.dataset.f} from ${aname(el.dataset.ag)}?`))return;
       await post(on?"/api/skills/remove":"/api/skills/copy",on?{folder:el.dataset.f,agents:[el.dataset.ag]}:{folder:el.dataset.f,from:el.dataset.src,agents:[el.dataset.ag]});return loadSKM()}
     if(act==="skrm"){if(!confirm(`Remove ${el.dataset.f} from every agent? A backup is kept.`))return;await post("/api/skills/remove",{folder:el.dataset.f,agents:el.dataset.ags.split(",")});return loadSKM()}
+    if(act==="hdetect"){const cwd=$("#hcwd").value.trim();if(!cwd)return toast("Pick a folder first");const d=await loadHeal(cwd);
+      if(d&&d.detect&&!$("#hcmd").value)$("#hcmd").value=d.live||d.detect;$("#hinfo").textContent=d&&d.live?`Live self-heal is on here: \`${d.live}\` runs when Claude Code finishes.`:d&&d.detect?`Suggested from the project files.`:`Couldn't guess a check for this folder, type one.`;return}
+    if(act==="hrun"){const cwd=$("#hcwd").value.trim(),cmd=$("#hcmd").value.trim();if(!cwd)return toast("Pick a folder first");
+      if($("#hmode").value==="auto"&&!confirm("Auto lets the agent run commands without asking. Continue?"))return;
+      try{await post("/api/heal",{cwd,cmd,agent:$("#hag").value,tries:+$("#htries").value,mode:$("#hmode").value});toast("Self-heal started");await loadHeal();FORCE=true;return render()}catch(err){return toast(err.message)}}
+    if(act==="hlive"){const cwd=$("#hcwd").value.trim(),cmd=$("#hcmd").value.trim();if(!cwd||!cmd)return toast("Pick a folder and a check command");
+      await post("/api/heal/live",{cwd,cmd});return toast("Live self-heal on: Claude Code sessions in this folder now fix failing checks before stopping")}
+    if(act==="hstop"){await post("/api/heal/stop",{id:el.dataset.id});await loadHeal();FORCE=true;return render()}
     if(act==="sbtest"){const o=$("#sbres");o.innerHTML=`<span class="muted typing">starting the container</span>`;const r=await post("/api/sandbox/test",{});o.innerHTML=`<span style="color:${r.ok?"var(--good)":"var(--bad)"}">${r.ok?"✓":"✗"}</span> ${esc(r.output)}`;return}
     if(act==="setsave"){const values={};SET.sections.forEach(sec=>{values[sec.id]={};sec.fields.forEach(f=>{const el2=$(`#set-${sec.id}-${f.name}`);if(!el2)return;values[sec.id][f.name]=f.type==="bool"?el2.checked:el2.value})});
       SET=Object.assign(await post("/api/settings",{values}),{hooks:SET.hooks});toast("Settings saved");loadKeys();FORCE=true;return render()}
@@ -1148,6 +1247,16 @@ document.addEventListener("click",async e=>{
       const it=await post("/api/feedback",{agent:ag,cwd,text,target:{file:f&&f.rel,lines:W.sel}});$("#cbubt").value="";$("#cbub").classList.remove("on");W.sel=null;return fbToast(it)}
     if(act==="say"){const text=$("#say").value.trim();if(!text)return;const {agent:ag,cwd}=watchParts();const it=await post("/api/feedback",{agent:ag,cwd,text});$("#say").value="";return fbToast(it)}
     if(act==="hooks"){if(!confirm("Add nyrasview hooks to ~/.claude/settings.json? A backup is saved first. Already-running Claude sessions need a restart to pick it up."))return;await post("/api/hooks/install",{});toast("Live feedback enabled");return loadWatch()}
+    if(act==="menu"){document.querySelector("aside").classList.toggle("open");return}
+    if(act==="phon"||act==="phoff"||act==="phrot"){if(act==="phrot"&&!confirm("Sign out every phone? You'll scan a new code."))return;PH=await post("/api/phone",act==="phrot"?{rotate:true,on:true}:{on:act==="phon"});FORCE=true;return render()}
+    if(act==="gshide"){localSet("gsdone","1");return render()}
+    if(act==="gshooks"){if(!confirm("Add nyrasview's hook to ~/.claude/settings.json? A backup is saved. Restart running Claude sessions once afterwards."))return;await post("/api/hooks",{on:true});if(SET0)SET0._hooks=true;toast("Claude Code connected · restart running sessions once");return render()}
+    if(act==="hopen"){return openHandoff(el.dataset.agent,el.dataset.cwd)}
+    if(act==="hkeys"){$("#hmodal").classList.remove("on");return go("keys")}
+    if(act==="hclose"){$("#hmodal").classList.remove("on");return}
+    if(act==="hpick"){HO.pick=el.dataset.k;return drawHandoff()}
+    if(act==="hgo"||act==="hwrite"){const r=await post("/api/handoff",{agent:HO.agent,cwd:HO.cwd,to:HO.pick,write_only:act==="hwrite"});$("#hmodal").classList.remove("on");
+      return toast(act==="hwrite"?`Wrote ${r.path.replace(HOMERE,"~")}`:`Handed off to ${(HO.data.targets.find(t=>t.key===r.to)||{}).name||r.to} · opened in ${r.terminal}`)}
     if(act==="handoff"){const sel=el.dataset.pick?document.querySelector(`[data-hsel="${el.dataset.pick}"]`):null;const to=sel?sel.value:el.dataset.to;
       if(!confirm(`Write .nyrasview/HANDOFF.md in ${el.dataset.cwd} and open ${to} with it?`))return;
       const r=await post("/api/handoff",{agent:el.dataset.agent,cwd:el.dataset.cwd,to});return toast(`Handed off to ${r.to} · opened in ${r.terminal}`)}
@@ -1166,7 +1275,7 @@ function tick(){
   requestAnimationFrame(tick)}
 
 async function refresh(){try{S=await (await fetch("/api/snapshot")).json();paint(S.agents);setHome(S.home)}catch(e){}}
-async function poll(){await refresh();await loadRuns();await loadEvents();if(view.startsWith("run:")){const v=RUNV[view.slice(4)];if(!v||[view.slice(4),...(v.siblings||[])].some(x=>!RUNV[x]||RUNV[x].status==="running"))await loadRun(view.slice(4))}render();if(view.startsWith("doc:"))loadDoc();if(view.startsWith("watch:"))loadWatch();setTimeout(poll,1500)}
+async function poll(){await refresh();await loadRuns();await loadEvents();if(view==="heal"||HEAL.some(j=>!["passed","failed","stopped"].includes(j.status)))await loadHeal();if(view.startsWith("run:")){const v=RUNV[view.slice(4)];if(!v||[view.slice(4),...(v.siblings||[])].some(x=>!RUNV[x]||RUNV[x].status==="running"))await loadRun(view.slice(4))}render();if(view.startsWith("doc:"))loadDoc();if(view.startsWith("watch:"))loadWatch();setTimeout(poll,1500)}
 
 {const h=decodeURIComponent(location.hash.slice(1));if(h)view=h}
 if(STALE)$("#stale").innerHTML=`<div class="hookbar">⚠ nyrasview was updated since this server started. Restart it to get the new features: press Ctrl+C where <code>nyrasview gui</code> runs, then run it again.</div>`;

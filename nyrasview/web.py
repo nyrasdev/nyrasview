@@ -36,9 +36,73 @@ def open_url(url):
 
 
 _port_cache = {}
+PHONE = {"srv": None, "port": None}
+MANIFEST = {"name": "nyrasview", "short_name": "nyrasview", "start_url": "/", "display": "standalone",
+            "background_color": "#0b0b0f", "theme_color": "#0b0b0f",
+            "icons": [{"src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable"}]}
+ICON = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="#0b0b0f"/>'
+        '<circle cx="256" cy="256" r="120" fill="none" stroke="#e879f9" stroke-width="40"/><circle cx="256" cy="256" r="44" fill="#e879f9"/></svg>')
 
 
-def make_handler(collector, token, port):
+def phone_key():
+    from .util import STATE
+    f = STATE / "phone_key"
+    try:
+        k = f.read_text().strip()
+        if len(k) >= 16:
+            return k
+    except OSError:
+        pass
+    k = secrets.token_urlsafe(18)
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(k)
+    try:
+        os.chmod(f, 0o600)
+    except OSError:
+        pass
+    return k
+
+
+def rotate_phone_key():
+    from .util import STATE
+    (STATE / "phone_key").unlink(missing_ok=True)
+    return phone_key()
+
+
+def lan_addresses():
+    import socket
+    import psutil
+    out = []
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("10.255.255.255", 1))
+        primary = s.getsockname()[0]
+        s.close()
+    except OSError:
+        primary = None
+    for name, addrs in psutil.net_if_addrs().items():
+        for a in addrs:
+            if a.family == socket.AF_INET and not a.address.startswith("127.") and not a.address.startswith("169.254."):
+                kind = "Tailscale" if a.address.startswith("100.") or "tailscale" in name.lower() else ("Wi-Fi / LAN" if a.address == primary else name)
+                out.append({"ip": a.address, "iface": name, "kind": kind, "primary": a.address == primary})
+    out.sort(key=lambda a: (not a["primary"], a["kind"] != "Tailscale"))
+    return out
+
+
+def phone_info():
+    from . import qr
+    key = phone_key()
+    on = PHONE["srv"] is not None
+    urls = [{"url": f"http://{a['ip']}:{PHONE['port']}/?key={key}", **a} for a in lan_addresses()] if on else []
+    for u in urls:
+        try:
+            u["qr"] = qr.svg(u["url"], scale=6)
+        except ValueError:
+            u["qr"] = None
+    return {"on": on, "port": PHONE["port"], "urls": urls}
+
+
+def make_handler(collector, token, port, phone=False):
     allowed_hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
     origin = f"http://127.0.0.1:{port}"
 
@@ -59,13 +123,34 @@ def make_handler(collector, token, port):
             self.wfile.write(data)
 
         def _host_ok(self):
+            if phone:
+                return self._phone_ok()
             return self.headers.get("Host", "") in allowed_hosts
 
+        def _phone_ok(self):
+            key = phone_key()
+            cookie = self.headers.get("Cookie", "")
+            return f"nyra_key={key}" in cookie.replace(" ", "").split(";")
+
         def do_GET(self):
-            if not self._host_ok():
-                return self._send(403, {"error": "bad host"})
             u = urlparse(self.path)
             q = parse_qs(u.query)
+            if phone and q.get("key", [""])[0] == phone_key():
+                self.send_response(302)
+                self.send_header("Set-Cookie", f"nyra_key={phone_key()}; Max-Age=31536000; Path=/; HttpOnly; SameSite=Lax")
+                self.send_header("Location", "/")
+                self.end_headers()
+                return
+            if not self._host_ok():
+                if phone:
+                    return self._send(401, b"<h3 style='font-family:sans-serif'>Scan the QR code on nyrasview's Phone page to sign in.</h3>", "text/html")
+                return self._send(403, {"error": "bad host"})
+            if u.path == "/manifest.webmanifest":
+                return self._send(200, json.dumps(MANIFEST).encode(), "application/manifest+json")
+            if u.path == "/icon.svg":
+                return self._send(200, ICON.encode(), "image/svg+xml")
+            if u.path == "/api/phone":
+                return self._send(200, phone_info())
             if u.path in ("/", "/index.html"):
                 snap = json.dumps(collector.snapshot(), default=str).replace("</", "<\\/")
                 html = (STATIC / "index.html").read_text().replace("__NYRA_TOKEN__", token).replace("__NYRA_SNAP__", snap).replace("__NYRA_STALE__", "true" if build() != BUILD else "false")
@@ -127,9 +212,18 @@ def make_handler(collector, token, port):
                 v = settings.view()
                 v["hooks"] = feedback.installed()
                 return self._send(200, v)
+            if u.path == "/api/heal":
+                from . import heal
+                cwd = q.get("cwd", [""])[0]
+                return self._send(200, {"jobs": heal.listing(), "settings": heal.settings(),
+                                        "detect": heal.detect(os.path.expanduser(cwd)) if cwd else None,
+                                        "live": heal.project_cmd(os.path.expanduser(cwd)) if cwd else None})
             if u.path == "/api/events":
                 from . import notify
                 return self._send(200, notify.recent(40, float(q.get("since", ["0"])[0] or 0)))
+            if u.path == "/api/handoff/options":
+                from . import handoff
+                return self._send(200, handoff.options(q.get("agent", ["claude"])[0], q.get("cwd", ["~"])[0]))
             if u.path == "/api/handoff/targets":
                 from . import handoff
                 from . import fallback
@@ -148,6 +242,8 @@ def make_handler(collector, token, port):
 
         def do_POST(self):
             if not self._host_ok() or self.headers.get("X-Nyra-Token") != token:
+                if phone and self._phone_ok():
+                    return self._send(403, {"error": "reload the page"})
                 return self._send(403, {"error": "forbidden"})
             try:
                 n = int(self.headers.get("Content-Length") or 0)
@@ -302,6 +398,33 @@ def make_handler(collector, token, port):
                     out = settings.save(b.get("values") or {})
                 collector.refresh("all")
                 return out
+            if p == "/api/heal":
+                from . import heal
+                j = heal.start(b.get("cwd") or "~", b.get("cmd") or None, b.get("agent") or None, b.get("tries") or None,
+                               b.get("mode") or None, b.get("model") or None, b.get("sandbox"))
+                return j
+            if p == "/api/heal/stop":
+                from . import heal
+                return heal.stop(b["id"]) or {}
+            if p == "/api/heal/live":
+                from . import feedback, heal
+                heal.set_project(b["cwd"], b.get("cmd") or None)
+                if b.get("cmd") and not feedback.installed():
+                    feedback.install()
+                return {"ok": True, "hooks": feedback.installed()}
+            if p == "/api/phone":
+                if phone:
+                    raise PermissionError("change this from the computer")
+                if b.get("rotate"):
+                    rotate_phone_key()
+                if b.get("on") and PHONE["srv"] is None:
+                    from .util import config as _c
+                    start_phone(collector, int(_c().get("gui", {}).get("phone_port", port + 1)), token)
+                elif b.get("on") is False and PHONE["srv"] is not None:
+                    PHONE["srv"].shutdown()
+                    PHONE["srv"].server_close()
+                    PHONE["srv"], PHONE["port"] = None, None
+                return phone_info()
             if p == "/api/sandbox/test":
                 from . import sandbox
                 return sandbox.test()
@@ -330,6 +453,8 @@ def make_handler(collector, token, port):
             if p == "/api/handoff":
                 from . import handoff
                 h = handoff.prepare(b["agent"], b["cwd"], b.get("to") or None)
+                if b.get("write_only"):
+                    return {"to": h["to"], "path": h["path"], "terminal": None}
                 res = handoff.launch(h)
                 return {"to": h["to"], "path": h["path"], "terminal": res["terminal"]}
             if p == "/api/local/chat":
@@ -350,13 +475,30 @@ def make_handler(collector, token, port):
     return H
 
 
-def make_server(collector, port=0):
-    token = secrets.token_urlsafe(24)
+def make_server(collector, port=0, token=None):
+    token = token or secrets.token_urlsafe(24)
     srv = ThreadingHTTPServer(("127.0.0.1", port), None)
     real = srv.server_address[1]
     srv.RequestHandlerClass = make_handler(collector, token, real)
     srv.daemon_threads = True
+    srv.nyra_token = token
     return srv, f"http://127.0.0.1:{real}/"
+
+
+def start_phone(collector, port, token):
+    try:
+        srv = ThreadingHTTPServer(("0.0.0.0", port), None)
+    except OSError:
+        if _takeover(port):
+            srv = ThreadingHTTPServer(("0.0.0.0", port), None)
+        else:
+            srv = ThreadingHTTPServer(("0.0.0.0", 0), None)
+    real = srv.server_address[1]
+    srv.RequestHandlerClass = make_handler(collector, token, real, phone=True)
+    srv.daemon_threads = True
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    PHONE["srv"], PHONE["port"] = srv, real
+    return real
 
 
 def serve_background(collector, port=0):
@@ -386,7 +528,7 @@ def _takeover(port):
     return False
 
 
-def serve(collector, port=7341, open_browser=True):
+def serve(collector, port=7341, open_browser=True, phone=False):
     try:
         srv, url = make_server(collector, port)
     except OSError:
@@ -397,6 +539,17 @@ def serve(collector, port=7341, open_browser=True):
             srv, url = make_server(collector, 0)
             print(f"port {port} is busy, using another one")
     print(f"nyrasview GUI → {url}   (ctrl+c to stop)")
+    from .util import config as _c
+    if phone or _c().get("gui", {}).get("phone"):
+        from . import qr
+        start_phone(collector, int(_c().get("gui", {}).get("phone_port", srv.server_address[1] + 1)), srv.nyra_token)
+        info = phone_info()
+        if info["urls"]:
+            first = info["urls"][0]
+            print(f"\nphone ({first['kind']}) → {first['url']}\nscan this with your phone camera (same Wi-Fi, or Tailscale):\n")
+            print(qr.terminal(first["url"]))
+            for u in info["urls"][1:]:
+                print(f"  {u['kind']}: {u['url']}")
     if open_browser:
         open_url(url)
     try:

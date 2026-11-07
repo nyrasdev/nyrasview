@@ -312,6 +312,29 @@ def targets(exclude=None):
     return out
 
 
+def options(agent, cwd):
+    from . import fallback
+    avail = targets(exclude=agent)
+    out = [{"key": k, "name": fallback.label(k), "hex": fallback.color(k), "ok": True,
+            "why": "continues this same session, billed to your API key" if k in fallback.TARGETS and fallback.TARGETS[k]["base"] == agent else ""}
+           for k in avail]
+    for k in CHAIN:
+        if k == agent or k in avail or k not in BY_KEY:
+            continue
+        out.append({"key": k, "name": BY_KEY[k].name, "hex": BY_KEY[k].hex, "ok": False, "why": "not installed", "fix": "install"})
+    for t, spec in fallback.TARGETS.items():
+        if t in avail:
+            continue
+        base = BY_KEY.get(spec["base"])
+        if base and plat.which(spec["cmd"][0]) and not fallback.key(spec["provider"]):
+            out.insert(len(avail), {"key": t, "name": fallback.label(t), "hex": base.hex, "ok": False,
+                                    "why": f"connect your {fallback.PROVIDERS[spec['provider']]['name']} API key to keep this same session going", "fix": "keys"})
+    ctx = detect(agent, os.path.realpath(os.path.expanduser(cwd))) or _ctx()
+    return {"targets": out, "summary": {"prompts": len(ctx["prompts"]), "files": len(ctx["edits"]), "commands": len(ctx["commands"]),
+                                        "latest": ctx["prompts"][-1][:300] if ctx["prompts"] else None, "title": ctx.get("title"),
+                                        "limit": ctx.get("limit"), "git": is_repo(os.path.realpath(os.path.expanduser(cwd)))}}
+
+
 def interactive(key):
     over = config().get("agents", {}).get(key, {}).get("interactive")
     return list(over) if over else list(INTERACTIVE.get(key, []))
