@@ -8,13 +8,67 @@ Supports Claude Code, Codex, Gemini CLI, opencode, Kimi CLI, Antigravity, Cursor
 
 ## Install
 
-```sh
-pipx install git+https://github.com/nyrasdev/nyrasview
-# or run in place
-python3 -m nyrasview
+You need **Python 3.11 or newer**. The only dependencies are `psutil`, plus `windows-curses` on Windows, and they're installed automatically. These steps use [pipx](https://pipx.pypa.io), which puts `nyrasview` on your PATH in its own environment.
+
+### Windows
+
+In PowerShell:
+
+```powershell
+winget install Python.Python.3.13
+py -m pip install --user pipx
+py -m pipx ensurepath
 ```
 
-The only dependency is `psutil`. You need Python 3.11 or newer.
+Close and reopen the terminal, then:
+
+```powershell
+pipx install https://github.com/nyrasdev/nyrasview/archive/refs/heads/main.zip
+nyrasview gui
+```
+
+Windows Terminal is recommended for the TUI (`nyrasview`).
+
+### macOS
+
+```sh
+brew install pipx
+pipx ensurepath
+pipx install https://github.com/nyrasdev/nyrasview/archive/refs/heads/main.zip
+nyrasview gui
+```
+
+### Linux
+
+```sh
+sudo pacman -S python-pipx      # Arch / CachyOS
+sudo apt install pipx           # Debian / Ubuntu
+sudo dnf install pipx           # Fedora
+pipx ensurepath
+pipx install https://github.com/nyrasdev/nyrasview/archive/refs/heads/main.zip
+nyrasview gui
+```
+
+**With uv instead of pipx** (any OS): `uv tool install https://github.com/nyrasdev/nyrasview/archive/refs/heads/main.zip`
+
+**Update:** run the same `pipx install` (or `uv tool install`) command again with `--force`.
+
+**From a clone:** `git clone https://github.com/nyrasdev/nyrasview && cd nyrasview && python -m nyrasview`
+
+### Where things live
+
+| | Linux | Windows | macOS |
+|---|---|---|---|
+| config | `~/.config/nyrasview/config.toml` | `%APPDATA%\nyrasview\config.toml` | `~/.config/nyrasview/config.toml` |
+| state (runs, alerts, backups) | `~/.local/state/nyrasview` | `%LOCALAPPDATA%\nyrasview` | `~/Library/Application Support/nyrasview` |
+| desktop alerts | `notify-send` | Windows toast notifications | Notification Center |
+| handoff opens | kitty, ghostty, wezterm, foot, alacritty, konsole, gnome-terminal or xterm | Windows Terminal, or a new console | Terminal or iTerm |
+| `nyrasview service install` | systemd user service | Task Scheduler (runs at logon) | launchd agent |
+| clipboard for notes | `wl-copy`, `xclip` or `xsel` | built in | built in |
+
+[![smoke](https://github.com/nyrasdev/nyrasview/actions/workflows/ci.yml/badge.svg)](https://github.com/nyrasdev/nyrasview/actions/workflows/ci.yml)
+
+Every push is tested on Linux, Windows and macOS with Python 3.11 and 3.13.
 
 ## Use
 
@@ -87,7 +141,7 @@ nyrasview tells you when:
 Alerts arrive as desktop notifications, browser notifications (🔔 in the GUI), or on your phone through [ntfy](https://ntfy.sh). They all collect in the GUI inbox and in `nyrasview inbox`.
 
 - With `nyrasview hooks install`, Claude Code reports permission prompts and finishes the moment they happen. Without the hook, nyrasview works it out from the session logs.
-- To keep alerts running without the GUI open: `nyrasview service install --relay --enable` (a systemd user service).
+- To keep alerts running without the GUI open: `nyrasview service install --relay`. This sets up a systemd user service on Linux, a Task Scheduler logon task on Windows, or a launchd agent on macOS.
 
 ```toml
 [notify]
@@ -185,7 +239,7 @@ Then run `nyrasview collab watch`. It picks up the callouts in every vault, runs
 
 ## Config
 
-`~/.config/nyrasview/config.toml`
+`~/.config/nyrasview/config.toml` (on Windows: `%APPDATA%\nyrasview\config.toml`)
 
 ```toml
 [openrouter]
