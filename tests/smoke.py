@@ -98,6 +98,12 @@ def _():
     assert "Echoer" in run("agents")
 
 
+@step("doctor")
+def _():
+    out = run("doctor", check=False)
+    assert "nyrasview doctor" in out and "config file" in out, out
+
+
 @step("status --json")
 def _():
     d = json.loads(run("status", "--json"))

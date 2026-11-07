@@ -609,6 +609,91 @@ def cmd_heal(a):
         sys.exit(1)
 
 
+def cmd_doctor(a):
+    import shutil
+    import subprocess
+    import tomllib
+    from . import feedback, plat, tunnel, web
+    from .registry import AGENTS
+    from .util import CONFIG
+    issues = 0
+
+    def line(ok, label, detail="", fix=""):
+        nonlocal issues
+        mark = col("#22c55e", "✓") if ok is True else col("#f59e0b", "!") if ok is None else col("#ef4444", "✗")
+        if ok is False:
+            issues += 1
+        print(f" {mark} {label}" + (dim(f"  {detail}") if detail else ""))
+        if fix and ok is not True:
+            print(f"     → {fix}")
+
+    print(col("#e879f9", "nyrasview doctor") + dim(f"  {VERSION} · Python {sys.version.split()[0]} · {sys.platform}\n"))
+    found = [g for g in AGENTS if g.kind != "api" and g.installed()]
+    line(bool(found), "AI agents", ", ".join(g.name for g in found) or "none found",
+         "install Claude Code, Codex, Gemini CLI or opencode")
+    try:
+        if CONFIG.exists():
+            tomllib.loads(CONFIG.read_text(encoding="utf-8"))
+        line(True, "config file", str(CONFIG).replace(os.path.expanduser("~"), "~") if CONFIG.exists() else "none yet (defaults)")
+    except tomllib.TOMLDecodeError as e:
+        line(False, "config file", f"invalid TOML: {e}", f"fix it on the Settings page or in {CONFIG}")
+    if any(g.key == "claude" for g in found):
+        line(True if feedback.installed() else None, "Claude Code hook", "on" if feedback.installed() else "off",
+             "nyrasview hooks install  (instant alerts, live notes, live self-heal)")
+        from . import limits
+        api = limits.claude_api(force=True)
+        if api and api.get("windows"):
+            line(True, "real Claude limits", f"{api.get('plan')} · live from Anthropic")
+        else:
+            line(None, "real Claude limits", (api or {}).get("error") or "no Claude login found",
+                 "open Claude Code once so it signs in")
+    import psutil
+    guis = []
+    for pr in psutil.process_iter(["pid", "cmdline", "create_time"]):
+        c = " ".join(pr.info["cmdline"] or [])
+        if "nyrasview" in c and " gui" in c:
+            guis.append(pr.info)
+    if guis:
+        newest_code = max(f.stat().st_mtime for f in Path(__file__).parent.glob("*.py"))
+        stale = [g for g in guis if g["create_time"] < newest_code]
+        line(False if stale else True, "GUI", f"{len(guis)} running" + (" · older than the installed code" if stale else ""),
+             "restart it: Ctrl+C where nyrasview gui runs, then start it again")
+    else:
+        line(None, "GUI", "not running", "nyrasview gui")
+    addrs = web.lan_addresses()
+    lan = [x for x in addrs if x["kind"] != "Tailscale"]
+    ts = [x for x in addrs if x["kind"] == "Tailscale"]
+    line(bool(lan) or None, "network for your phone", ", ".join(f"{x['ip']} ({x['iface']})" for x in addrs) or "no network",
+         "connect this computer to Wi-Fi or Ethernet")
+    if lan and shutil.which("iw"):
+        try:
+            out = subprocess.run(["iw", "dev", lan[0]["iface"], "link"], capture_output=True, text=True, timeout=3).stdout
+            ssid = next((l.split(":", 1)[1].strip() for l in out.splitlines() if "SSID" in l), None)
+            freq = next((l.split(":", 1)[1].strip() for l in out.splitlines() if "freq" in l), None)
+            if ssid:
+                band = "2.4 GHz" if freq and freq.startswith("24") else "5 GHz" if freq and freq[:1] in "56" else ""
+                line(None, "Wi-Fi", f"{ssid} {band}".strip(),
+                     f"your phone must be on \"{ssid}\" too; another band or guest network usually can't reach this computer")
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    fw = web.firewall_hint(7342, [x["ip"] for x in lan])
+    if fw and fw.get("cmd"):
+        line(None, f"firewall ({fw['name']})", "on; phones are blocked unless the port is allowed", fw["cmd"])
+    line(True if ts else None, "Tailscale", ts[0]["ip"] if ts else "not running", "optional: lets your phone reach it from anywhere")
+    t = tunnel.info()
+    line(True if t["installed"] else None, "cloudflared", "installed" if t["installed"] else "not installed",
+         "optional: the Phone page downloads it with one click for Reach it from anywhere")
+    for name in ("git", "node"):
+        line(True if shutil.which(name) else None, name, "found" if shutil.which(name) else "missing",
+             f"install {name} (used by watch/handoff diffs)" if name == "git" else "needed by npm-based agents and MCP servers")
+    if plat.WIN or plat.MAC:
+        line(None, "desktop alerts", "allow notifications for Python if your system asks")
+    print("\n" + (col("#22c55e", "all good") if not issues else col("#ef4444", f"{issues} thing{'s' if issues > 1 else ''} to fix")) +
+          dim("  (! = optional or worth knowing)"))
+    if issues:
+        sys.exit(1)
+
+
 def money(c):
     return f"${c:.2f}" if c >= 1 else f"${c:.4f}"
 
@@ -802,6 +887,7 @@ def main():
     x.add_argument("-j", "--parallel", type=int, default=4)
     sp.add_parser("obsidian", help="list Obsidian vaults")
     sp.add_parser("now", help="what each running agent is working on")
+    sp.add_parser("doctor", help="check your setup and say exactly what to fix")
     x = sp.add_parser("heal", help="run a check and let an agent fix it until it passes")
     x.add_argument("check", nargs="?", help="check command (default: detected, e.g. npm test, pytest -q)")
     x.add_argument("-d", "--dir", default=".")
@@ -891,7 +977,7 @@ def main():
     x.add_argument("-m", "--model")
     a = ap.parse_args()
     fn = {"tui": cmd_tui, "gui": cmd_gui, "status": cmd_status, "ps": cmd_ps, "mcp": cmd_mcp,
-          "skills": cmd_skills, "usage": cmd_usage, "agents": cmd_agents, "collab": cmd_collab, "obsidian": cmd_obsidian, "now": cmd_now, "heal": cmd_heal, "skill": cmd_skill, "keys": cmd_keys, "plan": cmd_plan, "limits": cmd_limits, "inbox": cmd_events, "notify-test": cmd_notify_test,
+          "skills": cmd_skills, "usage": cmd_usage, "agents": cmd_agents, "collab": cmd_collab, "obsidian": cmd_obsidian, "now": cmd_now, "doctor": cmd_doctor, "heal": cmd_heal, "skill": cmd_skill, "keys": cmd_keys, "plan": cmd_plan, "limits": cmd_limits, "inbox": cmd_events, "notify-test": cmd_notify_test,
           "daemon": cmd_daemon, "service": cmd_service, "ask": cmd_ask, "runs": cmd_runs, "hook": cmd_hook, "hooks": cmd_hooks, "say": cmd_say, "handoff": cmd_handoff, "relay": cmd_relay, "local": cmd_local,
           None: cmd_tui}[a.cmd]
     if a.relay and a.cmd in (None, "tui", "gui"):

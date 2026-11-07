@@ -110,6 +110,7 @@ Every push is tested on Linux, Windows and macOS with Python 3.11 and 3.13.
 | `nyrasview heal ["check"]` | run a check and let an agent fix it until it passes (`--live` for Claude sessions) |
 | `nyrasview gui --phone` | also open it on your phone (QR code) |
 | `nyrasview gui --tunnel` | reach it from anywhere through a free Cloudflare tunnel |
+| `nyrasview doctor` | check your setup (agents, hooks, GUI, phone, firewall, Wi-Fi) and say what to fix |
 | `nyrasview now` | what every running agent is working on right now |
 | `nyrasview local` | local AI servers and their models; `local ask ollama "hi"` to try one |
 | `nyrasview handoff` | hand the current task to another agent (`--to codex`, `-w` new window, `-n` dry run) |
