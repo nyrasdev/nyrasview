@@ -100,6 +100,30 @@ def lan_addresses():
     return out
 
 
+def firewall_hint(port, ips):
+    import shutil
+    import subprocess
+    from . import plat
+    if plat.WIN:
+        return {"name": "Windows Firewall", "note": "If Windows asks whether to allow Python on private networks, click Allow."}
+    if plat.MAC:
+        return {"name": "macOS firewall", "note": "If macOS asks to accept incoming connections for Python, click Allow."}
+    nets = sorted({".".join(ip.split(".")[:3]) + ".0/24" for ip in ips if not ip.startswith("100.")}) or ["192.168.0.0/24"]
+
+    def active(unit):
+        try:
+            return subprocess.run(["systemctl", "is-active", unit], capture_output=True, text=True, timeout=3).stdout.strip() == "active"
+        except (OSError, subprocess.TimeoutExpired):
+            return False
+    if shutil.which("ufw") and active("ufw"):
+        return {"name": "ufw", "cmd": " && ".join(f"sudo ufw allow from {n} to any port {port} proto tcp" for n in nets),
+                "note": "ufw is on and blocks your phone until you allow this port for your home network."}
+    if shutil.which("firewall-cmd") and active("firewalld"):
+        return {"name": "firewalld", "cmd": f"sudo firewall-cmd --add-port={port}/tcp --permanent && sudo firewall-cmd --reload",
+                "note": "firewalld is on and blocks your phone until you open this port."}
+    return None
+
+
 def phone_info():
     from . import qr
     key = phone_key()
@@ -110,7 +134,8 @@ def phone_info():
             u["qr"] = qr.svg(u["url"], scale=6)
         except ValueError:
             u["qr"] = None
-    return {"on": on, "port": PHONE["port"], "urls": urls}
+    return {"on": on, "port": PHONE["port"], "urls": urls,
+            "firewall": firewall_hint(PHONE["port"], [u["ip"] for u in urls]) if on else None}
 
 
 def make_handler(collector, token, port, phone=False):
@@ -561,6 +586,9 @@ def serve(collector, port=7341, open_browser=True, phone=False):
             print(qr.terminal(first["url"]))
             for u in info["urls"][1:]:
                 print(f"  {u['kind']}: {u['url']}")
+            fw = info.get("firewall")
+            if fw:
+                print(f"\n{fw['note']}" + (f"\n  {fw['cmd']}" if fw.get("cmd") else ""))
     if open_browser:
         open_url(url)
     try:

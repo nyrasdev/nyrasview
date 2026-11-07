@@ -907,6 +907,7 @@ function vPhone(){
   h+=`<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">`+PH.urls.map(u=>`<div class="panel" style="margin:0;text-align:center"><div class="row" style="justify-content:center;margin-bottom:8px"><b>${esc(u.kind)}</b><span class="muted m" style="font-size:12px">${esc(u.ip)}</span></div>
     ${u.qr?`<div style="background:#fff;border-radius:12px;padding:8px;display:inline-block;line-height:0">${u.qr.replace('width="','data-w="').replace('height="','data-h="').replace("<svg ",'<svg style="width:220px;height:220px" ')}</div>`:""}
     <div class="m" style="font-size:11px;word-break:break-all;margin-top:8px;color:var(--dim)">${esc(u.url)}</div></div>`).join("")+`</div>`;
+  if(PH.firewall)h+=`<div class="hookbar" style="margin-top:16px;display:block"><b>Phone can't connect?</b> ${esc(PH.firewall.note)}${PH.firewall.cmd?`<div class="row" style="margin-top:8px"><code style="flex:1;background:var(--panel2);padding:8px 10px;border-radius:8px;font-size:12px;word-break:break-all" id="fwcmd">${esc(PH.firewall.cmd)}</code><button class="btn sm" data-act="fwcopy">Copy</button></div><div class="muted" style="font-size:12px;margin-top:6px">Run it once in a terminal (it asks for your password). It only allows devices on your home network.</div>`:""}</div>`;
   h+=`<div class="panel" style="margin-top:16px"><div style="font-size:13px;line-height:1.8">1. Phone on the same Wi-Fi (or Tailscale), open the camera, point it at the code.<br>2. In the browser menu choose <b>Add to Home Screen</b> to open it like an app.<br>3. Turn on browser alerts in the overview to get notified there too.</div>
     <div class="row" style="margin-top:12px"><button class="btn" data-act="phrot">Sign out all phones (new code)</button><button class="btn" data-act="phoff">Turn off</button></div></div>`;
   return h}
@@ -1247,6 +1248,7 @@ document.addEventListener("click",async e=>{
       const it=await post("/api/feedback",{agent:ag,cwd,text,target:{file:f&&f.rel,lines:W.sel}});$("#cbubt").value="";$("#cbub").classList.remove("on");W.sel=null;return fbToast(it)}
     if(act==="say"){const text=$("#say").value.trim();if(!text)return;const {agent:ag,cwd}=watchParts();const it=await post("/api/feedback",{agent:ag,cwd,text});$("#say").value="";return fbToast(it)}
     if(act==="hooks"){if(!confirm("Add nyrasview hooks to ~/.claude/settings.json? A backup is saved first. Already-running Claude sessions need a restart to pick it up."))return;await post("/api/hooks/install",{});toast("Live feedback enabled");return loadWatch()}
+    if(act==="fwcopy"){try{await navigator.clipboard.writeText($("#fwcmd").textContent);toast("Copied")}catch(e){toast("Select and copy it manually")}return}
     if(act==="menu"){document.querySelector("aside").classList.toggle("open");return}
     if(act==="phon"||act==="phoff"||act==="phrot"){if(act==="phrot"&&!confirm("Sign out every phone? You'll scan a new code."))return;PH=await post("/api/phone",act==="phrot"?{rotate:true,on:true}:{on:act==="phon"});FORCE=true;return render()}
     if(act==="gshide"){localSet("gsdone","1");return render()}
