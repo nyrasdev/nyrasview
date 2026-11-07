@@ -4,7 +4,20 @@ A monitor and control panel for your AI coding agents, not your whole system.
 
 See how much CPU, RAM and network every vibe-coding tool is using, which MCP servers it has spawned, what skills it can use and how many tokens it has burned. Then hand different sections of the same document to different AIs and watch them write it together.
 
+![nyrasview demo: overview, watching Claude edit a website and leaving it a note, then Claude and Codex answering the same prompt side by side](docs/media/demo.gif)
+
+<sub>[Full-quality MP4](docs/media/demo.mp4) · the demo uses fake agents and data from <code>tools/demo.py</code></sub>
+
 Supports Claude Code, Codex, Gemini CLI, opencode, Kimi CLI, Antigravity, Cursor, Qwen Code, Copilot CLI, Crush, Amp, Factory Droid, Goose, Aider, Windsurf, Ollama, LM Studio and OpenRouter. You can add more in a config file.
+
+## A look around
+
+| | |
+|---|---|
+| ![Overview](docs/media/overview.png) **Overview:** every agent, session, limit, alert and token at a glance | ![Watch](docs/media/watch.png) **Watch:** the file and the part of the page an agent is editing, with its cursor; hover to leave a note |
+| ![Compare](docs/media/prompt-compare.png) **Prompt and compare:** ask several agents at once and watch them answer side by side | ![MCP manager](docs/media/mcp.png) **MCP manager:** every server against every agent, one click to add or remove |
+| ![Collab](docs/media/collab.png) **Collab:** different AIs writing different sections of one document | ![Usage](docs/media/usage.png) **Usage:** 14 days of tokens per agent and model |
+| ![Agent](docs/media/agent.png) **Agent page:** sessions, limits, processes, MCP and network | ![Terminal UI](docs/media/tui.png) **Terminal UI:** the same data in your terminal |
 
 ## Install
 

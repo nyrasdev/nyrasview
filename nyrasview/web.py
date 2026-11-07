@@ -106,7 +106,8 @@ def make_handler(collector, token, port):
                     return self._send(200, runs.listing())
                 v = runs.view(rid)
                 if v and v.get("group"):
-                    v["siblings"] = [r["id"] for r in runs.listing(200) if r.get("group") == v["group"]]
+                    v["siblings"] = [r["id"] for r in sorted((r for r in runs.listing(200) if r.get("group") == v["group"]),
+                                                             key=lambda r: (r["agent"], r["id"]))]
                 return self._send(200 if v else 404, v or {"error": "no such run"})
             if u.path == "/api/mcp/matrix":
                 from . import mcpman

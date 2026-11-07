@@ -125,7 +125,7 @@
     state.el = el;
     if (el && changed && m.scroll !== false) {
       const r = el.getBoundingClientRect();
-      if (r.top < 0 || r.bottom > innerHeight) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (r.top < 0 || r.bottom > innerHeight) window.scrollTo({ top: Math.max(0, scrollY + r.top - innerHeight / 2 + r.height / 2), behavior: "smooth" });
     }
     parent.postMessage({ type: "nyra-found", found: !!el, selector: describe(el) }, PARENT);
   });

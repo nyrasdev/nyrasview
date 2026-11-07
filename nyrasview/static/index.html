@@ -18,7 +18,7 @@
   --accent:#0b0b0f;--brand:#a21caf;--good:#16a34a;--bad:#dc2626;--warn:#d97706;--cyan:#0e7490;--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s6:#008300;--s7:#6250d6;--s8:#e34948;--other:#a1a1aa;}}
 :root[data-theme="light"]{color-scheme:light;--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s6:#008300;--s7:#6250d6;--s8:#e34948;--other:#a1a1aa;--bg:#f7f7f8;--panel:#ffffff;--panel2:#f1f1f4;--line:#e4e4e7;--branch:#d4d4d8;--text:#0b0b0f;--dim:#6b6b76;
   --accent:#0b0b0f;--brand:#a21caf;--good:#16a34a;--bad:#dc2626;--warn:#d97706;--cyan:#0e7490;}
-*{box-sizing:border-box}
+*{box-sizing:border-box;scrollbar-width:thin;scrollbar-color:var(--branch) transparent}
 html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
 .sc.quiet .box,.sc.quiet .box svg path,.sc.quiet .t{animation:none!important;transition:none!important}
 .app{display:grid;grid-template-columns:260px 1fr;min-height:100vh}
@@ -471,7 +471,7 @@ async function loadRuns(){try{const r=await fetch("/api/runs",{headers:{"X-Nyra-
 function md(t){
   const parts=String(t||"").split(/```[\w-]*\n?/);
   return parts.map((p,i)=>{if(i%2)return `<pre><code>${esc(p.replace(/\n$/,""))}</code></pre>`;
-    return esc(p).replace(/^#{1,6} (.+)$/gm,'<span class="h">$1</span>').replace(/\*\*([^*]+)\*\*/g,"<b>$1</b>").replace(/`([^`\n]+)`/g,"<code>$1</code>").replace(/\n/g,"<br>")}).join("")}
+    return esc(p).replace(/^#{1,6} (.+)$/gm,'<span class="h">$1</span>').replace(/\*\*([^*]+)\*\*/g,"<b>$1</b>").replace(/`([^`\n]+)`/g,"<code>$1</code>").replace(/^\n+|\n+$/g,"").replace(/\n{3,}/g,"\n\n").replace(/\n/g,"<br>")}).join("")}
 const MODEDESC={ask:"Ask · read-only, it can look around but not change anything",edit:"Edit · may create and change files in the folder",auto:"Auto · full access, runs commands without asking. Use with care"};
 function promptable(){return agentsList.filter(a=>a.installed||(S.local||[]).some(x=>x.key===a.key&&x.up))}
 function knownDirs(){const d=new Set();(S.agents||[]).forEach(a=>(a.work||[]).forEach(w=>w.cwd&&d.add(w.cwd)));RUNS.forEach(r=>d.add(r.cwd));(S.collab||[]).forEach(c=>d.add(c.doc.replace(/\/[^/]+$/,"")));return [...d].slice(0,20)}
@@ -520,7 +520,8 @@ function transcript(v,single){
   (v.turns||[]).slice(0,-1).forEach((t,i)=>{h+=`<div class="ub" data-key="pu${i}">${esc(t.prompt)}</div>${t.answer?`<div class="ab prev" data-key="pa${i}">${md(t.answer)}</div>`:""}`});
   h+=`<div class="ub" data-key="cu">${esc(v.prompt)}</div>`;
   const res={};v.events.forEach(e=>{if(e.k==="result")res[e.id]=e});
-  v.events.forEach((e,i)=>{
+  const evs=[];v.events.forEach(e=>{const l=evs[evs.length-1];if(e.k==="text"&&l&&l.k==="text")evs[evs.length-1]={...l,text:l.text.replace(/\s+$/,"")+"\n\n"+e.text.replace(/^\s+/,"")};else evs.push(e)});
+  evs.forEach((e,i)=>{
     if(e.k==="text")h+=`<div class="ab" data-key="ev${i}">${md(e.text)}</div>`;
     else if(e.k==="tool"){const r=res[e.id];const st=r?(r.ok?"ok":"bad"):(v.status==="running"?"run":"ok");
       const icn=/bash|shell|exec/i.test(e.name)?"term":/read|edit|write|patch|file|glob|grep/i.test(e.name)?"doc":/web|fetch|search/i.test(e.name)?"globe":"spark";

@@ -67,6 +67,7 @@ SITE_HTML = """
 
 SITE_CSS = """
 *{box-sizing:border-box}
+:root{color-scheme:dark;scrollbar-color:#2e2e3a #0b0b10}
 body{font-family:Inter,system-ui,sans-serif;margin:0;background:#0b0b10;color:#e8e8ee}
 .nav{display:flex;align-items:center;gap:28px;padding:18px 40px;border-bottom:1px solid #1d1d26}
 .nav nav{display:flex;gap:22px;flex:1}.nav a{color:#a3a3b2;text-decoration:none}
