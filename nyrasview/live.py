@@ -1,6 +1,8 @@
 import json
 import os
 import re
+import subprocess
+import time
 import urllib.request
 
 import psutil
@@ -14,9 +16,36 @@ WEB_EXT = {".html", ".htm", ".css", ".scss", ".sass", ".less", ".jsx", ".tsx", "
            ".js", ".ts", ".mdx", ".php", ".erb", ".hbs", ".njk", ".liquid"}
 
 
+_scan = {}
+EDIT_MARK = (b'"name":"Edit"', b'"name":"Write"', b'"name":"MultiEdit"', b'"name":"NotebookEdit"')
+
+
+def _claude_objs(path):
+    st = os.stat(path)
+    ent = _scan.get(path)
+    if ent is None or st.st_size < ent["off"] or st.st_ino != ent["ino"]:
+        ent = {"off": 0, "ino": st.st_ino, "objs": []}
+        _scan[path] = ent
+    if st.st_size > ent["off"]:
+        with open(path, "rb") as f:
+            f.seek(ent["off"])
+            chunk = f.read()
+        end = chunk.rfind(b"\n")
+        if end >= 0:
+            ent["off"] += end + 1
+            for raw in chunk[:end].split(b"\n"):
+                if b'"tool_use"' in raw and any(m in raw for m in EDIT_MARK):
+                    try:
+                        ent["objs"].append(json.loads(raw))
+                    except ValueError:
+                        pass
+            ent["objs"] = ent["objs"][-400:]
+    return ent["objs"]
+
+
 def _edits_claude(path):
     out = []
-    for o in _tail(path, 600000):
+    for o in _claude_objs(path):
         if o.get("type") != "assistant":
             continue
         ts = parse_ts(o.get("timestamp"))
@@ -80,7 +109,59 @@ def _edits_codex(path, cwd):
     return out
 
 
-def edits(agent, cwd, limit=25):
+def _git(root, *args):
+    try:
+        return subprocess.run(["git", "-C", root, *args], capture_output=True, text=True, timeout=10).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+
+
+def _toplevel(d):
+    while d and not os.path.isdir(d):
+        d = os.path.dirname(d)
+    return _git(d, "rev-parse", "--show-toplevel").strip() if d else ""
+
+
+HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
+
+
+def disk_edits(roots, since):
+    out = []
+    for root in roots:
+        cur = None
+        for line in _git(root, "diff", "-U0", "--no-color", "HEAD").split("\n"):
+            if line.startswith("+++ "):
+                f = line[4:].strip()
+                cur = None if f == "/dev/null" else os.path.join(root, f[2:] if f.startswith("b/") else f)
+                continue
+            m = HUNK.match(line)
+            if m and cur:
+                start = int(m.group(1)) - 1
+                n = int(m.group(2) if m.group(2) is not None else 1)
+                if n == 0:
+                    continue
+                try:
+                    at = os.stat(cur).st_mtime
+                except OSError:
+                    continue
+                if at >= since:
+                    out.append({"file": cur, "tool": "changed on disk", "old": "", "new": "", "at": at,
+                                "range": (start, start + n - 1)})
+        for f in _git(root, "ls-files", "--others", "--exclude-standard").split("\n")[:30]:
+            if not f:
+                continue
+            full = os.path.join(root, f)
+            try:
+                at = os.stat(full).st_mtime
+            except OSError:
+                continue
+            if at >= since:
+                out.append({"file": full, "tool": "new file", "old": "", "new": "", "at": at, "range": None})
+    return out
+
+
+def edits(agent, cwd, limit=40):
+    p = None
     if agent == "claude":
         p = claude_session(cwd)
         e = _edits_claude(p) if p else []
@@ -89,6 +170,25 @@ def edits(agent, cwd, limit=25):
         e = _edits_codex(p, cwd) if p else []
     else:
         e = []
+    since = time.time() - 86400
+    roots = []
+    if os.path.realpath(cwd) != str(HOME):
+        t = _toplevel(cwd)
+        if t:
+            roots.append(t)
+    for x in reversed(e[-30:]):
+        t = _toplevel(os.path.dirname(x["file"]))
+        if t and t not in roots and t != str(HOME):
+            roots.append(t)
+        if len(roots) >= 3:
+            break
+    last_log = {}
+    for x in e:
+        last_log[x["file"]] = max(last_log.get(x["file"], 0), x["at"])
+    for d in disk_edits(roots, since):
+        if d["at"] > last_log.get(d["file"], 0) + 2:
+            e.append(d)
+    e.sort(key=lambda x: x["at"])
     return e[-limit:]
 
 
@@ -155,10 +255,17 @@ def hints(edit, lines, rng):
 def ports(cwd, extra_pids=()):
     real = os.path.realpath(cwd)
     want = set(extra_pids)
-    for p in psutil.process_iter(["pid", "cwd"]):
+    skip = {os.getpid()}
+    browsers = ("firefox", "chrome", "chromium", "brave", "msedge", "opera", "vivaldi", "electron", "zen")
+    for p in psutil.process_iter(["pid", "cwd", "cmdline", "name"]):
+        nm = (p.info.get("name") or "").lower()
+        if "nyrasview" in " ".join(p.info.get("cmdline") or []) or any(b in nm for b in browsers):
+            skip.add(p.info["pid"])
+            continue
         c = p.info.get("cwd")
-        if c and (c == real or c.startswith(real + os.sep)):
+        if real != str(HOME) and c and (c == real or c.startswith(real + os.sep)):
             want.add(p.info["pid"])
+    want -= skip
     found = set()
     try:
         for c in psutil.net_connections("inet"):
@@ -189,13 +296,21 @@ def view(agent, cwd, pick=None):
     out = {"agent": agent, "cwd": cwd, "edits": [], "focus": None}
     for i, e in enumerate(es):
         out["edits"].append({"i": i, "file": e["file"], "rel": os.path.relpath(e["file"], cwd) if e["file"].startswith(cwd) else e["file"].replace(str(HOME), "~"),
-                             "tool": e["tool"], "at": e["at"], "added": e["new"].count("\n") + (1 if e["new"] else 0),
+                             "tool": e["tool"], "at": e["at"], "added": (e["range"][1] - e["range"][0] + 1) if e.get("range") else e["new"].count("\n") + (1 if e["new"] else 0),
                              "removed": e["old"].count("\n") + (1 if e["old"] else 0)})
     if not es:
         return out
     idx = len(es) - 1 if pick is None else max(0, min(int(pick), len(es) - 1))
     e = es[idx]
-    lines, rng = locate(e["file"], e["new"])
+    if "range" in e:
+        lines, _ = locate(e["file"], "")
+        rng = e["range"]
+        if lines is not None and rng is None:
+            rng = (0, min(len(lines) - 1, 30))
+        if lines is not None and rng:
+            e = dict(e, new="\n".join(lines[rng[0]:rng[1] + 1]))
+    else:
+        lines, rng = locate(e["file"], e["new"])
     if lines is None:
         out["focus"] = {"i": idx, "file": e["file"], "missing": True}
         return out

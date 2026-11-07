@@ -14,6 +14,20 @@ from . import collab, obsidian
 from .registry import BY_KEY
 
 STATIC = Path(__file__).with_name("static")
+PKG = Path(__file__).parent
+
+
+def build():
+    h = 0
+    for f in sorted(PKG.glob("*.py")):
+        try:
+            h ^= hash((f.name, f.stat().st_mtime_ns))
+        except OSError:
+            pass
+    return h
+
+
+BUILD = build()
 
 
 def open_url(url):
@@ -58,7 +72,7 @@ def make_handler(collector, token, port):
             q = parse_qs(u.query)
             if u.path in ("/", "/index.html"):
                 snap = json.dumps(collector.snapshot(), default=str).replace("</", "<\\/")
-                html = (STATIC / "index.html").read_text().replace("__NYRA_TOKEN__", token).replace("__NYRA_SNAP__", snap)
+                html = (STATIC / "index.html").read_text().replace("__NYRA_TOKEN__", token).replace("__NYRA_SNAP__", snap).replace("__NYRA_STALE__", "true" if build() != BUILD else "false")
                 return self._send(200, html.encode(), "text/html; charset=utf-8")
             if u.path == "/api/snapshot":
                 return self._send(200, collector.snapshot() or {})

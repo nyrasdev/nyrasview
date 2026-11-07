@@ -269,6 +269,7 @@ textarea{width:100%;min-height:70px;resize:vertical}
 .fb{display:grid;gap:8px}
 .fb .it{display:flex;gap:10px;align-items:flex-start;font-size:13px}
 .fb .it .s{font-size:11px;color:var(--dim);white-space:nowrap;margin-left:auto}
+#stale .hookbar{background:color-mix(in srgb,var(--bad) 12%,transparent)}
 .hookbar{display:flex;gap:10px;align-items:center;padding:10px 14px;border-radius:12px;background:color-mix(in srgb,var(--warn) 12%,transparent);font-size:13px;margin-bottom:14px}
 .hookbar .btn{margin-left:auto}
 #tip{position:fixed;z-index:20;pointer-events:none;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-size:12px;box-shadow:0 6px 20px rgba(0,0,0,.18);opacity:0;transition:opacity .12s;white-space:nowrap}
@@ -287,11 +288,12 @@ textarea{width:100%;min-height:70px;resize:vertical}
     <nav class="bm" id="nav"></nav>
     <div class="foot"><button class="btn sm" id="theme" title="theme">◐ theme</button><span id="ver"></span></div>
   </aside>
-  <main id="main"></main>
+  <main id="main"><div id="stale"></div><div id="view"></div></main>
 </div>
 <div class="toast" id="toast"></div><div id="tip"></div><div class="cbub" id="cbub"><div class="h" id="cbubh"></div><textarea id="cbubt" placeholder="e.g. rename this to something clearer"></textarea><div class="row" style="margin-top:8px"><span class="muted" style="font-size:11px;flex:1">Ctrl+Enter to send</span><button class="btn pri sm" data-act="csend">Send</button></div></div>
 <script>
 const TOKEN="__NYRA_TOKEN__";
+const STALE_RAW="__NYRA_STALE__";const STALE=STALE_RAW==="true"||STALE_RAW.startsWith("__");
 const quiet=new Set(),seenTask=new Set();let handT=[];
 const loadTargets=()=>fetch("/api/handoff/targets").then(r=>r.json()).then(l=>{handT=l;paint(handT)}).catch(()=>{});loadTargets();setInterval(loadTargets,30000);
 const canHand=k=>k==="claude"||k==="codex";
@@ -567,8 +569,9 @@ let W={key:null,data:null,pick:null,prev:null,pvOrigin:null,pvPort:null,focusKey
 function watchParts(){const v=view.slice(6);const i=v.indexOf(":");return {agent:v.slice(0,i),cwd:v.slice(i+1)}}
 async function loadWatch(){
   if(!view.startsWith("watch:"))return;const {agent,cwd}=watchParts();
-  const r=await fetch(`/api/live?agent=${encodeURIComponent(agent)}&cwd=${encodeURIComponent(cwd)}${W.pick!=null?"&pick="+W.pick:""}`,{headers:{"X-Nyra-Token":TOKEN}});
-  if(!r.ok)return;W.data=await r.json();
+  let r;try{r=await fetch(`/api/live?agent=${encodeURIComponent(agent)}&cwd=${encodeURIComponent(cwd)}${W.pick!=null?"&pick="+W.pick:""}`,{headers:{"X-Nyra-Token":TOKEN}})}catch(e){r=null}
+  if(!r||!r.ok){W.err=r&&r.status===404?"This nyrasview server is older than the page. Restart it: press Ctrl+C where `nyrasview gui` runs, then start it again.":"Couldn't load live data"+(r?` (HTTP ${r.status})`:"")+".";render();return}
+  W.err=null;W.data=await r.json();
   const ports=W.data.ports||[];
   if(ports.length&&(!W.pvPort||!ports.includes(W.pvPort))){W.pvPort=ports[0];const p=await post("/api/preview",{port:W.pvPort});W.prev=p.url;W.pvOrigin=p.origin}
   if(!ports.length){W.prev=null;W.pvPort=null}
@@ -590,6 +593,7 @@ function vWatch(){
   const {agent:k,cwd}=watchParts();const a=agent(k);const d=W.data;
   const w=(a.work||[]).find(x=>x.cwd===cwd)||{};const t=w.activity||{};
   let h=`<div class="ph" style="--c:${a.hex||"var(--other)"}"><span class="dot ${a.running?"live":""}" style="width:12px;height:12px"></span><h1>${esc(t.title||a.name||k)}</h1><span class="pill ${t.state==="working"?"live":""}">${esc(t.state||"watching")}</span><span class="sub">${esc(a.name||k)} · ${esc(cwd.replace(/^\/home\/[^/]+/,"~"))}${t.action?" · now ▸ "+esc(t.action):""}</span><div class="grow"></div><button class="btn" data-act="go" data-v="agent:${k}">← ${esc(a.name||k)}</button></div>`;
+  if(W.err) return h+`<div class="hookbar" style="background:color-mix(in srgb,var(--bad) 12%,transparent)">⚠ ${esc(W.err)}</div>`;
   if(!d) return h+`<div class="empty">loading…</div>`;
   if(k==="claude"&&!d.hooks) h+=`<div class="hookbar">💬 To send live notes straight into Claude Code, nyrasview needs a small hook in ~/.claude/settings.json. Until then notes are copied to your clipboard.<button class="btn sm" data-act="hooks">Enable live feedback</button></div>`;
   const f=d.focus,hasWeb=!!W.prev,hasCode=!!(f&&!f.missing);
@@ -723,7 +727,7 @@ function syncSections(){
   if(s._o!==opts){const k=s.value;s.innerHTML=opts;s._o=opts;s.value=k}}
 
 function render(){
-  if(!S){$("#main").innerHTML=`<div class="empty">collecting…</div>`;return}
+  if(!S){$("#view").innerHTML=`<div class="empty">collecting…</div>`;return}
   const sy=S.system;
   morph($("#sys"),`<div class="row" style="justify-content:space-between"><span>${esc(S.host)}</span><span>${(S.agents||[]).filter(a=>a.running).length} live</span></div>
    <div class="row" style="justify-content:space-between"><span>cpu</span><span>${sy.cpu.toFixed(0)}%</span></div><div class="meter"><i style="width:${Math.min(100,sy.cpu)}%"></i></div>
@@ -742,7 +746,7 @@ function render(){
   else if(view.startsWith("watch:")) html=vWatch();
   else if(view.startsWith("doc:")) html=vDoc(view.slice(4));
   else html=vOverview();
-  const main=$("#main");
+  const main=$("#view");
   if(main._v!==view){main.innerHTML=html;main._v=view;bindView()}else morph(main,html);
   syncSections();syncLocal();
 }
@@ -810,7 +814,8 @@ async function refresh(){try{S=await (await fetch("/api/snapshot")).json();paint
 async function poll(){await refresh();render();if(view.startsWith("doc:"))loadDoc();if(view.startsWith("watch:"))loadWatch();setTimeout(poll,1500)}
 
 {const h=decodeURIComponent(location.hash.slice(1));if(h)view=h}
-fetch("/api/agents").then(r=>r.json()).then(l=>{agentsList=l;paint(agentsList);if(view.startsWith("doc:")){$("#main")._v=null;render()}});
+if(STALE)$("#stale").innerHTML=`<div class="hookbar">⚠ nyrasview was updated since this server started. Restart it to get the new features: press Ctrl+C where <code>nyrasview gui</code> runs, then run it again.</div>`;
+fetch("/api/agents").then(r=>r.json()).then(l=>{agentsList=l;paint(agentsList);if(view.startsWith("doc:")){$("#view")._v=null;render()}});
 render();bindView();
 requestAnimationFrame(tick);
 setTimeout(poll,1500);

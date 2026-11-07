@@ -9,7 +9,7 @@ Supports Claude Code, Codex, Gemini CLI, opencode, Kimi CLI, Antigravity, Cursor
 ## Install
 
 ```sh
-pipx install git+https://github.com/<you>/nyrasview
+pipx install git+https://github.com/nyrasdev/nyrasview
 # or run in place
 python3 -m nyrasview
 ```
