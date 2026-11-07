@@ -209,7 +209,7 @@ def cmd_gui(a):
     from .util import config as _cfg
     g = _cfg().get("gui", {})
     c = Collector(interval=a.interval if a.interval != 1.5 else float(g.get("interval", 1.5)), relay=a.relay)
-    web.serve(c, a.port if a.port != 7341 else int(g.get("port", 7341)), not a.no_open, a.phone)
+    web.serve(c, a.port if a.port != 7341 else int(g.get("port", 7341)), not a.no_open, a.phone, a.tunnel)
 
 
 def cmd_tui(a):
@@ -731,6 +731,7 @@ def main():
     g.add_argument("-p", "--port", type=int, default=7341)
     g.add_argument("--no-open", action="store_true")
     g.add_argument("--phone", action="store_true", help="also serve it to your phone on Wi-Fi/Tailscale (shows a QR code)")
+    g.add_argument("--tunnel", action="store_true", help="reach it from anywhere through a free Cloudflare tunnel")
     s = sp.add_parser("status", help="one-shot summary of every agent")
     s.add_argument("--json", action="store_true")
     s.add_argument("-a", "--all", action="store_true")

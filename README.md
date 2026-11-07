@@ -109,6 +109,7 @@ Every push is tested on Linux, Windows and macOS with Python 3.11 and 3.13.
 | `nyrasview skill add/new/copy/rm/list` | install and manage skills for every agent |
 | `nyrasview heal ["check"]` | run a check and let an agent fix it until it passes (`--live` for Claude sessions) |
 | `nyrasview gui --phone` | also open it on your phone (QR code) |
+| `nyrasview gui --tunnel` | reach it from anywhere through a free Cloudflare tunnel |
 | `nyrasview now` | what every running agent is working on right now |
 | `nyrasview local` | local AI servers and their models; `local ask ollama "hi"` to try one |
 | `nyrasview handoff` | hand the current task to another agent (`--to codex`, `-w` new window, `-n` dry run) |
@@ -292,6 +293,10 @@ Every Claude Code or Codex session has a **⇢ Hand off** button: on its agent p
 ## On your phone
 
 Turn it on from the **Phone** page, or run `nyrasview gui --phone`. nyrasview also listens on your Wi-Fi (and Tailscale) and shows a QR code. Scan it with your phone camera and you're signed in; without that code, nobody can open it.
+
+Your phone has to be on the **same Wi-Fi name** as the computer. Routers with separate 2.4 GHz and 5G names often keep them apart. If your firewall (ufw or firewalld) blocks it, the Phone page shows the exact command to allow your home network.
+
+**From anywhere:** **Reach it from anywhere** on the Phone page (or `nyrasview gui --tunnel`) opens a free Cloudflare quick tunnel and gives you a public `https://….trycloudflare.com` link with your login key in a QR code. It works on mobile data, on any Wi-Fi or band, and away from home. Nothing to install on the phone, and nyrasview downloads `cloudflared` for you the first time. Without the key, the link only shows a sign-in message. Each start gives a new link.
 
 You get the full app in a phone layout. Use **Add to Home Screen** to open it like an app. **Sign out all phones** makes a new code.
 

@@ -12,6 +12,7 @@ SCHEMA = [
         ("interval", "float", 1.5, "Seconds between refreshes"),
         ("phone", "bool", False, "Always open the phone server when the GUI starts"),
         ("phone_port", "int", 7342, "Port for the phone server"),
+        ("tunnel", "bool", False, "Always open a Cloudflare tunnel so your phone works from anywhere"),
     ]},
     {"id": "notify", "title": "Alerts", "fields": [
         ("desktop", "bool", True, "Desktop notifications"),

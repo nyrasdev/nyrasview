@@ -134,7 +134,12 @@ def phone_info():
             u["qr"] = qr.svg(u["url"], scale=6)
         except ValueError:
             u["qr"] = None
-    return {"on": on, "port": PHONE["port"], "urls": urls,
+    from . import tunnel
+    t = tunnel.info()
+    if t["url"]:
+        t["link"] = f"{t['url']}/?key={key}"
+        t["qr"] = qr.svg(t["link"], scale=6)
+    return {"on": on, "port": PHONE["port"], "urls": urls, "tunnel": t,
             "firewall": firewall_hint(PHONE["port"], [u["ip"] for u in urls]) if on else None}
 
 
@@ -461,6 +466,22 @@ def make_handler(collector, token, port, phone=False):
                     PHONE["srv"].server_close()
                     PHONE["srv"], PHONE["port"] = None, None
                 return phone_info()
+            if p == "/api/tunnel":
+                if phone:
+                    raise PermissionError("change this from the computer")
+                from . import tunnel
+                if b.get("download"):
+                    tunnel.download()
+                if b.get("on"):
+                    if PHONE["srv"] is None:
+                        from .util import config as _c
+                        start_phone(collector, int(_c().get("gui", {}).get("phone_port", port + 1)), token)
+                    threading.Thread(target=tunnel.start, args=(PHONE["port"],), daemon=True).start()
+                    import time as _t
+                    _t.sleep(0.2)
+                elif b.get("on") is False:
+                    tunnel.stop()
+                return phone_info()
             if p == "/api/sandbox/test":
                 from . import sandbox
                 return sandbox.test()
@@ -564,7 +585,7 @@ def _takeover(port):
     return False
 
 
-def serve(collector, port=7341, open_browser=True, phone=False):
+def serve(collector, port=7341, open_browser=True, phone=False, tunnel_on=False):
     try:
         srv, url = make_server(collector, port)
     except OSError:
@@ -576,6 +597,8 @@ def serve(collector, port=7341, open_browser=True, phone=False):
             print(f"port {port} is busy, using another one")
     print(f"nyrasview GUI → {url}   (ctrl+c to stop)")
     from .util import config as _c
+    if tunnel_on or _c().get("gui", {}).get("tunnel"):
+        phone = True
     if phone or _c().get("gui", {}).get("phone"):
         from . import qr
         start_phone(collector, int(_c().get("gui", {}).get("phone_port", srv.server_address[1] + 1)), srv.nyra_token)
@@ -587,8 +610,22 @@ def serve(collector, port=7341, open_browser=True, phone=False):
             for u in info["urls"][1:]:
                 print(f"  {u['kind']}: {u['url']}")
             fw = info.get("firewall")
-            if fw:
+            if fw and not tunnel_on:
                 print(f"\n{fw['note']}" + (f"\n  {fw['cmd']}" if fw.get("cmd") else ""))
+        if tunnel_on or _c().get("gui", {}).get("tunnel"):
+            from . import tunnel
+            if not tunnel.binary():
+                print("\nreach-from-anywhere needs cloudflared; downloading it once…", flush=True)
+                tunnel.download()
+            print("starting a Cloudflare tunnel…", flush=True)
+            t = tunnel.start(PHONE["port"])
+            if t["url"]:
+                link = f"{t['url']}/?key={phone_key()}"
+                print(f"\nfrom anywhere → {link}\nscan this (works on mobile data too):\n")
+                print(qr.terminal(link))
+                print("\nanyone with this link can use nyrasview, so don't share it")
+            else:
+                print(f"tunnel: {t['error'] or 'no link yet'}")
     if open_browser:
         open_url(url)
     try:
