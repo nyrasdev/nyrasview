@@ -91,6 +91,11 @@ def hook():
         return
     cwd = data.get("cwd") or os.getcwd()
     event = data.get("hook_event_name") or ""
+    try:
+        from .checkpoints import from_hook as checkpoint
+        checkpoint(data)
+    except Exception:
+        pass
     if event == "Notification":
         try:
             from .notify import from_hook

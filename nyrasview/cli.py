@@ -460,6 +460,53 @@ def cmd_limits(a):
             print(line)
 
 
+def cmd_checkpoints(a):
+    from . import checkpoints
+    if a.diff:
+        return print(checkpoints.diff(a.dir, a.diff), end="")
+    d = checkpoints.listing(a.dir, a.limit)
+    if a.json:
+        return print(json.dumps(d, indent=2))
+    if not d["root"]:
+        return print(f"{os.path.realpath(a.dir)} is not inside a git repository, so there are no checkpoints")
+    if not d["turns"]:
+        return print("no checkpoints yet. They're saved before and after every agent turn from now on." +
+                     ("" if checkpoints.settings()["enabled"] else " (turned off in settings: [checkpoints] enabled = false)"))
+    print(dim(d["root"]))
+    for t in d["turns"]:
+        g = BY_KEY.get(t["agent"])
+        who = col(g.hex if g else None, (g.name if g else t["agent"] or "?")[:12].ljust(12))
+        stat = col("#22c55e", f"+{t['added']}") + " " + col("#ef4444", f"-{t['removed']}")
+        tag = dim(" undone") if t["undone"] else ""
+        files = ", ".join(t["files"][:3]) + (f" +{len(t['files']) - 3} more" if len(t["files"]) > 3 else "")
+        print(f"{dim(t['id'])}  {dim(ago(t['at']).rjust(4))}  {who} {stat}{tag}  {(t['prompt'] or '')[:60]}")
+        if files:
+            print(f"{' ' * 30}{dim(files)}")
+    print(dim("\nnyrasview undo <id> reverts one turn · nyrasview checkpoints --diff <id> shows it · nyrasview restore <id> rewinds everything"))
+
+
+def cmd_undo(a):
+    from . import checkpoints
+    r = checkpoints.undo(a.dir, a.id, dry=a.dry_run)
+    if not r["ok"]:
+        print(col("#ef4444", r["message"]))
+        if r.get("conflicts"):
+            print("  conflicts in: " + ", ".join(r["conflicts"]))
+        print(dim("nothing was changed. You can still rewind the whole repo with: nyrasview restore " + a.id))
+        sys.exit(1)
+    print(r["message"] + ("" if not r["files"] else ": " + ", ".join(r["files"][:8]) + (" …" if len(r["files"]) > 8 else "")))
+    if r.get("checkpoint"):
+        print(dim(f"changed your mind? nyrasview undo {r['checkpoint']}"))
+
+
+def cmd_restore(a):
+    from . import checkpoints
+    r = checkpoints.restore(a.dir, a.id, before=a.before)
+    print(r["message"] + ("" if not r["files"] else ": " + ", ".join(r["files"][:8]) + (" …" if len(r["files"]) > 8 else "")))
+    if r.get("checkpoint"):
+        print(dim(f"changed your mind? nyrasview undo {r['checkpoint']}"))
+
+
 def cmd_events(a):
     from . import notify
     for e in notify.recent(a.limit):
@@ -809,14 +856,7 @@ def cmd_collab(a):
             print(f"{d['name']:<30} {len(d['tasks'])} tasks, {done} done  {dim(d['doc'])}")
 
 
-def main():
-    if os.name == "nt" and not sys.flags.utf8_mode and not os.environ.get("NYRA_NO_REEXEC"):
-        import subprocess
-        try:
-            sys.exit(subprocess.call([sys.executable, "-X", "utf8", "-m", "nyrasview", *sys.argv[1:]],
-                                     env=dict(os.environ, NYRA_NO_REEXEC="1")))
-        except KeyboardInterrupt:
-            sys.exit(130)
+def build_parser():
     ap = argparse.ArgumentParser(prog="nyrasview", description="control center for AI-driven development: see, steer and coordinate your AI agents")
     ap.add_argument("-v", "--version", action="version", version=f"nyrasview {VERSION}")
     ap.add_argument("-i", "--interval", type=float, default=1.5)
@@ -966,6 +1006,19 @@ def main():
     sp.add_parser("hook", help=argparse.SUPPRESS)
     x = sp.add_parser("hooks", help="Claude Code hooks for live feedback")
     x.add_argument("hooks_cmd", nargs="?", choices=["install", "uninstall", "status"], default="status")
+    x = sp.add_parser("checkpoints", help="every agent turn in this repo, with what it changed")
+    x.add_argument("-d", "--dir", default=".")
+    x.add_argument("-n", "--limit", type=int, default=20)
+    x.add_argument("--diff", metavar="ID", help="show what one turn changed")
+    x.add_argument("--json", action="store_true")
+    x = sp.add_parser("undo", help="revert one agent turn, keeping everything done after it")
+    x.add_argument("id")
+    x.add_argument("-d", "--dir", default=".")
+    x.add_argument("--dry-run", action="store_true", help="only check that it can be undone cleanly")
+    x = sp.add_parser("restore", help="rewind the whole repo to a checkpoint (undoable)")
+    x.add_argument("id")
+    x.add_argument("--before", action="store_true", help="rewind to just before that turn instead of just after it")
+    x.add_argument("-d", "--dir", default=".")
     x = sp.add_parser("say", help="send live feedback to the agent working in a folder")
     x.add_argument("text")
     x.add_argument("-a", "--agent", default="claude")
@@ -986,9 +1039,48 @@ def main():
     x.add_argument("server")
     x.add_argument("prompt")
     x.add_argument("-m", "--model")
-    a = ap.parse_args()
-    fn = {"tui": cmd_tui, "gui": cmd_gui, "status": cmd_status, "ps": cmd_ps, "mcp": cmd_mcp,
-          "skills": cmd_skills, "usage": cmd_usage, "agents": cmd_agents, "collab": cmd_collab, "obsidian": cmd_obsidian, "now": cmd_now, "doctor": cmd_doctor, "heal": cmd_heal, "skill": cmd_skill, "keys": cmd_keys, "plan": cmd_plan, "limits": cmd_limits, "inbox": cmd_events, "notify-test": cmd_notify_test,
+    x = sp.add_parser("phone", help="use nyrasview from your phone: prints a QR code to scan")
+    x.add_argument("--tunnel", action="store_true", help="also reachable from anywhere through a Cloudflare tunnel")
+    x.add_argument("--rotate", action="store_true", help="new login key; old phone links stop working")
+    x = sp.add_parser("watch", help="follow an agent's edits live in the terminal")
+    x.add_argument("-a", "--agent", help="claude, codex, gemini… (default: whoever edited this folder last)")
+    x.add_argument("-d", "--dir", default=".")
+    x.add_argument("-n", "--interval", type=float, default=1.5)
+    x.add_argument("--once", action="store_true", help="print one frame and exit")
+    st = sp.add_parser("settings", help="see and change settings (same as the GUI Settings page)")
+    st.add_argument("-v", "--verbose", action="store_true", help="show what each setting does")
+    ss = st.add_subparsers(dest="settings_cmd")
+    ss.add_parser("list", help="every setting and its value")
+    x = ss.add_parser("get", help="print one setting")
+    x.add_argument("key", help="section.name, e.g. notify.soon_pct")
+    x = ss.add_parser("set", help="change one setting")
+    x.add_argument("key")
+    x.add_argument("value", nargs="+")
+    x = ss.add_parser("unset", help="back to the default")
+    x.add_argument("key")
+    ss.add_parser("edit", help="open the config file in $EDITOR (checked before saving)")
+    ss.add_parser("path", help="where the config file is")
+    sb = sp.add_parser("sandbox", help="your Docker sandbox for agents")
+    sbs = sb.add_subparsers(dest="sandbox_cmd")
+    sbs.add_parser("test", help="start the image and list the agents inside")
+    x = sp.add_parser("completion", help="shell tab completion: nyrasview completion fish | source")
+    x.add_argument("shell", choices=["fish", "bash", "zsh"])
+    return ap
+
+
+def main():
+    if os.name == "nt" and not sys.flags.utf8_mode and not os.environ.get("NYRA_NO_REEXEC"):
+        import subprocess
+        try:
+            sys.exit(subprocess.call([sys.executable, "-X", "utf8", "-m", "nyrasview", *sys.argv[1:]],
+                                     env=dict(os.environ, NYRA_NO_REEXEC="1")))
+        except KeyboardInterrupt:
+            sys.exit(130)
+    from . import cli_more
+    a = build_parser().parse_args()
+    fn = {"phone": cli_more.cmd_phone, "watch": cli_more.cmd_watch, "settings": cli_more.cmd_settings,
+          "sandbox": cli_more.cmd_sandbox, "completion": cli_more.cmd_completion,"tui": cmd_tui, "gui": cmd_gui, "status": cmd_status, "ps": cmd_ps, "mcp": cmd_mcp,
+          "skills": cmd_skills, "usage": cmd_usage, "agents": cmd_agents, "collab": cmd_collab, "obsidian": cmd_obsidian, "now": cmd_now, "doctor": cmd_doctor, "heal": cmd_heal, "skill": cmd_skill, "keys": cmd_keys, "plan": cmd_plan, "limits": cmd_limits, "checkpoints": cmd_checkpoints, "undo": cmd_undo, "restore": cmd_restore, "inbox": cmd_events, "notify-test": cmd_notify_test,
           "daemon": cmd_daemon, "service": cmd_service, "ask": cmd_ask, "runs": cmd_runs, "hook": cmd_hook, "hooks": cmd_hooks, "say": cmd_say, "handoff": cmd_handoff, "relay": cmd_relay, "local": cmd_local,
           None: cmd_tui}[a.cmd]
     if a.relay and a.cmd in (None, "tui", "gui"):

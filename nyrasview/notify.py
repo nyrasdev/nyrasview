@@ -147,6 +147,8 @@ class Watcher:
                             emit("finished", a["key"], f"{a['name']} finished · {proj}",
                                  (act.get("reply") or act.get("action") or "Done.")[:200],
                                  f"{a['key']}|{w['pid']}|{int(act.get('mtime') or now)}", w.get("cwd"))
+                if act["state"] != s["state"] and w.get("cwd") and not (hooked and a["key"] == "claude"):
+                    self._checkpoint(a["key"], w, s["state"], act)
                 if act["state"] != s["state"]:
                     s["state"], s["since"] = act["state"], now
         for k in list(self.sess):
@@ -155,6 +157,17 @@ class Watcher:
         self._limits(snap, st)
         self._runs(st)
         self._tasks(snap)
+
+    def _checkpoint(self, agent, w, was, act):
+        try:
+            from . import checkpoints
+            slot = f"{agent}|{w['pid']}"
+            if act["state"] == "working":
+                checkpoints.begin(slot, agent, w["cwd"], act.get("prompt") or "")
+            elif was == "working":
+                checkpoints.end(slot)
+        except Exception:
+            pass
 
     def _limits(self, snap, st):
         for agent, wins in (snap.get("limits") or {}).items():

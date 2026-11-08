@@ -3,7 +3,7 @@ import os
 import signal
 import time
 
-from . import collab, tui_more
+from . import collab, tui_extra, tui_more
 from .registry import BY_KEY
 from .util import ago, hb, hn
 
@@ -193,11 +193,11 @@ class UI:
             foot = msg
         else:
             foot = {
-                0: "↑↓ agent  enter/→ processes  p prompt  h hand off  f self-heal  k kill  a show all  g gui  q quit",
-                1: "↑↓ scroll  g gui  q quit",
-                2: "↑↓ scroll  / filter  esc clear  g gui  q quit",
-                3: "↑↓ agent  g gui  q quit",
-                4: "↑↓ scroll  g gui  q quit",
+                0: "↑↓ agent  enter/→ processes  p prompt  t turns  h hand off  f self-heal  k kill  a show all  P phone  ? keys  q quit",
+                1: "↑↓ scroll  g gui  P phone  ? keys  q quit",
+                2: "↑↓ scroll  / filter  esc clear  g gui  P phone  ? keys  q quit",
+                3: "↑↓ agent  g gui  P phone  ? keys  q quit",
+                4: "↑↓ scroll  g gui  P phone  ? keys  q quit",
                 5: "↑↓ doc  n new  a assign  w whole-doc task  r run  x reset  u undo  g gui  q quit",
                 6: "↑↓ item  enter follow up  p new prompt  f self-heal  s stop  g gui  q quit",
             }[self.tab]
@@ -556,6 +556,12 @@ class UI:
         if k == ord("g"):
             self.open_gui()
             return
+        if k == ord("P"):
+            tui_extra.phone_screen(self)
+            return
+        if k == ord("?"):
+            tui_extra.help_screen(self)
+            return
         if s is None:
             return
         t = self.tab
@@ -602,6 +608,12 @@ class UI:
                 tui_more.heal_menu(self, s, a)
         elif t == 6:
             tui_more.runs_key(self, k, s)
+        elif t == 0 and k == ord("t"):
+            ag = self.agents(s)
+            a = ag[max(0, min(self.sel[0], len(ag) - 1))] if ag else None
+            cwd = tui_extra.pick_cwd(self, a) if a else os.getcwd()
+            if cwd:
+                tui_extra.turns_screen(self, cwd)
         elif t == 0 and k == ord("a"):
             self.show_all = not self.show_all
         elif t == 0 and k in (ord("k"), ord("K")):

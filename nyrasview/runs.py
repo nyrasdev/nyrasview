@@ -157,6 +157,12 @@ def start(agent, prompt, cwd, mode="ask", model=None, group=None, parent=None, a
             return meta
     else:
         launch = plat.resolve(argv)
+    if mode != "ask":
+        try:
+            from .checkpoints import begin
+            begin(f"run|{rid}", agent, cwd, prompt)
+        except Exception:
+            pass
     proc = subprocess.Popen(launch, cwd=cwd, stdin=inp, stdout=out, stderr=err, env=env, **plat.detached())
     meta["pid"] = proc.pid
     _save(meta)
@@ -228,6 +234,12 @@ def _finish(m, final=False):
             if done.get(k) is not None:
                 m[k] = done[k]
     _save(m)
+    if m.get("status") != "running" and m.get("mode") != "ask":
+        try:
+            from .checkpoints import end
+            end(f"run|{m['id']}")
+        except Exception:
+            pass
 
 
 def _err_tail(m):

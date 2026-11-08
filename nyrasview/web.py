@@ -221,6 +221,11 @@ def make_handler(collector, token, port, phone=False):
                     _port_cache[cwd] = hit
                 v["ports"] = hit[1]
                 v["feedback"] = feedback.listing(cwd)
+                try:
+                    from . import checkpoints
+                    v["checkpoints"] = checkpoints.listing(cwd, 15)
+                except Exception:
+                    v["checkpoints"] = {"root": None, "turns": []}
                 v["hooks"] = feedback.installed()
                 return self._send(200, v)
             if u.path.startswith("/api/runs"):
@@ -501,6 +506,15 @@ def make_handler(collector, token, port, phone=False):
                 from . import proxy
                 pp = proxy.start(int(b["port"]), origin)
                 return {"url": f"http://127.0.0.1:{pp}/", "origin": f"http://127.0.0.1:{pp}"}
+            if p == "/api/checkpoints/diff":
+                from . import checkpoints
+                return {"diff": checkpoints.diff(b["cwd"], b["id"], 150000)}
+            if p == "/api/checkpoints/undo":
+                from . import checkpoints
+                return checkpoints.undo(b["cwd"], b["id"], dry=bool(b.get("dry")))
+            if p == "/api/checkpoints/restore":
+                from . import checkpoints
+                return checkpoints.restore(b["cwd"], b["id"], before=bool(b.get("before")))
             if p == "/api/feedback":
                 from . import feedback
                 return feedback.add(b["agent"], b["cwd"], b["text"], b.get("target"))
@@ -585,6 +599,53 @@ def _takeover(port):
     return False
 
 
+def find_gui(port=None):
+    import re
+    import urllib.request
+    from .util import config as _c
+    port = port or int(_c().get("gui", {}).get("port", 7341))
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=2) as r:
+            html = r.read().decode("utf-8", "replace")
+    except Exception:
+        return None
+    m = re.search(r'TOKEN="([^"]+)"', html)
+    return (f"http://127.0.0.1:{port}", m.group(1)) if m and "nyrasview" in html else None
+
+
+def gui_call(gui, path, body=None, timeout=30):
+    import urllib.error
+    import urllib.request
+    req = urllib.request.Request(gui[0] + path, data=json.dumps(body or {}).encode(), method="POST",
+                                 headers={"Content-Type": "application/json", "X-Nyra-Token": gui[1]})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        try:
+            raise RuntimeError(json.loads(e.read()).get("error") or str(e))
+        except ValueError:
+            raise RuntimeError(str(e))
+
+
+def phone_lines(info, firewall=True):
+    from . import qr
+    out = []
+    if info.get("urls"):
+        first = info["urls"][0]
+        out += [f"phone ({first['kind']}) → {first['url']}", "scan this with your phone camera (same Wi-Fi, or Tailscale):", "",
+                qr.terminal(first["url"])]
+        out += [f"  {u['kind']}: {u['url']}" for u in info["urls"][1:]]
+        fw = info.get("firewall")
+        if firewall and fw:
+            out += ["", fw["note"]] + ([f"  {fw['cmd']}"] if fw.get("cmd") else [])
+    t = info.get("tunnel") or {}
+    if t.get("link"):
+        out += ["", f"from anywhere → {t['link']}", "scan this (works on mobile data too):", "", qr.terminal(t["link"]),
+                "", "anyone with this link can use nyrasview, so don't share it"]
+    return "\n".join(out)
+
+
 def serve(collector, port=7341, open_browser=True, phone=False, tunnel_on=False):
     try:
         srv, url = make_server(collector, port)
@@ -603,15 +664,9 @@ def serve(collector, port=7341, open_browser=True, phone=False, tunnel_on=False)
         from . import qr
         start_phone(collector, int(_c().get("gui", {}).get("phone_port", srv.server_address[1] + 1)), srv.nyra_token)
         info = phone_info()
+        info["tunnel"] = {}
         if info["urls"]:
-            first = info["urls"][0]
-            print(f"\nphone ({first['kind']}) → {first['url']}\nscan this with your phone camera (same Wi-Fi, or Tailscale):\n")
-            print(qr.terminal(first["url"]))
-            for u in info["urls"][1:]:
-                print(f"  {u['kind']}: {u['url']}")
-            fw = info.get("firewall")
-            if fw and not tunnel_on:
-                print(f"\n{fw['note']}" + (f"\n  {fw['cmd']}" if fw.get("cmd") else ""))
+            print("\n" + phone_lines(info, firewall=not tunnel_on))
         if tunnel_on or _c().get("gui", {}).get("tunnel"):
             from . import tunnel
             if not tunnel.binary():

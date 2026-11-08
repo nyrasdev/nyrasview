@@ -101,6 +101,9 @@ Every push is tested on Linux, Windows and macOS with Python 3.11 and 3.13.
 | `nyrasview ask <agent> "…"` | prompt one agent, or `claude,codex` to compare, and stream the answer |
 | `nyrasview runs` | prompts started from nyrasview |
 | `nyrasview limits` | usage limit gauges and time left at your pace |
+| `nyrasview checkpoints` | every agent turn in this repo and what it changed (`--diff <id>` to see one) |
+| `nyrasview undo <id>` | revert one agent turn and keep everything after it |
+| `nyrasview restore <id>` | rewind the whole repo to just after a turn (`--before` for just before it) |
 | `nyrasview inbox` | recent alerts (`notify-test` sends one) |
 | `nyrasview mcp add/copy/rm/test` | manage MCP servers for every agent at once |
 | `nyrasview daemon` / `service install` | alerts and relay without a UI, optionally on login |
@@ -108,8 +111,12 @@ Every push is tested on Linux, Windows and macOS with Python 3.11 and 3.13.
 | `nyrasview keys` | connect API keys to keep working past plan limits |
 | `nyrasview skill add/new/copy/rm/list` | install and manage skills for every agent |
 | `nyrasview heal ["check"]` | run a check and let an agent fix it until it passes (`--live` for Claude sessions) |
-| `nyrasview gui --phone` | also open it on your phone (QR code) |
-| `nyrasview gui --tunnel` | reach it from anywhere through a free Cloudflare tunnel |
+| `nyrasview phone` | QR code to open nyrasview on your phone, right in the terminal (`--tunnel` from anywhere, `--rotate` new key) |
+| `nyrasview gui --phone` / `--tunnel` | the browser dashboard plus the phone QR code |
+| `nyrasview watch` | follow an agent's edits live in the terminal: the file, the changed lines, recent edits and turns |
+| `nyrasview settings` | every setting; `settings set notify.soon_pct 80`, `get`, `unset`, `edit` (opens `$EDITOR`, checks it before saving) |
+| `nyrasview sandbox test` | start your sandbox image and list the agents inside |
+| `nyrasview completion fish` | tab completion; `nyrasview completion fish \| source` (also `bash`, `zsh`) |
 | `nyrasview doctor` | check your setup (agents, hooks, GUI, phone, firewall, Wi-Fi) and say what to fix |
 | `nyrasview now` | what every running agent is working on right now |
 | `nyrasview local` | local AI servers and their models; `local ask ollama "hi"` to try one |
@@ -118,6 +125,14 @@ Every push is tested on Linux, Windows and macOS with Python 3.11 and 3.13.
 | `nyrasview say "…"` | send a live note to the agent working in this folder |
 | `nyrasview hooks install` | let live notes reach Claude Code mid-task |
 | `nyrasview obsidian` | your Obsidian vaults |
+
+### Terminal dashboard keys
+
+Press `?` anywhere in `nyrasview` for the full list. The ones that open screens:
+
+- **`P`**: the phone QR code (it reuses your running GUI if there is one), `t` inside it for reach-from-anywhere
+- **`t`** on an agent: its turns, with `enter` for the diff, `u` to undo one and `R` to rewind the repo
+- **`p`** prompt, **`h`** hand off, **`f`** self-heal, **`k`** stop a process
 
 ### What it tracks per agent
 
@@ -189,6 +204,24 @@ Click **👁 Watch** on any Claude Code or Codex session (or a row in the overvi
   - **Claude Code** gets it after its next tool call, through a hook. Turn it on once with `nyrasview hooks install`; a backup of `~/.claude/settings.json` is saved first.
   - **Other agents** get it copied to your clipboard, ready to paste.
 - From the terminal: `nyrasview say "make the header sticky" -f src/Header.tsx`
+
+## Checkpoints: undo one agent's turn
+
+In any git repo, nyrasview snapshots your files before and after every agent turn:
+
+- **Claude Code:** exactly, through the hook (every prompt is one turn).
+- **Prompt runs** started from nyrasview: from start to finish.
+- **Codex, Gemini and the rest:** from when the agent starts working until it goes idle, while nyrasview is open.
+
+The **Turns** panel on the Watch page lists each turn with its prompt, files and diff. **↶ Undo** reverts just that turn, so work done after it by you or other agents stays. If the same lines changed again since, nothing is touched and you're offered a rewind of the whole repo instead. Every undo and rewind is a turn too, so you can undo it.
+
+```sh
+nyrasview checkpoints          # list turns in this repo
+nyrasview undo 0bea5adbbf      # revert one turn
+nyrasview restore 0bea5adbbf --before
+```
+
+Snapshots live in a hidden ref, `refs/nyrasview/checkpoints`. They never touch your branch, your staged changes or your stash, and `git push` doesn't send them. One thing you'll notice: `git log --all` and graph views that show every ref (gitk, lazygit) list them, the same way they show the stash. Files your `.gitignore` covers aren't snapshotted. When Claude edits only through Edit/Write, its turn is limited to those files, so your own edits made in the meantime are left alone; turns that ran shell commands cover every file that changed. nyrasview keeps the last 300 turns per repo; change that, or turn checkpoints off, under `[checkpoints]` in Settings.
 
 ## Alerts: know when you're needed
 
@@ -310,11 +343,11 @@ Every Claude Code or Codex session has a **⇢ Hand off** button: on its agent p
 
 ## On your phone
 
-Turn it on from the **Phone** page, or run `nyrasview gui --phone`. nyrasview also listens on your Wi-Fi (and Tailscale) and shows a QR code. Scan it with your phone camera and you're signed in; without that code, nobody can open it.
+Turn it on from the **Phone** page, press `P` in the terminal dashboard, or run `nyrasview phone`. nyrasview also listens on your Wi-Fi (and Tailscale) and shows a QR code. Scan it with your phone camera and you're signed in; without that code, nobody can open it.
 
 Your phone has to be on the **same Wi-Fi name** as the computer. Routers with separate 2.4 GHz and 5G names often keep them apart. If your firewall (ufw or firewalld) blocks it, the Phone page shows the exact command to allow your home network.
 
-**From anywhere:** **Reach it from anywhere** on the Phone page (or `nyrasview gui --tunnel`) opens a free Cloudflare quick tunnel and gives you a public `https://….trycloudflare.com` link with your login key in a QR code. It works on mobile data, on any Wi-Fi or band, and away from home. Nothing to install on the phone, and nyrasview downloads `cloudflared` for you the first time. Without the key, the link only shows a sign-in message. Each start gives a new link.
+**From anywhere:** **Reach it from anywhere** on the Phone page (or `nyrasview phone --tunnel`) opens a free Cloudflare quick tunnel and gives you a public `https://….trycloudflare.com` link with your login key in a QR code. It works on mobile data, on any Wi-Fi or band, and away from home. Nothing to install on the phone, and nyrasview downloads `cloudflared` for you the first time. Without the key, the link only shows a sign-in message. Each start gives a new link.
 
 You get the full app in a phone layout. Use **Add to Home Screen** to open it like an app. **Sign out all phones** makes a new code.
 

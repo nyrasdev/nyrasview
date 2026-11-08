@@ -26,6 +26,10 @@ SCHEMA = [
         ("claude_api", "bool", True, "Read real Claude limits from Anthropic's usage API"),
         ("refresh_seconds", "int", 120, "How often to ask Anthropic (seconds)"),
     ]},
+    {"id": "checkpoints", "title": "Checkpoints", "fields": [
+        ("enabled", "bool", True, "Snapshot git repos before and after every agent turn so you can undo a turn"),
+        ("keep", "int", 300, "How many turns to keep per repo"),
+    ]},
     {"id": "fallback", "title": "API keys and fallback", "fields": [
         ("anthropic_api_key", "secret", "", "Anthropic key: Claude Code continues on API billing"),
         ("openai_api_key", "secret", "", "OpenAI key: Codex continues on API billing"),

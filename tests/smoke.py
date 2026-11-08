@@ -135,6 +135,68 @@ def _():
     assert "988 req left" in out and "Gemini" in out, out
 
 
+@step("checkpoints: undo one agent turn, keep the rest")
+def _():
+    repo = ROOT / "cprepo"
+    repo.mkdir()
+    g = lambda *a: subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t", *a],
+                                  capture_output=True, check=True)
+    (repo / "f.txt").write_text("a\nb\nc\n", encoding="utf-8")
+    g("init", "-q")
+    g("add", "-A")
+    g("commit", "-qm", "init")
+    hook = lambda ev, **kw: run("hook", input=json.dumps({"hook_event_name": ev, "session_id": "cp1", "cwd": str(repo), **kw}))
+    hook("UserPromptSubmit", prompt="make b loud")
+    (repo / "f.txt").write_text("a\nB\nc\n", encoding="utf-8")
+    (repo / "new.txt").write_text("hi\n", encoding="utf-8")
+    hook("PostToolUse", tool_name="Edit", tool_input={"file_path": str(repo / "f.txt")})
+    hook("PostToolUse", tool_name="Write", tool_input={"file_path": str(repo / "new.txt")})
+    hook("Stop")
+    hook("UserPromptSubmit", prompt="add d")
+    (repo / "f.txt").write_text("a\nB\nc\nd\n", encoding="utf-8")
+    hook("PostToolUse", tool_name="Edit", tool_input={"file_path": str(repo / "f.txt")})
+    hook("Stop")
+    d = json.loads(run("checkpoints", "-d", str(repo), "--json"))
+    assert [t["prompt"] for t in d["turns"]] == ["add d", "make b loud"], d
+    first = d["turns"][1]
+    assert sorted(first["files"]) == ["f.txt", "new.txt"], first
+    assert "+B" in run("checkpoints", "-d", str(repo), "--diff", first["id"])
+    out = run("undo", first["id"], "-d", str(repo))
+    assert (repo / "f.txt").read_text(encoding="utf-8").replace("\r\n", "\n") == "a\nb\nc\nd\n", out
+    assert not (repo / "new.txt").exists(), out
+    assert g("log", "--oneline").stdout.decode().count("\n") == 1
+    d = json.loads(run("checkpoints", "-d", str(repo), "--json"))
+    assert d["turns"][1]["undone"] is False and d["turns"][2]["undone"] is True, d
+    (repo / "f.txt").write_text("zzz\n", encoding="utf-8")
+    r = subprocess.run([PY, "-m", "nyrasview", "undo", d["turns"][1]["id"], "-d", str(repo)], capture_output=True,
+                       text=True, env=ENV, cwd=str(WORK))
+    assert r.returncode == 1 and "can't be undone cleanly" in r.stdout, r.stdout + r.stderr
+    assert (repo / "f.txt").read_text(encoding="utf-8") == "zzz\n"
+    run("restore", first["id"], "--before", "-d", str(repo))
+    assert (repo / "f.txt").read_text(encoding="utf-8").replace("\r\n", "\n") == "a\nb\nc\n"
+
+
+@step("terminal extras: settings, watch, completion, sandbox")
+def _():
+    assert "notify.soon_pct = 80" in run("settings", "set", "notify.soon_pct", "80")
+    assert run("settings", "get", "notify.soon_pct").strip() == "80"
+    assert "••••" in run("settings", "set", "fallback.openai_api_key", "sk-smoke-abcdef")
+    r = subprocess.run([PY, "-m", "nyrasview", "settings", "set", "notify.desktop", "maybe"], capture_output=True,
+                       text=True, env=ENV, cwd=str(WORK))
+    assert r.returncode != 0 and "true or false" in r.stderr, r.stderr
+    run("settings", "unset", "notify.soon_pct")
+    assert "(default)" in run("settings", "get", "notify.soon_pct")
+    assert "[notify]" in run("settings") and "desktop" in run("settings", "-v")
+    run("settings", "unset", "fallback.openai_api_key")
+    out = run("watch", "--once", "-a", "claude", "-d", str(WORK))
+    assert "Claude Code" in out, out
+    fish = run("completion", "fish")
+    assert "-a watch" in fish and "-a hook " not in fish, fish[:500]
+    assert "_nyrasview" in run("completion", "bash") and "bashcompinit" in run("completion", "zsh")
+    r = subprocess.run([PY, "-m", "nyrasview", "sandbox", "test"], capture_output=True, text=True, env=ENV, cwd=str(WORK))
+    assert r.returncode == 1 and "Set an image first" in r.stdout, r.stdout + r.stderr
+
+
 @step("collab with a fake agent (process launch, file locks, utf-8)")
 def _():
     doc = WORK / "plan.md"

@@ -270,6 +270,16 @@ textarea{width:100%;min-height:70px;resize:vertical}
 .tl .e{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:6px 8px;border-radius:8px;cursor:pointer;font-size:12.5px}
 .tl .e:hover{background:var(--panel2)}
 .tl .e.on{background:var(--panel2);box-shadow:inset 3px 0 0 var(--c)}
+.cpl{display:grid;gap:2px}
+.cpl .t{display:grid;grid-template-columns:52px minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:6px 8px;border-radius:8px;font-size:12.5px}
+.cpl .t:hover{background:var(--panel2)}
+.cpl .t.undone{opacity:.55}
+.cpl .t .q{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cpl .t .q small{display:block;font-family:var(--mono);font-size:11px;color:var(--dim);overflow:hidden;text-overflow:ellipsis}
+.cpl .t .d{font-family:var(--mono);font-size:11.5px;white-space:nowrap}
+.cpl .t .bt{display:flex;gap:6px}
+.cpd{font-family:var(--mono);font-size:11.5px;line-height:1.5;background:var(--panel2);border-radius:8px;padding:10px;margin:2px 0 8px;max-height:360px;overflow:auto;white-space:pre}
+.cpd .a{color:var(--good)}.cpd .r{color:var(--bad)}.cpd .h{color:var(--dim)}
 .tl .e .f{font-family:var(--mono);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tl .e .d{font-family:var(--mono);font-size:11.5px;white-space:nowrap}
 .tl .e .d .p{color:var(--good)}.tl .e .d .m{color:var(--bad)}
@@ -865,6 +875,12 @@ function vWatch(){
   h+=`</div>`;
   h+=`<div class="ov" style="margin-top:14px"><div class="panel c7"><div class="hd2"><h2>Recent edits</h2><span class="muted" style="font-size:12px">${d.edits.length}</span>${W.pick!=null?`<a data-act="wlatest">follow latest →</a>`:""}</div><div class="tl">`+
     [...d.edits].reverse().map(e=>`<div class="e ${f&&f.i===e.i?"on":""}" data-act="wpick" data-i="${e.i}" data-key="e${e.i}"><span class="muted m" style="font-size:11.5px">${ago(e.at)}</span><span class="f">${esc(e.rel)}</span><span class="d"><span class="p">+${e.added}</span> <span class="m">−${e.removed}</span></span></div>`).join("")+`</div></div>`;
+  const cp=d.checkpoints||{turns:[]};W.cpd=W.cpd||{};
+  h+=`<div class="panel c12"><div class="hd2"><h2>Turns</h2><span class="muted" style="font-size:12px">${cp.root?"checkpoints before and after every agent turn · undo one turn and keep the rest":"not a git repository, so no checkpoints here"}</span></div>`+
+    (cp.turns.length?`<div class="cpl">`+cp.turns.map(t=>{const ag=agent(t.agent);const files=t.files.slice(0,4).join(", ")+(t.files.length>4?` +${t.files.length-4}`:"");
+      return `<div class="t ${t.undone?"undone":""}" data-key="cp-${t.id}"><span class="muted m" style="font-size:11.5px">${ago(t.at)}</span><div class="q"><span class="sd" style="background:${ag.hex||"var(--other)"};display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px"></span>${esc(t.prompt||"(no prompt)")}${t.undone?` <span class="chip">undone</span>`:""}<small>${esc(ag.name||t.agent||"you")} · ${esc(files||"no file changes")}</small></div><span class="d"><span class="p">+${t.added}</span> <span class="m">−${t.removed}</span></span><span class="bt"><button class="btn sm" data-act="cpdiff" data-id="${t.id}">${W.cpd[t.id]?"Hide":"Diff"}</button><button class="btn sm" data-act="cpundo" data-id="${t.id}" ${t.undone||!t.files.length?"disabled":""}>↶ Undo</button></span></div>`+
+        (W.cpd[t.id]?`<div class="cpd" data-key="cpd-${t.id}">${W.cpd[t.id].split("\n").map(l=>`<span class="${l.startsWith("+")&&!l.startsWith("+++")?"a":l.startsWith("-")&&!l.startsWith("---")?"r":l.startsWith("@@")||l.startsWith("diff ")?"h":""}">${esc(l)}</span>`).join("\n")}</div>`:"")}).join("")+`</div>`
+    :`<div class="muted" style="font-size:12.5px">${cp.root?"No turns recorded yet. The next time an agent works here, its changes show up as a turn you can undo.":""}</div>`)+`</div>`;
   const fb=(d.feedback||[]).slice().reverse();
   h+=`<div class="panel c5"><div class="hd2"><h2>Your notes</h2></div><div style="display:grid;gap:8px;margin-bottom:12px" data-static data-key="say"><textarea id="say" placeholder="Tell ${esc(a.name||k)} something about the work…"></textarea><div class="row"><button class="btn pri sm" data-act="say">Send note</button><span class="muted" style="font-size:11.5px">or click a line number in the code to comment on a line</span></div></div><div class="fb">`+
     (fb.length?fb.map(x=>`<div class="it" data-key="fb${x.id}"><span>${x.status==="delivered"?"✓":x.status==="copied"?"📋":"⏳"}</span><div style="min-width:0">${esc(x.text)}${x.target&&(x.target.selector||x.target.file)?`<div class="muted m" style="font-size:11px">${esc([x.target.file,x.target.selector].filter(Boolean).join(" · "))}</div>`:""}</div><span class="s">${esc(x.status)} · ${ago(x.at)}</span></div>`).join(""):`<div class="muted" style="font-size:12.5px">Nothing sent yet.</div>`)+`</div></div></div>`;
@@ -1272,6 +1288,13 @@ document.addEventListener("click",async e=>{
     if(act==="gshide"){localSet("gsdone","1");return render()}
     if(act==="gshooks"){if(!confirm("Add nyrasview's hook to ~/.claude/settings.json? A backup is saved. Restart running Claude sessions once afterwards."))return;await post("/api/hooks",{on:true});if(SET0)SET0._hooks=true;toast("Claude Code connected · restart running sessions once");return render()}
     if(act==="hopen"){return openHandoff(el.dataset.agent,el.dataset.cwd)}
+    if(act==="cpdiff"){const id=el.dataset.id;W.cpd=W.cpd||{};if(W.cpd[id]){delete W.cpd[id];return render()}
+      const {cwd}=watchParts();const r=await post("/api/checkpoints/diff",{cwd,id});W.cpd[id]=r.diff||"(no changes)";return render()}
+    if(act==="cpundo"){const id=el.dataset.id;const {cwd}=watchParts();const t=((W.data&&W.data.checkpoints||{}).turns||[]).find(x=>x.id===id)||{};
+      const chk=await post("/api/checkpoints/undo",{cwd,id,dry:true});
+      if(!chk.ok){if(confirm(`${chk.message}${(chk.conflicts||[]).length?" ("+chk.conflicts.join(", ")+")":""}.\n\nRewind the whole repo to just before this turn instead? Everything after it is undone too, and you can undo the rewind.`)){const r=await post("/api/checkpoints/restore",{cwd,id,before:true});toast(r.message)}return loadWatch()}
+      if(!confirm(`Undo ${aname(t.agent)}'s turn "${(t.prompt||"").slice(0,80)}"?\n\nReverts ${chk.files.length} file(s): ${chk.files.slice(0,8).join(", ")}\nEverything done after it stays. You can undo this undo.`))return;
+      const r=await post("/api/checkpoints/undo",{cwd,id});toast(r.message);return loadWatch()}
     if(act==="hkeys"){$("#hmodal").classList.remove("on");return go("keys")}
     if(act==="hclose"){$("#hmodal").classList.remove("on");return}
     if(act==="hpick"){HO.pick=el.dataset.k;return drawHandoff()}
