@@ -1,0 +1,19 @@
+pkgbase = nyrasview
+	pkgdesc = Control center for AI-driven development: see, steer and coordinate your AI coding agents
+	pkgver = 2.1.0
+	pkgrel = 1
+	url = https://github.com/nyrasdev/nyrasview
+	arch = any
+	license = MIT
+	makedepends = python-build
+	makedepends = python-installer
+	makedepends = python-setuptools
+	makedepends = python-wheel
+	depends = python
+	depends = python-psutil
+	optdepends = git: checkpoints, review and the watch view
+	optdepends = cloudflared: reach nyrasview from your phone anywhere
+	source = nyrasview-2.1.0.tar.gz::https://github.com/nyrasdev/nyrasview/archive/refs/tags/v2.1.0.tar.gz
+	sha256sums = 1f4148d41cf6c34869b6dc24e0029bdc2ca47fc914f81b810006b507ba9abb8f
+
+pkgname = nyrasview

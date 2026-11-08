@@ -60,6 +60,14 @@ nyrasview gui
 
 ### Linux
 
+On Arch, CachyOS, Manjaro and friends, it's in the AUR (with tab completion for fish and bash):
+
+```sh
+yay -S nyrasview
+```
+
+Everywhere else:
+
 ```sh
 sudo pacman -S python-pipx      # Arch / CachyOS
 sudo apt install pipx           # Debian / Ubuntu
