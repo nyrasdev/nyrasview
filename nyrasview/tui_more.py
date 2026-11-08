@@ -69,11 +69,23 @@ def limit_lines(ui, s, key, y, W):
     if not wins:
         return y
     meta = (s.get("limits_meta") or {}).get(key) or {}
-    head = "LIMITS " + (meta.get("plan") or "") + ("  live from Anthropic" if meta.get("source") == "anthropic" else "  estimated" if key == "claude" else "")
+    from .limits import amount, dur
+    src = {"anthropic": "live from Anthropic", "codex": "from Codex logs", "openrouter": "live from OpenRouter",
+           "budget": "counted locally", "tracked": "tracked locally"}
+    head = "LIMITS " + (meta.get("plan") or "") + "  " + (src.get(meta.get("source")) or ("estimated" if key == "claude" else ""))
     ui.put(y, 0, head, ui.A("dim", True))
     y += 1
     for name, w in wins.items():
         u = w.get("utilization")
+        un = w.get("unit")
+        if u is None and un:
+            x = ui.put(y, 2, f"{(w.get('label') or name):<14}", ui.A("dim"))
+            txt = f"{amount(w.get('used'), un)} used · {amount(w.get('burn_per_hour'), un)}/h now"
+            if w.get("projected") and w.get("resets"):
+                txt += f" · ~{amount(w.get('projected'), un)} by {time.strftime('%H:%M', time.localtime(w['resets']))} at this rate"
+            ui.put(y, x, txt, 0)
+            y += 1
+            continue
         if u is None:
             continue
         bar_w = 20
@@ -83,13 +95,15 @@ def limit_lines(ui, s, key, y, W):
         x = ui.put(y, x, "█" * n, ui.A(col))
         x = ui.put(y, x, "░" * (bar_w - n), ui.A("dim"))
         bits = [f" {u * 100:3.0f}%"]
+        if w.get("cap"):
+            bits.append(f"{amount(w.get('left'), un)} left")
         if w.get("resets"):
             left = max(0, w["resets"] - time.time())
             bits.append(f"resets in {int(left // 3600)}h {int(left % 3600 // 60)}m")
         if w.get("pace") is not None:
             bits.append(f"{'↑' if w['pace'] > 0 else '↓'}{abs(w['pace'])} {'over' if w['pace'] > 0 else 'under'} pace")
         if w.get("eta"):
-            bits.append(f"~{int(w['eta'] // 60)} min left")
+            bits.append(f"~{dur(w['eta'])} left at this pace")
         ui.put(y, x, "  ".join(bits), ui.A("warn") if w.get("eta") else 0)
         y += 1
     return y

@@ -169,7 +169,8 @@ class Watcher:
                 if soon and u < 1:
                     body = f"{u * 100:.0f}% of the {label} limit used"
                     if eta:
-                        body += f" · about {eta / 60:.0f} min left at this pace"
+                        from .limits import dur
+                        body += f" · about {dur(eta)} left at this pace"
                     if w.get("resets"):
                         body += f" · resets {time.strftime('%H:%M', time.localtime(w['resets']))}"
                     ready = []

@@ -73,7 +73,7 @@ class Collector:
         if what in ("local", "all"):
             self.slow["local"] = local.scan()
         if what in ("limits", "all"):
-            self.slow["limits"] = limits.snapshot(self.usage.records)
+            self.slow["limits"] = limits.snapshot(self.usage.records, self.slow.get("openrouter"))
             self.slow["limits_meta"] = dict(limits.META)
         if what == "watch" and self.watcher:
             self.watcher.tick(self.snapshot())

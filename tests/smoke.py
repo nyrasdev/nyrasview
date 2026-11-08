@@ -116,6 +116,25 @@ def _():
     run("usage")
 
 
+@step("limits for other agents: budget, usage left, at this rate")
+def _():
+    chats = HOME / ".gemini/tmp/proj/chats"
+    chats.mkdir(parents=True, exist_ok=True)
+    now = time.time()
+    msgs = [{"timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now - i * 60)), "model": "gemini-2.5-pro",
+             "tokens": {"input": 100, "output": 20}} for i in range(12)]
+    (chats / "c.json").write_text(json.dumps({"messages": msgs}), encoding="utf-8")
+    with open(cfg / "config.toml", "a", encoding="utf-8") as f:
+        f.write('\n[limits]\nclaude_api = false\n\n[limits.budget.gemini]\ncap = 1000\nperiod = "week"\n')
+    d = json.loads(run("limits", "--json"))
+    w = d["limits"]["gemini"]["week"]
+    assert w["used"] == 12 and w["cap"] == 1000 and w["left"] == 988 and w["unit"] == "requests", w
+    assert w["burn_per_hour"] == 12 and w["pace"] is not None, w
+    assert d["meta"]["gemini"]["plan"] == "your budget", d["meta"]
+    out = run("limits")
+    assert "988 req left" in out and "Gemini" in out, out
+
+
 @step("collab with a fake agent (process launch, file locks, utf-8)")
 def _():
     doc = WORK / "plan.md"

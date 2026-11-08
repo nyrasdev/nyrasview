@@ -134,7 +134,7 @@ def openrouter():
     except Exception as e:
         return {"configured": True, "error": str(e)[:120]}
     return {"configured": True, "label": d.get("label"), "usage": d.get("usage"),
-            "limit": d.get("limit"), "remaining": d.get("limit_remaining"),
+            "limit": d.get("limit"), "remaining": d.get("limit_remaining"), "reset": d.get("limit_reset"),
             "daily": d.get("usage_daily"), "weekly": d.get("usage_weekly"),
             "monthly": d.get("usage_monthly"), "free": d.get("is_free_tier")}
 

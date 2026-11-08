@@ -223,7 +223,24 @@ soon_pct = 90              # warn at 90% of a limit
   - time left at the current rate
 
   The token never leaves `api.anthropic.com` and nyrasview never rewrites it. If the API can't be reached, nyrasview falls back to estimating from your local token logs.
-- **Codex:** read straight from its own session logs.
+- **Codex:** read straight from its own session logs, with the same pace and time-left numbers.
+- **Gemini CLI and Qwen Code:** requests counted from their local logs against the free-tier quota (Gemini 1,000/day, resetting at midnight Pacific; Qwen 2,000/day), showing requests left, pace and time left at the current rate.
+- **OpenRouter:** credits left on your key, read live, plus time left at your current spend.
+- **Everything else with usage logs (opencode and others):** no published limit, so you see what you've used today and where you'll land by midnight at the current rate.
+
+Set your own budget for any agent, or turn a default off with `cap = 0`:
+
+```toml
+[limits.budget.gemini]
+cap = 1500              # how much the plan allows
+unit = "requests"       # requests, tokens or usd
+period = "day"          # day, week or month
+tz = "America/Los_Angeles"
+
+[limits.budget.opencode]
+cap = 5
+unit = "usd"
+```
 
 An alert fires when a window gets close, and with relay on the handoff file is ready before you hit the wall.
 

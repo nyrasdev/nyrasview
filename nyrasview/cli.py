@@ -414,19 +414,23 @@ def cmd_limits(a):
     from .usage import UsageStore
     u = UsageStore()
     u.refresh()
-    snap = limits.snapshot(u.records)
+    from . import net
+    snap = limits.snapshot(u.records, net.openrouter())
     meta = limits.META
     if a.json:
         return print(json.dumps({"limits": snap, "meta": meta}, indent=2))
     if not snap:
         return print("no limit data yet. Run any prompt from nyrasview (nyrasview ask claude \"hi\") to calibrate Claude.")
+    src = {"anthropic": "live from Anthropic", "codex": "from Codex's own logs", "openrouter": "live from OpenRouter",
+           "budget": "counted locally against the plan", "tracked": "no known limit, tracked locally"}
     for agent, wins in snap.items():
         g = BY_KEY.get(agent)
         m = meta.get(agent) or {}
         head = col(g.hex if g else None, g.name if g else agent)
         if m.get("plan"):
             head += dim(f"  {m['plan']}")
-        head += dim("  · live from Anthropic" if m.get("source") == "anthropic" else "  · estimated" if agent == "claude" else "")
+        s = src.get(m.get("source")) or ("estimated" if agent == "claude" else "")
+        head += dim(f"  · {s}" if s else "")
         print(head)
         if m.get("error"):
             print("  " + col("#f59e0b", m["error"]))
@@ -434,16 +438,23 @@ def cmd_limits(a):
             label = w.get("label") or {"five_hour": "5-hour", "seven_day": "weekly"}.get(name, name)
             ut = w.get("utilization")
             line = f"  {label:<13} "
-            if ut is None:
+            un = w.get("unit")
+            if ut is None and un:
+                line += f"{limits.amount(w.get('used'), un)} used" + dim(f" · {limits.amount(w.get('burn_per_hour'), un)}/h now")
+                if w.get("projected") and w.get("resets"):
+                    line += col("#f59e0b", f"  ~{limits.amount(w.get('projected'), un)} by {time.strftime('%a %H:%M', time.localtime(w['resets']))} at this rate")
+            elif ut is None:
                 line += dim(f"not calibrated · {hn(w.get('used_tokens'))} tokens in window · {hn(w.get('burn_per_hour'))}/h")
             else:
                 line += _bar(ut) + f" {ut * 100:4.0f}%"
+                if w.get("cap"):
+                    line += f"  {limits.amount(w.get('left'), un)} left" + dim(f" of {limits.amount(w['cap'], un)}")
                 if w.get("resets"):
                     line += dim(f"  resets {time.strftime('%a %H:%M', time.localtime(w['resets']))}")
                 if w.get("pace") is not None:
                     line += dim(f"  {'↑' if w['pace'] > 0 else '↓'}{abs(w['pace'])} {'over' if w['pace'] > 0 else 'under'} pace")
                 if w.get("eta"):
-                    line += col("#f59e0b", f"  ~{w['eta'] / 60:.0f} min left at this pace")
+                    line += col("#f59e0b", f"  ~{limits.dur(w['eta'])} left at this pace")
                 if w.get("measured_at") and w.get("measured") is not None and abs((w["measured"] or 0) - ut) > 0.005:
                     line += dim(f"  (measured {w['measured'] * 100:.0f}% {ago(w['measured_at'])} ago, estimated since)")
             print(line)
