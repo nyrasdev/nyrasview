@@ -284,6 +284,32 @@ def _():
     assert "at API prices" in run("insights")
 
 
+@step("shared notes: one source, every agent file, two-way sync")
+def _():
+    repo = ROOT / "ntrepo"
+    repo.mkdir()
+    subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
+    (repo / "CLAUDE.md").write_text("# Rules\n\n- use pnpm\n", encoding="utf-8")
+    (repo / "AGENTS.md").write_text("# Codex only\n\nrun make lint\n", encoding="utf-8")
+    run("notes", "-d", str(repo), "init", "--from", "CLAUDE.md")
+    a = (repo / "AGENTS.md").read_text(encoding="utf-8")
+    assert "- use pnpm" in a and "run make lint" in a and "nyrasview:shared-notes" in a, a
+    (repo / "AGENTS.md").write_text(a.replace("- use pnpm", "- use pnpm\n- never edit generated/"), encoding="utf-8")
+    out = run("notes", "-d", str(repo), "sync")
+    assert "never edit generated/" in (repo / "CLAUDE.md").read_text(encoding="utf-8"), out
+    assert "never edit generated/" in (repo / ".nyrasview/notes.md").read_text(encoding="utf-8")
+    run("notes", "-d", str(repo), "add", "commit messages in English")
+    assert "commit messages in English" in (repo / "AGENTS.md").read_text(encoding="utf-8")
+    assert "in sync" in run("notes", "-d", str(repo))
+    r = subprocess.run([PY, "-m", "nyrasview", "notes", "-d", str(HOME)], capture_output=True, text=True, env=ENV, cwd=str(WORK))
+    assert r.returncode != 0 and "home folder" in r.stderr, r.stderr
+    (HOME / ".claude").mkdir(exist_ok=True)
+    (HOME / ".claude/CLAUDE.md").write_text("my own global rules\n", encoding="utf-8")
+    run("notes", "-g", "add", "answer in English")
+    g = (HOME / ".claude/CLAUDE.md").read_text(encoding="utf-8")
+    assert "answer in English" in g and "my own global rules" in g, g
+
+
 @step("collab with a fake agent (process launch, file locks, utf-8)")
 def _():
     doc = WORK / "plan.md"

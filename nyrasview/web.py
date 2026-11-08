@@ -245,6 +245,14 @@ def make_handler(collector, token, port, phone=False):
                     v["siblings"] = [r["id"] for r in sorted((r for r in runs.listing(200) if r.get("group") == v["group"]),
                                                              key=lambda r: (r["agent"], r["id"]))]
                 return self._send(200 if v else 404, v or {"error": "no such run"})
+            if u.path == "/api/notes":
+                if self.headers.get("X-Nyra-Token") != token:
+                    return self._send(403, {"error": "forbidden"})
+                from . import notes
+                try:
+                    return self._send(200, notes.status(q.get("dir", [""])[0] or None, q.get("global", [""])[0] == "1"))
+                except Exception as e:
+                    return self._send(400, {"error": str(e)})
             if u.path == "/api/insights":
                 if self.headers.get("X-Nyra-Token") != token:
                     return self._send(403, {"error": "forbidden"})
@@ -532,6 +540,12 @@ def make_handler(collector, token, port, phone=False):
                 from . import proxy
                 pp = proxy.start(int(b["port"]), origin)
                 return {"url": f"http://127.0.0.1:{pp}/", "origin": f"http://127.0.0.1:{pp}"}
+            if p == "/api/notes/save":
+                from . import notes
+                return notes.save(b.get("text") or "", b.get("dir") or None, bool(b.get("global")))
+            if p == "/api/notes/init":
+                from . import notes
+                return notes.init(b.get("dir") or None, bool(b.get("global")), b.get("from") or None)
             if p == "/api/review/hunks":
                 from . import review
                 return review.hunks(b["cwd"], b["id"])

@@ -100,6 +100,7 @@ Every push is tested on Linux, Windows and macOS with Python 3.11 and 3.13.
 | `nyrasview agents` | every known agent and how collab calls it |
 | `nyrasview ask <agent> "…"` | prompt one agent, or `claude,codex` to compare, and stream the answer |
 | `nyrasview runs` | prompts started from nyrasview |
+| `nyrasview notes` | one set of notes every agent reads; `notes add "use pnpm"`, `notes edit`, `-g` for every project |
 | `nyrasview insights` | tokens and cost per agent for 30 days, tokens per prompt, Claude usage at API prices, limit history and when you hit limits |
 | `nyrasview limits` | usage limit gauges and time left at your pace |
 | `nyrasview find "…"` | search every past agent session: prompts, replies, commands, files (`-a`, `-d`, `--since 7d`) |
@@ -207,6 +208,12 @@ Click **👁 Watch** on any Claude Code or Codex session (or a row in the overvi
   - **Claude Code** gets it after its next tool call, through a hook. Turn it on once with `nyrasview hooks install`; a backup of `~/.claude/settings.json` is saved first.
   - **Other agents** get it copied to your clipboard, ready to paste.
 - From the terminal: `nyrasview say "make the header sticky" -f src/Header.tsx`
+
+## Shared notes: one set of rules for every agent
+
+Write your project rules once (**Shared notes** in the GUI, or `nyrasview notes edit`) and nyrasview keeps them in `CLAUDE.md`, `AGENTS.md` (Codex, opencode, Cursor, Copilot and others), `GEMINI.md` and `QWEN.md`, inside a marked block, so anything else in those files stays yours. The source is `.nyrasview/notes.md` in the project.
+
+It works both ways: when an agent updates the shared block in its own file, that change comes back into the notes and goes out to the other agents. If the notes and a file both changed, the notes win and the file's version is saved as a backup. `nyrasview notes init --from CLAUDE.md` starts from a file you already have; `-g` does the same for rules every project shares (`~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`, `~/.gemini/GEMINI.md`, `~/.qwen/QWEN.md`). Syncing runs on its own while nyrasview is open.
 
 ## Search: find that session again
 

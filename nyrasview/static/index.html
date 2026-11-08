@@ -300,6 +300,7 @@ textarea{width:100%;min-height:70px;resize:vertical}
 .lwp .mk.hit::after{content:"";position:absolute;inset:2px;border-radius:50%;background:var(--bad);box-shadow:0 0 0 2px var(--panel)}
 .hrs{display:grid;grid-template-columns:repeat(24,1fr);gap:2px;height:22px}.hrs i{background:var(--bad);border-radius:3px}
 .hrl{display:flex;justify-content:space-between;font-size:11px;color:var(--dim);margin-top:3px}
+.ntf{display:flex;gap:10px;align-items:center;padding:6px 0;font-size:12.5px;border-bottom:1px solid var(--line)}.ntf:last-child{border-bottom:0}.ntf .m{font-family:var(--mono);font-size:11.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cpl{display:grid;gap:2px}
 .cpl .t{display:grid;grid-template-columns:52px minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:6px 8px;border-radius:8px;font-size:12.5px}
 .cpl .t:hover{background:var(--panel2)}
@@ -629,7 +630,7 @@ function navModel(){
   return [
     {id:"agents",label:"Agents",items:[{v:"overview",label:"Overview",icon:"grid",badge:ag.filter(a=>a.running).length+" live"},
       ...ag.map(a=>({v:"agent:"+a.key,label:a.name,dot:a.hex,live:a.running,badge:a.running?a.cpu.toFixed(0)+"%":""}))]},
-    {id:"toolbox",label:"Toolbox",items:[{v:"phone",label:"Phone",icon:"phone"},{v:"mcp",label:"MCP servers",icon:"plug",badge:(S.mcp||[]).length||""},{v:"skills",label:"Skills",icon:"spark",badge:(S.skills||[]).length||""},{v:"settings",label:"Settings",icon:"gear"},{v:"keys",label:"API keys",icon:"plug",badge:KEYS.filter(k=>k.connected).length?KEYS.filter(k=>k.connected).length+" on":""}]},
+    {id:"toolbox",label:"Toolbox",items:[{v:"notes",label:"Shared notes",icon:"doc"},{v:"phone",label:"Phone",icon:"phone"},{v:"mcp",label:"MCP servers",icon:"plug",badge:(S.mcp||[]).length||""},{v:"skills",label:"Skills",icon:"spark",badge:(S.skills||[]).length||""},{v:"settings",label:"Settings",icon:"gear"},{v:"keys",label:"API keys",icon:"plug",badge:KEYS.filter(k=>k.connected).length?KEYS.filter(k=>k.connected).length+" on":""}]},
     {id:"insights",label:"Insights",items:[{v:"search",label:"Search history",icon:"search"},{v:"usage",label:"Usage",icon:"chart"},{v:"network",label:"Network",icon:"globe"},{v:"local",label:"Local AI",icon:"chip",badge:(S.local||[]).filter(x=>x.up).length?(S.local||[]).filter(x=>x.up).length+" up":""}]},
     {id:"prompt",label:"Prompts",items:[{v:"prompt",label:"New prompt",icon:"wand"},{v:"heal",label:"Self-heal",icon:"retry",badge:HEAL.filter(j=>!["passed","failed","stopped"].includes(j.status)).length?"…":""},...(()=>{const out=[],sg={};RUNS.forEach(r=>{if(r.group){if(sg[r.group])return;sg[r.group]=1}out.push(r)});return out.slice(0,5)})().map(r=>({v:"run:"+r.id,label:r.label||r.prompt,dot:colorOf(r.agent),live:r.status==="running",badge:r.status==="running"?"…":r.status==="failed"?"✗":""}))]},
     {id:"collab",label:"Collab",items:[...(S.collab||[]).map(d=>{const run=d.tasks.filter(t=>t.status==="running").length;return {v:"doc:"+d.doc,label:d.name.replace(/\.md$/,""),icon:"doc",badge:run?"✎ "+run:d.tasks.length?d.tasks.filter(t=>t.status==="done").length+"/"+d.tasks.length:""}}),{v:"new",label:"New document",icon:"plus"}]},
@@ -888,6 +889,24 @@ window.addEventListener("message",async e=>{
     const it=await post("/api/feedback",{agent:ag,cwd,text:m.text,target:{...m.target,file:f&&f.rel}});fbToast(it)}});
 function fbToast(it){toast(it.status==="copied"?"Copied to clipboard: paste it into the agent":"Sent: the agent gets it after its next step");loadWatch()}
 
+let NT={scope:localGet("ntscope")||"",data:null,err:null,dirty:false};
+const ntDir=()=>NT.scope||(knownDirs().filter(d=>d.replace(HOMERE,"")!=="")[0]||"global");
+async function loadNotes(){const g=ntDir()==="global";const r=await getJSON(`/api/notes?${g?"global=1":"dir="+encodeURIComponent(ntDir())}`,null,{headers:{"X-Nyra-Token":TOKEN}});
+  NT.data=r;NT.dirty=false;FORCE=true;render();const t=$("#ntx");if(t){t.value=(r&&r.text)||"";t.oninput=()=>{NT.dirty=true;const b=$("#ntsave");if(b)b.disabled=false}}}
+function vNotes(){
+  const dirs=knownDirs().filter(d=>d.replace(HOMERE,"")!=="");const cur=NT.scope||ntDir();const d=NT.data;
+  let h=`<div class="ph"><h1>Shared notes</h1><span class="sub">one set of rules every agent reads: written into CLAUDE.md, AGENTS.md, GEMINI.md and QWEN.md</span></div>
+  <div class="panel" data-static data-key="nt-${esc(cur)}"><div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:10px"><select id="ntscope" style="flex:1;min-width:240px"><option value="global" ${cur==="global"?"selected":""}>Every project (global)</option>${[...new Set([...dirs,...(cur&&cur!=="global"?[cur]:[])])].map(x=>`<option value="${esc(x)}" ${x===cur?"selected":""}>${esc(x.replace(HOMERE,"~"))}</option>`).join("")}</select><input id="ntpath" placeholder="or another folder: ~/code/app" style="flex:1;min-width:200px"><button class="btn sm" data-act="ntgo">Open</button></div>
+  <textarea id="ntx" style="min-height:300px;font-family:var(--mono);font-size:12.5px" placeholder="# Shared notes\n\n- use pnpm, not npm\n- tests live in tests/\n- never edit files in generated/"></textarea>
+  <div class="row" style="margin-top:8px;gap:8px"><button class="btn pri" id="ntsave" data-act="ntsave">Save and sync to every agent</button><span class="muted" style="font-size:12px">Edits an agent makes inside the shared block of its own file come back here too.</span></div></div>`;
+  if(!d) return h+`<div class="empty">loading…</div>`;
+  if(d.error) return h+`<div class="panel" style="color:var(--bad)">${esc(d.error)}</div>`;
+  const own=d.files.filter(f=>f.state==="no block");
+  h+=`<div class="panel"><div class="hd2"><h2>Agent files</h2><span class="muted" style="font-size:12px">${esc(d.source.replace(HOMERE,"~"))}${d.synced_at?" · synced "+ago(d.synced_at)+" ago":""}</span></div>`+
+    (d.files.length?d.files.map(f=>`<div class="ntf" data-key="ntf-${esc(f.path)}"><span class="chip" style="color:${f.state==="in sync"?"var(--good)":f.state==="changed here"?"var(--warn)":"var(--dim)"}">${esc(f.state)}</span><b>${esc(aname(f.agent))}</b><span class="muted m">${esc(f.path.replace(HOMERE,"~"))}</span></div>`).join("")
+    :`<div class="muted" style="font-size:12.5px">No agent files here yet. Saving creates them for the agents you have installed.</div>`)+
+    (!d.exists&&own.length?`<div class="row" style="margin-top:10px;gap:6px;flex-wrap:wrap"><span class="muted" style="font-size:12px">Start from an existing file:</span>${own.map(f=>`<button class="btn sm" data-act="ntinit" data-from="${esc(f.path)}">Use ${esc(f.path.split("/").pop())}</button>`).join("")}</div>`:"")+`</div>`;
+  return h}
 let SR={q:"",agent:"",since:"",res:null,stats:null,busy:false,err:null,t:null,n:0};
 async function doSearch(){
   const q=SR.q.trim();if(!q){SR.res=null;SR.err=null;return render()}
@@ -1238,6 +1257,7 @@ function render(){
   else if(view==="heal") html=vHeal();
   else if(view==="phone") html=vPhone();
   else if(view==="search") html=vSearch();
+  else if(view==="notes") html=vNotes();
   else if(view.startsWith("watch:")) html=vWatch();
   else if(view==="prompt") html=vPrompt();
   else if(view.startsWith("run:")) html=vRun(view.slice(4));
@@ -1263,6 +1283,7 @@ function bindView(){
   if(view==="settings")loadSettings();
   if(view==="phone")loadPhone();
   if(view==="usage")loadInsights();
+  if(view==="notes"){const sc=$("#ntscope");if(sc)sc.onchange=()=>{NT.scope=sc.value;localSet("ntscope",NT.scope);loadNotes()};loadNotes()}
   if(view==="search"){const q=$("#srq");if(q){q.value=SR.q;q.focus();q.oninput=()=>{SR.q=q.value;clearTimeout(SR.t);SR.t=setTimeout(doSearch,280)};q.onkeydown=e=>{if(e.key==="Enter"){clearTimeout(SR.t);doSearch()}}}
     const ag=$("#sra");if(ag){ag.value=SR.agent;ag.onchange=()=>{SR.agent=ag.value;doSearch()}}const sn=$("#srs");if(sn){sn.value=SR.since;sn.onchange=()=>{SR.since=sn.value;doSearch()}}}
   if(view==="heal")loadHeal().then(()=>{FORCE=true;render()});
@@ -1384,6 +1405,10 @@ document.addEventListener("click",async e=>{
     if(act==="gshide"){localSet("gsdone","1");return render()}
     if(act==="gshooks"){if(!confirm("Add nyrasview's hook to ~/.claude/settings.json? A backup is saved. Restart running Claude sessions once afterwards."))return;await post("/api/hooks",{on:true});if(SET0)SET0._hooks=true;toast("Claude Code connected · restart running sessions once");return render()}
     if(act==="hopen"){return openHandoff(el.dataset.agent,el.dataset.cwd)}
+    if(act==="ntgo"){const v=$("#ntpath").value.trim();if(v){NT.scope=v;localSet("ntscope",NT.scope)}return loadNotes()}
+    if(act==="ntsave"||act==="ntinit"){const g=ntDir()==="global";const dir=g?null:ntDir();
+      const r=act==="ntinit"?await post("/api/notes/init",{dir,global:g,from:el.dataset.from}):await post("/api/notes/save",{dir,global:g,text:$("#ntx").value});
+      toast(r.conflicts&&r.conflicts.length?`Saved; ${r.conflicts.length} file(s) had their own edits (backed up)`:`Saved and synced to ${r.changed.length} file(s)`);return loadNotes()}
     if(act==="srcopy"){const r=SR.res&&SR.res[+el.dataset.i];if(r&&r.resume){try{await navigator.clipboard.writeText(r.resume);toast("Copied: paste it in a terminal")}catch(x){prompt("Copy this:",r.resume)}}return}
     if(act==="rvopen"){const id=el.dataset.id;W.rv=W.rv||{};if(W.rv[id]){delete W.rv[id];return render()}const {cwd}=watchParts();W.rv[id]=await post("/api/review/hunks",{cwd,id});return render()}
     if(act==="rvset"||act==="rvrest"){const id=el.dataset.id;const {cwd}=watchParts();

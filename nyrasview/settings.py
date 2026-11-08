@@ -30,6 +30,10 @@ SCHEMA = [
         ("enabled", "bool", True, "Snapshot git repos before and after every agent turn so you can undo a turn"),
         ("keep", "int", 300, "How many turns to keep per repo"),
     ]},
+    {"id": "notes", "title": "Shared notes", "fields": [
+        ("auto", "bool", True, "Keep CLAUDE.md, AGENTS.md, GEMINI.md and QWEN.md in sync with the shared notes while nyrasview runs"),
+        ("agents", "list", ["claude", "codex", "gemini", "qwen"], "Agents whose notes file nyrasview creates when it's missing"),
+    ]},
     {"id": "fallback", "title": "API keys and fallback", "fields": [
         ("anthropic_api_key", "secret", "", "Anthropic key: Claude Code continues on API billing"),
         ("openai_api_key", "secret", "", "OpenAI key: Codex continues on API billing"),

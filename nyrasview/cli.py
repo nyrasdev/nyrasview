@@ -1077,6 +1077,17 @@ def build_parser():
     x = sp.add_parser("insights", help="tokens and cost per agent over time, limit history and when you hit limits")
     x.add_argument("--days", type=int, default=30)
     x.add_argument("--json", action="store_true")
+    nt = sp.add_parser("notes", help="one set of notes every agent reads (CLAUDE.md, AGENTS.md, GEMINI.md…)")
+    nt.add_argument("-d", "--dir", default=".")
+    nt.add_argument("-g", "--global", dest="glob", action="store_true", help="notes for every project")
+    ns = nt.add_subparsers(dest="notes_cmd")
+    ns.add_parser("show", help="the notes and which agent files are in sync")
+    ns.add_parser("edit", help="edit in $EDITOR, then sync")
+    x = ns.add_parser("add", help="add one line")
+    x.add_argument("text", nargs="+")
+    ns.add_parser("sync", help="sync now (also happens on its own while nyrasview runs)")
+    x = ns.add_parser("init", help="start the shared notes, optionally from an existing file")
+    x.add_argument("--from", dest="from_file", help="e.g. CLAUDE.md: its content becomes the shared notes")
     x = sp.add_parser("completion", help="shell tab completion: nyrasview completion fish | source")
     x.add_argument("shell", choices=["fish", "bash", "zsh"])
     return ap
@@ -1093,7 +1104,7 @@ def main():
     from . import cli_more
     a = build_parser().parse_args()
     fn = {"phone": cli_more.cmd_phone, "watch": cli_more.cmd_watch, "settings": cli_more.cmd_settings,
-          "sandbox": cli_more.cmd_sandbox, "find": cli_more.cmd_find, "review": cli_more.cmd_review, "insights": cli_more.cmd_insights, "completion": cli_more.cmd_completion,"tui": cmd_tui, "gui": cmd_gui, "status": cmd_status, "ps": cmd_ps, "mcp": cmd_mcp,
+          "sandbox": cli_more.cmd_sandbox, "find": cli_more.cmd_find, "review": cli_more.cmd_review, "insights": cli_more.cmd_insights, "notes": cli_more.cmd_notes, "completion": cli_more.cmd_completion,"tui": cmd_tui, "gui": cmd_gui, "status": cmd_status, "ps": cmd_ps, "mcp": cmd_mcp,
           "skills": cmd_skills, "usage": cmd_usage, "agents": cmd_agents, "collab": cmd_collab, "obsidian": cmd_obsidian, "now": cmd_now, "doctor": cmd_doctor, "heal": cmd_heal, "skill": cmd_skill, "keys": cmd_keys, "plan": cmd_plan, "limits": cmd_limits, "checkpoints": cmd_checkpoints, "undo": cmd_undo, "restore": cmd_restore, "inbox": cmd_events, "notify-test": cmd_notify_test,
           "daemon": cmd_daemon, "service": cmd_service, "ask": cmd_ask, "runs": cmd_runs, "hook": cmd_hook, "hooks": cmd_hooks, "say": cmd_say, "handoff": cmd_handoff, "relay": cmd_relay, "local": cmd_local,
           None: cmd_tui}[a.cmd]

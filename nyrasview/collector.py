@@ -68,6 +68,11 @@ class Collector:
         if what in ("cfg", "all"):
             self.slow["mcp"] = mcp.configured(self.cwds)
             self.slow["skills"] = skills.scan(self.cwds)
+            try:
+                from . import notes
+                notes.auto(self.cwds)
+            except Exception:
+                pass
         if what in ("openrouter", "all"):
             self.slow["openrouter"] = net.openrouter()
         if what in ("local", "all"):

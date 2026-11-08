@@ -503,3 +503,56 @@ def cmd_insights(a):
         print(dim("  usually around " + ", ".join(f"{h:02d}:00" for h, _ in busy)))
     else:
         print(dim("\nno limit hits recorded in the last 7 days (readings are saved while nyrasview runs)"))
+
+
+def _notes_report(r):
+    col, dim = _c()
+    if r.get("skipped"):
+        return print(r["skipped"])
+    if r.get("pulled"):
+        print(f"took the {r['pulled']['agent']} edit from {r['pulled']['path']} into the shared notes")
+    for c in r["changed"]:
+        print(f"updated {c['path']}")
+    for c in r["conflicts"]:
+        print(col("#f59e0b", f"{c['path']} had its own edit; the shared notes won, its version is saved in {c['backup']}"))
+    if not r["changed"] and not r.get("pulled"):
+        print(dim("everything is in sync"))
+
+
+def cmd_notes(a):
+    from . import notes
+    col, dim = _c()
+    sub = a.notes_cmd or "show"
+    kw = {"cwd": a.dir, "glob": a.glob}
+    if sub == "init":
+        return _notes_report(notes.init(from_file=a.from_file, **kw))
+    if sub == "add":
+        return _notes_report(notes.add(" ".join(a.text), **kw))
+    if sub == "sync":
+        return _notes_report(notes.sync(**kw))
+    if sub == "edit":
+        st = notes.status(**kw)
+        editor = os.environ.get("VISUAL") or os.environ.get("EDITOR") or ("notepad" if os.name == "nt" else "nano")
+        fd, tmp = tempfile.mkstemp(suffix=".md", prefix="nyrasview-notes-")
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(st["text"] or notes.TEMPLATE)
+        try:
+            subprocess.call([*editor.split(), tmp])
+            text = open(tmp, encoding="utf-8").read()
+        finally:
+            os.unlink(tmp)
+        if st["exists"] and text.strip() == st["text"].strip():
+            return print("no changes")
+        return _notes_report(notes.save(text, **kw))
+    st = notes.status(**kw)
+    print(col("#e879f9", "shared notes") + dim(f"  for {st['label']}  ·  {st['source']}"))
+    if not st["exists"]:
+        return print("none yet. Start with: nyrasview notes edit   (or: nyrasview notes init --from CLAUDE.md)")
+    print()
+    print(st["text"].rstrip())
+    print()
+    for f in st["files"]:
+        c = {"in sync": "#22c55e", "changed here": "#f59e0b"}.get(f["state"], "#ef4444")
+        g = BY_KEY.get(f["agent"])
+        print(f"  {col(c, '●')} {f['path']}  " + dim(f"{g.name if g else f['agent']} · {f['state']}"))
+    print(dim("\nnyrasview notes add \"…\" · notes edit · notes sync · -g for notes every project shares"))
