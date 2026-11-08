@@ -60,10 +60,10 @@ nyrasview gui
 
 ### Linux
 
-On Arch, CachyOS, Manjaro and friends, it's in the AUR (with tab completion for fish and bash):
+On Arch, CachyOS, Manjaro and friends, build the package from the PKGBUILD in this repo (it brings tab completion for fish and bash). It's coming to the AUR soon as `nyrasview`.
 
 ```sh
-yay -S nyrasview
+git clone https://github.com/nyrasdev/nyrasview && cd nyrasview/packaging/aur && makepkg -si
 ```
 
 Everywhere else:
