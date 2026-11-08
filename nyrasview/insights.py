@@ -14,6 +14,15 @@ PRICES = {
     "claude-sonnet-5-5": (2.0, 10.0, 0.20), "claude-sonnet-5": (2.0, 10.0, None), "claude-sonnet-4-6": (3.0, 15.0, None),
     "claude-haiku-5-5": (0.10, 0.50, None), "claude-haiku-4-5": (1.0, 5.0, None),
 }
+OPENAI = {
+    "gpt-5": (1.25, 0.125, 10.0), "gpt-5.1": (1.25, 0.125, 10.0), "gpt-5.2": (1.75, 0.175, 14.0),
+    "gpt-5-mini": (0.25, 0.025, 2.0), "gpt-5-nano": (0.05, 0.005, 0.40), "gpt-5.3-codex": (1.75, 0.175, 14.0),
+    "gpt-5.4": (2.50, 0.25, 15.0), "gpt-5.4-mini": (0.75, 0.075, 4.50), "gpt-5.4-nano": (0.20, 0.02, 1.25),
+    "gpt-5.5": (5.0, 0.50, 30.0), "gpt-5.6-sol": (4.0, 0.40, 20.0), "gpt-5.6-terra": (2.0, 0.20, 12.0),
+    "gpt-5.6-luna": (0.20, 0.02, 1.20), "o3": (2.0, 0.50, 8.0), "gpt-4.1": (2.0, 0.50, 8.0),
+    "gpt-5-pro": (15.0, 15.0, 120.0), "gpt-5.2-pro": (21.0, 21.0, 168.0), "gpt-5.4-pro": (30.0, 30.0, 180.0),
+    "gpt-5.5-pro": (30.0, 30.0, 180.0),
+}
 _last = {}
 
 
@@ -21,6 +30,9 @@ def price(model):
     m = re.sub(r"\[.*?\]$", "", (model or "").lower().strip())
     m = re.sub(r"-\d{8}$", "", m)
     m = m.split("/")[-1].replace("anthropic.", "")
+    o = OPENAI.get(m)
+    if o:
+        return {"in": o[0], "out": o[2], "cache_read": o[1], "cache_write": o[0]}
     p = PRICES.get(m)
     if not p:
         return None

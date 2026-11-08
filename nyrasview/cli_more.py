@@ -488,7 +488,7 @@ def cmd_insights(a):
               f"{money(x['cost']):>10}{money(x['api_cost']):>15}{money(x['cost_per_prompt']):>12}")
         spark = "".join(" ▁▂▃▄▅▆▇█"[min(8, int(v / max(max(x['daily']), 1) * 8 + 0.999))] if v else "·" for v in x["daily"])
         print("  " + " " * 14 + dim(spark))
-    print(dim("\n  'at API prices' is what Claude usage would cost on the API (Anthropic list prices); your plan covers it."))
+    print(dim("\n  'at API prices' is what Claude and Codex usage would cost on the API (Anthropic and OpenAI list prices); your plan covers it."))
     if r["limits"]:
         print("\n" + col("#e879f9", "limit windows, last 7 days"))
         for l in r["limits"]:

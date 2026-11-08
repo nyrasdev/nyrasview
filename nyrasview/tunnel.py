@@ -16,7 +16,6 @@ from .util import STATE
 BIN = STATE / "bin"
 ST = {"proc": None, "url": None, "pending": None, "registered": False, "error": None, "starting": False, "downloading": False}
 URL_RE = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.com")
-REL = "https://github.com/cloudflare/cloudflared/releases/latest/download/"
 
 
 def binary():
@@ -49,26 +48,60 @@ def install_hint():
     return "let nyrasview download it"
 
 
+def _release(name):
+    import json as _json
+    api = "https://api.github.com/repos/cloudflare/cloudflared/releases/latest"
+    req = urllib.request.Request(api, headers={"User-Agent": "nyrasview", "Accept": "application/vnd.github+json"})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        rel = _json.loads(r.read())
+    asset = next((a for a in rel.get("assets") or [] if a.get("name") == name), None)
+    if not asset:
+        raise RuntimeError(f"cloudflared {rel.get('tag_name')} has no {name} download")
+    want = None
+    if str(asset.get("digest") or "").startswith("sha256:"):
+        want = asset["digest"].split(":", 1)[1].lower()
+    m = re.search(rf"^{re.escape(name)}:\s*([0-9a-f]{{64}})\s*$", rel.get("body") or "", re.M)
+    if m:
+        if want and m.group(1).lower() != want:
+            raise RuntimeError("GitHub's checksum and the release notes disagree, so nyrasview won't install it")
+        want = m.group(1).lower()
+    if not want:
+        raise RuntimeError("cloudflared's release has no checksum for this file, so nyrasview won't install it")
+    return asset["browser_download_url"], want, rel.get("tag_name")
+
+
 def download():
+    import hashlib
     name, tgz = _asset()
     ST["downloading"], ST["error"] = True, None
     try:
-        req = urllib.request.Request(REL + name, headers={"User-Agent": "nyrasview"})
+        try:
+            url, want, tag = _release(name)
+        except RuntimeError:
+            raise
+        except Exception as e:
+            raise RuntimeError(f"couldn't get cloudflared's checksum from GitHub ({str(e)[:80]}), so nothing was installed. "
+                               f"Install it yourself: {install_hint()}")
+        req = urllib.request.Request(url, headers={"User-Agent": "nyrasview"})
         with urllib.request.urlopen(req, timeout=180) as r:
             data = r.read()
+        got = hashlib.sha256(data).hexdigest()
+        if got != want:
+            raise RuntimeError(f"cloudflared {tag} download didn't match its published checksum, so nothing was installed")
         BIN.mkdir(parents=True, exist_ok=True)
         target = BIN / ("cloudflared.exe" if plat.WIN else "cloudflared")
         if tgz:
             with tarfile.open(fileobj=io.BytesIO(data)) as t:
                 member = next(m for m in t.getmembers() if m.name.endswith("cloudflared"))
-                target.write_bytes(t.extractfile(member).read())
-        else:
-            target.write_bytes(data)
+                data = t.extractfile(member).read()
+        tmp = target.with_name(target.name + ".part")
+        tmp.write_bytes(data)
         if not plat.WIN:
-            target.chmod(0o755)
+            tmp.chmod(0o755)
+        plat.replace(tmp, target)
         return str(target)
     except Exception as e:
-        ST["error"] = f"download failed: {str(e)[:160]}"
+        ST["error"] = f"download failed: {str(e)[:200]}"
         raise
     finally:
         ST["downloading"] = False

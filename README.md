@@ -297,7 +297,7 @@ An alert fires when a window gets close, and with relay on the handoff file is r
 
 ### Over time
 
-`nyrasview insights` and the top of the **Usage** page show the last 30 days: tokens per day for each agent, prompts and tokens per prompt, real cost where a tool logs it, and what your Claude usage would cost at Anthropic's API list prices (so you can see what the plan is worth). Below that, a line per limit window shows how full it got over the last 7 days, with a strip of the hours you usually hit a limit. Limit readings are saved about every 10 minutes while nyrasview runs.
+`nyrasview insights` and the top of the **Usage** page show the last 30 days: tokens per day for each agent, prompts and tokens per prompt, real cost where a tool logs it, and what your Claude and Codex usage would cost at Anthropic and OpenAI API list prices (so you can see what the plan is worth). Below that, a line per limit window shows how full it got over the last 7 days, with a strip of the hours you usually hit a limit. Limit readings are saved about every 10 minutes while nyrasview runs.
 
 ## Keep working when the plan runs out
 
