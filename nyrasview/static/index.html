@@ -280,6 +280,15 @@ textarea{width:100%;min-height:70px;resize:vertical}
 .sr .hit span:last-child{min-width:0;overflow-wrap:anywhere}
 .sr mark{background:color-mix(in srgb,var(--warn) 30%,transparent);color:inherit;border-radius:3px;padding:0 1px}
 .sr .tr{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.rv{margin:2px 0 10px 60px;display:grid;gap:8px}
+.rv .rvh{display:flex;gap:10px;align-items:center}
+.rv .hk{border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.rv .hk.accepted{opacity:.6}.rv .hk.rejected{opacity:.5}
+.rv .hkh{display:flex;gap:8px;align-items:center;font-size:12.5px;flex-wrap:wrap}
+.rv .hkh b{font-family:var(--mono);font-weight:600}
+.rv .hkh a{font-size:12px;color:var(--dim);cursor:pointer}
+.rv .cpd{margin:6px 0 0}
+@media (max-width:860px){.rv{margin-left:0}}
 .cpl{display:grid;gap:2px}
 .cpl .t{display:grid;grid-template-columns:52px minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:6px 8px;border-radius:8px;font-size:12.5px}
 .cpl .t:hover{background:var(--panel2)}
@@ -910,11 +919,15 @@ function vWatch(){
   h+=`</div>`;
   h+=`<div class="ov" style="margin-top:14px"><div class="panel c7"><div class="hd2"><h2>Recent edits</h2><span class="muted" style="font-size:12px">${d.edits.length}</span>${W.pick!=null?`<a data-act="wlatest">follow latest →</a>`:""}</div><div class="tl">`+
     [...d.edits].reverse().map(e=>`<div class="e ${f&&f.i===e.i?"on":""}" data-act="wpick" data-i="${e.i}" data-key="e${e.i}"><span class="muted m" style="font-size:11.5px">${ago(e.at)}</span><span class="f">${esc(e.rel)}</span><span class="d"><span class="p">+${e.added}</span> <span class="m">−${e.removed}</span></span></div>`).join("")+`</div></div>`;
-  const cp=d.checkpoints||{turns:[]};W.cpd=W.cpd||{};
+  const cp=d.checkpoints||{turns:[]};W.cpd=W.cpd||{};W.rv=W.rv||{};
+  const rvBlock=id=>{const r=W.rv[id];if(!r)return "";const left=r.hunks.filter(x=>!x.status).length;
+    return `<div class="rv" data-key="rv-${id}"><div class="rvh"><span class="muted" style="font-size:12px">${left?`${left} of ${r.hunks.length} part(s) to review · reject takes that part back in your files, and you can undo it`:"every part reviewed"}</span>${left?`<button class="btn sm" data-act="rvrest" data-id="${id}">Accept the rest</button>`:""}</div>`+
+      r.hunks.map(x=>`<div class="hk ${x.status||""}" data-key="hk-${x.id}"><div class="hkh"><b>${esc(x.file)}</b><span class="muted">part ${x.n}/${x.of}${x.kind!=="changed"?" · "+x.kind+" file":""}${x.binary?" · binary":""} · <span class="p">+${x.added}</span> <span class="m">−${x.removed}</span></span><span class="grow"></span>${x.status?`<span class="chip">${x.status==="accepted"?"✓ accepted":"↶ taken back"}</span>${x.status==="accepted"?`<a data-act="rvset" data-id="${id}" data-h="${x.id}" data-a="reset">change</a>`:""}`:`<button class="btn sm" data-act="rvset" data-id="${id}" data-h="${x.id}" data-a="accept">✓ Accept</button><button class="btn sm" data-act="rvset" data-id="${id}" data-h="${x.id}" data-a="reject">↶ Reject</button>`}</div>`+
+        (x.status==="rejected"?"":`<div class="cpd">${x.lines.map(l=>`<span class="${l.startsWith("+")?"a":l.startsWith("-")?"r":l.startsWith("@@")?"h":""}">${esc(l)}</span>`).join("\n")||'<span class="h">(no text: '+esc(x.kind)+' file)</span>'}</div>`)+`</div>`).join("")+`</div>`};
   h+=`<div class="panel c12"><div class="hd2"><h2>Turns</h2><span class="muted" style="font-size:12px">${cp.root?"checkpoints before and after every agent turn · undo one turn and keep the rest":"not a git repository, so no checkpoints here"}</span></div>`+
     (cp.turns.length?`<div class="cpl">`+cp.turns.map(t=>{const ag=agent(t.agent);const files=t.files.slice(0,4).join(", ")+(t.files.length>4?` +${t.files.length-4}`:"");
-      return `<div class="t ${t.undone?"undone":""}" data-key="cp-${t.id}"><span class="muted m" style="font-size:11.5px">${ago(t.at)}</span><div class="q"><span class="sd" style="background:${ag.hex||"var(--other)"};display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px"></span>${esc(t.prompt||"(no prompt)")}${t.undone?` <span class="chip">undone</span>`:""}<small>${esc(ag.name||t.agent||"you")} · ${esc(files||"no file changes")}</small></div><span class="d"><span class="p">+${t.added}</span> <span class="m">−${t.removed}</span></span><span class="bt"><button class="btn sm" data-act="cpdiff" data-id="${t.id}">${W.cpd[t.id]?"Hide":"Diff"}</button><button class="btn sm" data-act="cpundo" data-id="${t.id}" ${t.undone||!t.files.length?"disabled":""}>↶ Undo</button></span></div>`+
-        (W.cpd[t.id]?`<div class="cpd" data-key="cpd-${t.id}">${W.cpd[t.id].split("\n").map(l=>`<span class="${l.startsWith("+")&&!l.startsWith("+++")?"a":l.startsWith("-")&&!l.startsWith("---")?"r":l.startsWith("@@")||l.startsWith("diff ")?"h":""}">${esc(l)}</span>`).join("\n")}</div>`:"")}).join("")+`</div>`
+      return `<div class="t ${t.undone?"undone":""}" data-key="cp-${t.id}"><span class="muted m" style="font-size:11.5px">${ago(t.at)}</span><div class="q"><span class="sd" style="background:${ag.hex||"var(--other)"};display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px"></span>${esc(t.prompt||"(no prompt)")}${t.undone?` <span class="chip">undone</span>`:""}<small>${esc(ag.name||t.agent||"you")} · ${esc(files||"no file changes")}</small></div><span class="d"><span class="p">+${t.added}</span> <span class="m">−${t.removed}</span></span><span class="bt">${t.agent!=="you"&&!t.undone&&t.files.length?`<button class="btn sm ${t.pending?"pri":""}" data-act="rvopen" data-id="${t.id}">${W.rv[t.id]?"Close review":t.pending?"Review · "+t.pending:"Reviewed ✓"}</button>`:""}<button class="btn sm" data-act="cpdiff" data-id="${t.id}">${W.cpd[t.id]?"Hide":"Diff"}</button><button class="btn sm" data-act="cpundo" data-id="${t.id}" ${t.undone||!t.files.length?"disabled":""}>↶ Undo</button></span></div>`+
+        rvBlock(t.id)+(W.cpd[t.id]?`<div class="cpd" data-key="cpd-${t.id}">${W.cpd[t.id].split("\n").map(l=>`<span class="${l.startsWith("+")&&!l.startsWith("+++")?"a":l.startsWith("-")&&!l.startsWith("---")?"r":l.startsWith("@@")||l.startsWith("diff ")?"h":""}">${esc(l)}</span>`).join("\n")}</div>`:"")}).join("")+`</div>`
     :`<div class="muted" style="font-size:12.5px">${cp.root?"No turns recorded yet. The next time an agent works here, its changes show up as a turn you can undo.":""}</div>`)+`</div>`;
   const fb=(d.feedback||[]).slice().reverse();
   h+=`<div class="panel c5"><div class="hd2"><h2>Your notes</h2></div><div style="display:grid;gap:8px;margin-bottom:12px" data-static data-key="say"><textarea id="say" placeholder="Tell ${esc(a.name||k)} something about the work…"></textarea><div class="row"><button class="btn pri sm" data-act="say">Send note</button><span class="muted" style="font-size:11.5px">or click a line number in the code to comment on a line</span></div></div><div class="fb">`+
@@ -1328,6 +1341,11 @@ document.addEventListener("click",async e=>{
     if(act==="gshooks"){if(!confirm("Add nyrasview's hook to ~/.claude/settings.json? A backup is saved. Restart running Claude sessions once afterwards."))return;await post("/api/hooks",{on:true});if(SET0)SET0._hooks=true;toast("Claude Code connected · restart running sessions once");return render()}
     if(act==="hopen"){return openHandoff(el.dataset.agent,el.dataset.cwd)}
     if(act==="srcopy"){const r=SR.res&&SR.res[+el.dataset.i];if(r&&r.resume){try{await navigator.clipboard.writeText(r.resume);toast("Copied: paste it in a terminal")}catch(x){prompt("Copy this:",r.resume)}}return}
+    if(act==="rvopen"){const id=el.dataset.id;W.rv=W.rv||{};if(W.rv[id]){delete W.rv[id];return render()}const {cwd}=watchParts();W.rv[id]=await post("/api/review/hunks",{cwd,id});return render()}
+    if(act==="rvset"||act==="rvrest"){const id=el.dataset.id;const {cwd}=watchParts();
+      const r=act==="rvrest"?await post("/api/review/accept_rest",{cwd,id}):await post("/api/review/decide",{cwd,id,hunk:el.dataset.h,action:el.dataset.a});
+      if(r.ok===false)toast(r.message);else if(r.message)toast(r.message);
+      W.rv[id]=await post("/api/review/hunks",{cwd,id});render();return loadWatch()}
     if(act==="cpdiff"){const id=el.dataset.id;W.cpd=W.cpd||{};if(W.cpd[id]){delete W.cpd[id];return render()}
       const {cwd}=watchParts();const r=await post("/api/checkpoints/diff",{cwd,id});W.cpd[id]=r.diff||"(no changes)";return render()}
     if(act==="cpundo"){const id=el.dataset.id;const {cwd}=watchParts();const t=((W.data&&W.data.checkpoints||{}).turns||[]).find(x=>x.id===id)||{};

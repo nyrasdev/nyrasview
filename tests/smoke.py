@@ -197,6 +197,34 @@ def _():
     assert r.returncode == 1 and "Set an image first" in r.stdout, r.stdout + r.stderr
 
 
+@step("review queue: accept one part, take back another")
+def _():
+    repo = ROOT / "rvrepo"
+    repo.mkdir()
+    g = lambda *a: subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t", *a],
+                                  capture_output=True, check=True)
+    big = repo / "big.txt"
+    big.write_text("".join(f"line {i}\n" for i in range(1, 41)), encoding="utf-8")
+    g("init", "-q")
+    g("add", "-A")
+    g("commit", "-qm", "init")
+    hook = lambda ev, **kw: run("hook", input=json.dumps({"hook_event_name": ev, "session_id": "rv1", "cwd": str(repo), **kw}))
+    hook("UserPromptSubmit", prompt="shout two lines and add notes")
+    big.write_text(big.read_text(encoding="utf-8").replace("line 3\n", "LINE THREE\n").replace("line 35\n", "LINE 35\n"), encoding="utf-8")
+    (repo / "notes.txt").write_text("notes\n", encoding="utf-8")
+    hook("PostToolUse", tool_name="Edit", tool_input={"file_path": str(big)})
+    hook("PostToolUse", tool_name="Write", tool_input={"file_path": str(repo / "notes.txt")})
+    hook("Stop")
+    assert "3 part(s) to review" in run("review", "-l", "-d", str(repo))
+    out = run("review", "-d", str(repo), input="a\nr\nr\n")
+    text = big.read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert "LINE THREE\n" in text and "line 35\n" in text and "LINE 35" not in text, out + text
+    assert not (repo / "notes.txt").exists(), out
+    assert "nothing to review" in run("review", "-l", "-d", str(repo))
+    turns = json.loads(run("checkpoints", "-d", str(repo), "--json"))["turns"]
+    assert sum(1 for t in turns if t["agent"] == "you" and t["prompt"].startswith("reject")) == 2, turns
+
+
 @step("search history: claude + codex logs, incremental, filters")
 def _():
     proj = HOME / ".claude/projects/-work-shop"

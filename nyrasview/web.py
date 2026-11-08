@@ -224,6 +224,10 @@ def make_handler(collector, token, port, phone=False):
                 try:
                     from . import checkpoints
                     v["checkpoints"] = checkpoints.listing(cwd, 15)
+                    if v["checkpoints"]["root"]:
+                        from . import review
+                        for t in v["checkpoints"]["turns"]:
+                            t["pending"] = review.pending(v["checkpoints"]["root"], t["sha"]) if t["agent"] != "you" and not t["undone"] else 0
                 except Exception:
                     v["checkpoints"] = {"root": None, "turns": []}
                 v["hooks"] = feedback.installed()
@@ -517,6 +521,15 @@ def make_handler(collector, token, port, phone=False):
                 from . import proxy
                 pp = proxy.start(int(b["port"]), origin)
                 return {"url": f"http://127.0.0.1:{pp}/", "origin": f"http://127.0.0.1:{pp}"}
+            if p == "/api/review/hunks":
+                from . import review
+                return review.hunks(b["cwd"], b["id"])
+            if p == "/api/review/decide":
+                from . import review
+                return review.decide(b["cwd"], b["id"], b["hunk"], b["action"])
+            if p == "/api/review/accept_rest":
+                from . import review
+                return review.accept_rest(b["cwd"], b["id"])
             if p == "/api/checkpoints/diff":
                 from . import checkpoints
                 return {"diff": checkpoints.diff(b["cwd"], b["id"], 150000)}

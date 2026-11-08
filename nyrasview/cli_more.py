@@ -375,3 +375,93 @@ def cmd_find(a):
         if r.get("resume"):
             print("   " + dim("resume: " + r["resume"].replace(home, "~")))
         print()
+
+
+def _show_hunk(h):
+    col, dim = _c()
+    print(col("#e879f9", f"{h['file']}") + dim(f"  part {h['n']}/{h['of']}" + (f" · {h['kind']} file" if h["kind"] != "changed" else "") +
+                                             (" · binary" if h["binary"] else "")))
+    for line in h["lines"][:120]:
+        if line.startswith("+"):
+            print(col("#22c55e", line))
+        elif line.startswith("-"):
+            print(col("#ef4444", line))
+        elif line.startswith("@@"):
+            print(dim(line))
+        else:
+            print(line)
+    if len(h["lines"]) > 120:
+        print(dim(f"… {len(h['lines']) - 120} more lines"))
+
+
+def _key(prompt):
+    sys.stdout.write(prompt)
+    sys.stdout.flush()
+    if not sys.stdin.isatty():
+        return (sys.stdin.readline() or "q").strip()[:1] or "q"
+    try:
+        import termios
+        import tty
+        fd = sys.stdin.fileno()
+        old = termios.tcgetattr(fd)
+        try:
+            tty.setcbreak(fd)
+            ch = sys.stdin.read(1)
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old)
+    except (ImportError, OSError):
+        ch = (sys.stdin.readline() or "q").strip()[:1] or "q"
+    print(ch)
+    return ch
+
+
+def cmd_review(a):
+    from . import review
+    col, dim = _c()
+    if a.id:
+        turns = [{"id": a.id}]
+    else:
+        q = review.queue(a.dir)
+        if not q["root"]:
+            return print(f"{os.path.realpath(a.dir)} is not inside a git repository")
+        turns = q["turns"]
+        if not turns:
+            return print("nothing to review: every agent change here has been accepted or taken back")
+        if a.list:
+            for t in turns:
+                g = BY_KEY.get(t["agent"])
+                print(f"{dim(t['id'])}  {dim(ago(t['at']).rjust(4))}  {col(g.hex if g else None, (g.name if g else t['agent'])[:12].ljust(12))} "
+                      f"{t['pending']} part(s) to review  {(t['prompt'] or '')[:60]}")
+            return print(dim("\nnyrasview review walks through them: a accept · r reject (takes it back) · s skip"))
+    for t in turns:
+        d = review.hunks(a.dir, t["id"])
+        todo = [h for h in d["hunks"] if not h["status"]] if not a.id else d["hunks"]
+        if not todo:
+            continue
+        g = BY_KEY.get(d["agent"])
+        print("\n" + col(g.hex if g else None, f"● {g.name if g else d['agent']}") + f"  {d['prompt'] or ''}" + dim(f"  turn {d['id']}"))
+        for h in todo:
+            print()
+            _show_hunk(h)
+            if h["status"]:
+                print(dim(f"already {h['status']}"))
+            while True:
+                k = _key(dim("[a]ccept  [r]eject  [s]kip  [A]ccept the rest of this turn  [q]uit ? "))
+                if k == "a":
+                    review.decide(a.dir, d["id"], h["id"], "accept")
+                    break
+                if k == "r":
+                    r = review.decide(a.dir, d["id"], h["id"], "reject")
+                    print(col("#22c55e" if r["ok"] else "#ef4444", r.get("message") or r["status"] or ""))
+                    break
+                if k == "s":
+                    break
+                if k == "A":
+                    n = review.accept_rest(a.dir, d["id"])["accepted"]
+                    print(dim(f"accepted {n} part(s)"))
+                    break
+                if k in ("q", "\x1b", "\x04"):
+                    return print(dim("stopped; run nyrasview review again to continue"))
+            if k == "A":
+                break
+    print(dim("\nreview done. Took something back by mistake? nyrasview checkpoints, then nyrasview undo <id>"))

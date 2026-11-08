@@ -102,6 +102,7 @@ Every push is tested on Linux, Windows and macOS with Python 3.11 and 3.13.
 | `nyrasview runs` | prompts started from nyrasview |
 | `nyrasview limits` | usage limit gauges and time left at your pace |
 | `nyrasview find "…"` | search every past agent session: prompts, replies, commands, files (`-a`, `-d`, `--since 7d`) |
+| `nyrasview review` | go through agent changes part by part, like `git add -p`: accept, or reject to take that part back |
 | `nyrasview checkpoints` | every agent turn in this repo and what it changed (`--diff <id>` to see one) |
 | `nyrasview undo <id>` | revert one agent turn and keep everything after it |
 | `nyrasview restore <id>` | rewind the whole repo to just after a turn (`--before` for just before it) |
@@ -227,6 +228,8 @@ nyrasview checkpoints          # list turns in this repo
 nyrasview undo 0bea5adbbf      # revert one turn
 nyrasview restore 0bea5adbbf --before
 ```
+
+**Review part by part:** `nyrasview review`, **Review** on a turn in the Turns panel, or `r` on the terminal turns screen splits a turn into its parts (hunks). **Accept** marks a part as fine. **Reject** takes just that part back in your files and saves that as its own turn, so you can undo it. Turns with parts still waiting show **Review · N**.
 
 Snapshots live in a hidden ref, `refs/nyrasview/checkpoints`. They never touch your branch, your staged changes or your stash, and `git push` doesn't send them. One thing you'll notice: `git log --all` and graph views that show every ref (gitk, lazygit) list them, the same way they show the stash. Files your `.gitignore` covers aren't snapshotted. When Claude edits only through Edit/Write, its turn is limited to those files, so your own edits made in the meantime are left alone; turns that ran shell commands cover every file that changed. nyrasview keeps the last 300 turns per repo; change that, or turn checkpoints off, under `[checkpoints]` in Settings.
 

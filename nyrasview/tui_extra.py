@@ -161,7 +161,7 @@ def turns_screen(ui, cwd):
                     ui.put(2 + i, 1, line.replace("\t", "    ")[:W - 2], attr)
             else:
                 H, W = _frame(ui, f"Turns · {(d.get('root') or cwd).replace(os.path.expanduser('~'), '~')}",
-                              "↑↓ turn  enter diff  u undo  R rewind to before it  esc back")
+                              "↑↓ turn  enter diff  r review part by part  u undo  R rewind to before it  esc back")
                 if not d.get("root"):
                     ui.put(2, 2, "not inside a git repository, so there are no checkpoints here", ui.A("dim"))
                 elif not turns:
@@ -207,6 +207,14 @@ def turns_screen(ui, cwd):
                     st["diff"], st["doff"] = checkpoints.diff(cwd, cur["id"]).split("\n"), 0
                 except ValueError as e:
                     st["msg"] = (str(e), time.time())
+            if k == ord("r") and cur and st["diff"] is None:
+                if cur["agent"] == "you" or cur["undone"]:
+                    st["msg"] = ("nothing to review in that turn", time.time())
+                else:
+                    review_screen(ui, cwd, cur["id"])
+                    st["at"] = 0
+                    _fresh(ui)
+                continue
             if k == ord("u") and cur:
                 st["msg"] = (_undo(ui, cwd, cur), time.time())
                 st["diff"], st["at"] = None, 0
@@ -219,6 +227,77 @@ def turns_screen(ui, cwd):
     finally:
         ui.scr.timeout(250)
         _fresh(ui)
+
+
+def review_screen(ui, cwd, tid):
+    from . import review
+    st = {"i": 0, "off": 0, "msg": ("", 0)}
+    ui.scr.timeout(-1)
+    try:
+        while True:
+            try:
+                d = review.hunks(cwd, tid)
+            except ValueError as e:
+                ui.flash(str(e))
+                return
+            hs = d["hunks"]
+            if not hs:
+                ui.flash("that turn changed nothing")
+                return
+            todo = [n for n, h in enumerate(hs) if not h["status"]]
+            st["i"] = max(0, min(st["i"], len(hs) - 1))
+            h = hs[st["i"]]
+            ui.scr.clear()
+            H, W = _frame(ui, f"Review · {d['prompt'] or ''}"[:W_of(ui) - 4],
+                          "a accept  r reject (takes it back)  ←→ part  ↑↓ scroll  A accept the rest  esc back")
+            g = BY_KEY.get(d["agent"])
+            x = ui.put(2, 1, f"{h['file']}", ui.A("accent", True))
+            x = ui.put(2, x + 2, f"part {h['n']}/{h['of']}" + (f" · {h['kind']} file" if h["kind"] != "changed" else "") +
+                       f" · {st['i'] + 1} of {len(hs)} in this turn · {len(todo)} left", ui.A("dim"))
+            if h["status"]:
+                ui.put(2, x + 2, "✓ accepted" if h["status"] == "accepted" else "↶ taken back", ui.A("good" if h["status"] == "accepted" else "warn", True))
+            body = h["lines"] or [f"({h['kind']} file, no text)"]
+            st["off"] = max(0, min(st["off"], max(0, len(body) - (H - 6))))
+            for j, line in enumerate(body[st["off"]:st["off"] + H - 6]):
+                attr = ui.A("good") if line.startswith("+") else ui.A("bad") if line.startswith("-") else ui.A("dim") if line.startswith("@@") else 0
+                ui.put(4 + j, 1, line.replace("\t", "    ")[:W - 2], attr)
+            msg, t0 = st["msg"]
+            if msg and time.time() - t0 < 5:
+                ui.put(H - 2, 1, msg[:W - 2], ui.A("warn", True))
+            ui.scr.refresh()
+            k = ui.scr.getch()
+            if k in (27, ord("q")):
+                return
+            if k in (curses.KEY_RIGHT, ord("n"), ord("s")):
+                st["i"], st["off"] = st["i"] + 1, 0
+            elif k in (curses.KEY_LEFT, ord("p")):
+                st["i"], st["off"] = st["i"] - 1, 0
+            elif k == curses.KEY_DOWN:
+                st["off"] += 1
+            elif k == curses.KEY_UP:
+                st["off"] -= 1
+            elif k in (ord("a"), ord("r")) and not h["status"]:
+                try:
+                    r = review.decide(cwd, tid, h["id"], "accept" if k == ord("a") else "reject")
+                    st["msg"] = (r.get("message") or "", time.time())
+                except ValueError as e:
+                    st["msg"] = (str(e), time.time())
+                nxt = [n for n in todo if n > st["i"]] or [n for n in todo if n != st["i"]]
+                if not nxt and (k == ord("a") or st["msg"][0].startswith("took back")):
+                    ui.flash("every part of this turn is reviewed")
+                    return
+                st["i"], st["off"] = (nxt[0] if nxt else st["i"]), 0
+            elif k == ord("A"):
+                n = review.accept_rest(cwd, tid)["accepted"]
+                ui.flash(f"accepted {n} part(s)")
+                return
+    finally:
+        ui.scr.timeout(250)
+        _fresh(ui)
+
+
+def W_of(ui):
+    return ui.scr.getmaxyx()[1]
 
 
 def _undo(ui, cwd, t):
@@ -332,13 +411,13 @@ HELP = [
     ("anywhere", [("1-7 / tab", "switch tabs"), ("F", "search every past agent session"), ("P", "phone: QR code to open nyrasview on your phone"),
                   ("g", "open the web GUI"), ("?", "this help"), ("q", "quit")]),
     ("Agents", [("↑↓", "pick an agent"), ("enter / →", "its processes (k / K to stop one)"), ("p", "prompt it"),
-                ("t", "turns: see and undo what it changed"), ("h", "hand off to another agent"),
+                ("t", "turns: see, review and undo what it changed"), ("h", "hand off to another agent"),
                 ("f", "self-heal: run a check, let it fix failures"), ("a", "show agents that aren't installed")]),
     ("Skills", [("/", "filter"), ("esc", "clear the filter")]),
     ("Collab", [("n", "new doc"), ("a", "assign a section"), ("w", "whole-doc task"), ("r", "run"), ("x", "reset"),
                 ("u", "undo the last run")]),
     ("Runs", [("enter", "follow up"), ("p", "new prompt"), ("f", "self-heal"), ("s", "stop")]),
-    ("from the shell: nyrasview …", [("find", "search past sessions"), ("watch", "follow an agent's edits live"), ("settings", "see and change settings"),
+    ("from the shell: nyrasview …", [("find", "search past sessions"), ("review", "accept or take back changes"), ("watch", "follow an agent's edits live"), ("settings", "see and change settings"),
                                      ("phone", "QR code without the dashboard"), ("checkpoints", "turns in this repo"),
                                      ("completion", "tab completion (fish | source)")]),
 ]
