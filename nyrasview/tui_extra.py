@@ -241,8 +241,95 @@ def _undo(ui, cwd, t):
         return str(e)
 
 
+def search_screen(ui):
+    from . import plat, search
+    q = ui.ask("search history: ")
+    if not q or not q.strip():
+        return
+    _fresh(ui)
+    try:
+        res = search.find(q, limit=40, turns=True)
+    except ValueError as e:
+        ui.flash(str(e))
+        return
+    st = {"sel": 0, "open": False, "msg": ("", 0)}
+    home = os.path.expanduser("~")
+    ui.scr.timeout(-1)
+    try:
+        while True:
+            ui.scr.clear()
+            H, W = _frame(ui, f"Search · {q} · {len(res)} session(s)",
+                          "↑↓ session  enter details  c copy resume command  w watch / turns  / new search  esc back")
+            if not res:
+                ui.put(2, 2, "nothing found", ui.A("dim"))
+            st["sel"] = max(0, min(st["sel"], len(res) - 1))
+            y = 2
+            start = st["sel"] if st["open"] else max(0, st["sel"] - max(1, (H - 4) // 4) + 1)
+            for i, r in enumerate(res[start:], start):
+                if y >= H - 2:
+                    break
+                g = BY_KEY.get(r["agent"])
+                on = i == st["sel"]
+                attr = curses.A_REVERSE if on else 0
+                ui.put(y, 0, " " * (W - 1), attr)
+                x = ui.put(y, 1, f"● {(g.name if g else r['agent'])} ", attr | ui.A("a:" + r["agent"], True))
+                x = ui.put(y, x, (r["title"] or "")[:60] + "  ", attr)
+                ui.put(y, x, f"{(r['cwd'] or '?').replace(home, '~')} · {ago(r['last'])} ago", attr | ui.A("dim"))
+                y += 1
+                hits = r["hits"] if (on and st["open"]) else r["hits"][:2]
+                for h in hits:
+                    if y >= H - 2:
+                        break
+                    who = {"user": "you", "agent": "ai ", "tool": "ran"}.get(h["role"], h["role"])
+                    x = ui.put(y, 3, f"{who} ▸ ", ui.A("dim"))
+                    for k, part in enumerate(h["snippet"].replace(search.HIT_B, search.HIT_A).split(search.HIT_A)):
+                        x = ui.put(y, x, part[:max(0, W - x - 1)], ui.A("warn", True) if k % 2 else 0)
+                    y += 1
+                if on and st["open"]:
+                    for t in r.get("turns") or []:
+                        if y >= H - 2:
+                            break
+                        ui.put(y, 3, f"turn {t['id']}  {(t['prompt'] or '')[:50]}  +{t['added']} -{t['removed']}" + ("  undone" if t["undone"] else ""), ui.A("cyan"))
+                        y += 1
+                    if r.get("resume") and y < H - 2:
+                        ui.put(y, 3, "resume: " + r["resume"].replace(home, "~"), ui.A("good"))
+                        y += 1
+                y += 1
+            msg, t0 = st["msg"]
+            if msg and time.time() - t0 < 5:
+                ui.put(H - 2, 1, msg[:W - 2], ui.A("warn", True))
+            ui.scr.refresh()
+            k = ui.scr.getch()
+            cur = res[st["sel"]] if res else None
+            if k in (27, ord("q")):
+                if st["open"]:
+                    st["open"] = False
+                    continue
+                return
+            if k == curses.KEY_UP:
+                st["sel"] -= 1
+            elif k == curses.KEY_DOWN:
+                st["sel"] += 1
+            elif k in (10, 13, curses.KEY_ENTER):
+                st["open"] = not st["open"]
+            elif k == ord("/"):
+                return search_screen(ui)
+            elif k == ord("c") and cur:
+                if cur.get("resume"):
+                    how = plat.copy(cur["resume"])
+                    st["msg"] = ("copied the resume command" if how else "resume: " + cur["resume"], time.time())
+                else:
+                    st["msg"] = (f"{cur['agent']} sessions can't be resumed from a command", time.time())
+            elif k == ord("w") and cur and cur.get("cwd"):
+                turns_screen(ui, cur["cwd"])
+                _fresh(ui)
+    finally:
+        ui.scr.timeout(250)
+        _fresh(ui)
+
+
 HELP = [
-    ("anywhere", [("1-7 / tab", "switch tabs"), ("P", "phone: QR code to open nyrasview on your phone"),
+    ("anywhere", [("1-7 / tab", "switch tabs"), ("F", "search every past agent session"), ("P", "phone: QR code to open nyrasview on your phone"),
                   ("g", "open the web GUI"), ("?", "this help"), ("q", "quit")]),
     ("Agents", [("↑↓", "pick an agent"), ("enter / →", "its processes (k / K to stop one)"), ("p", "prompt it"),
                 ("t", "turns: see and undo what it changed"), ("h", "hand off to another agent"),
@@ -251,7 +338,7 @@ HELP = [
     ("Collab", [("n", "new doc"), ("a", "assign a section"), ("w", "whole-doc task"), ("r", "run"), ("x", "reset"),
                 ("u", "undo the last run")]),
     ("Runs", [("enter", "follow up"), ("p", "new prompt"), ("f", "self-heal"), ("s", "stop")]),
-    ("from the shell: nyrasview …", [("watch", "follow an agent's edits live"), ("settings", "see and change settings"),
+    ("from the shell: nyrasview …", [("find", "search past sessions"), ("watch", "follow an agent's edits live"), ("settings", "see and change settings"),
                                      ("phone", "QR code without the dashboard"), ("checkpoints", "turns in this repo"),
                                      ("completion", "tab completion (fish | source)")]),
 ]

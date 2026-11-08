@@ -270,6 +270,16 @@ textarea{width:100%;min-height:70px;resize:vertical}
 .tl .e{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:6px 8px;border-radius:8px;cursor:pointer;font-size:12.5px}
 .tl .e:hover{background:var(--panel2)}
 .tl .e.on{background:var(--panel2);box-shadow:inset 3px 0 0 var(--c)}
+.srl{display:grid;gap:0;margin-top:12px}
+.sr .hd{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;margin-bottom:6px}
+.sr .hd .sd{width:9px;height:9px;border-radius:50%;display:inline-block;align-self:center}
+.sr .hd .tt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.sr .hd .m{font-size:12px}
+.sr .hit{display:grid;grid-template-columns:34px 1fr;gap:6px;font-size:12.5px;padding:3px 0;line-height:1.5}
+.sr .hit .who{color:var(--dim);font-family:var(--mono);font-size:11.5px}
+.sr .hit span:last-child{min-width:0;overflow-wrap:anywhere}
+.sr mark{background:color-mix(in srgb,var(--warn) 30%,transparent);color:inherit;border-radius:3px;padding:0 1px}
+.sr .tr{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
 .cpl{display:grid;gap:2px}
 .cpl .t{display:grid;grid-template-columns:52px minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:6px 8px;border-radius:8px;font-size:12.5px}
 .cpl .t:hover{background:var(--panel2)}
@@ -439,6 +449,7 @@ if(localGet("theme")) document.documentElement.dataset.theme=localGet("theme");
 $("#theme").onclick=()=>{const cur=document.documentElement.dataset.theme;const n=cur==="light"?"dark":cur==="dark"?"light":(matchMedia("(prefers-color-scheme: light)").matches?"dark":"light");document.documentElement.dataset.theme=n;localSet("theme",n)};
 
 const I={
+  search:'<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
   grid:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/>',
   plug:'<path d="M9 2v5M15 2v5M6 7h12v4a6 6 0 0 1-12 0zM12 17v5"/>',
   spark:'<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 17l.7 1.8 1.8.7-1.8.7L19 22l-.7-1.8-1.8-.7 1.8-.7z"/>',
@@ -599,7 +610,7 @@ function navModel(){
     {id:"agents",label:"Agents",items:[{v:"overview",label:"Overview",icon:"grid",badge:ag.filter(a=>a.running).length+" live"},
       ...ag.map(a=>({v:"agent:"+a.key,label:a.name,dot:a.hex,live:a.running,badge:a.running?a.cpu.toFixed(0)+"%":""}))]},
     {id:"toolbox",label:"Toolbox",items:[{v:"phone",label:"Phone",icon:"phone"},{v:"mcp",label:"MCP servers",icon:"plug",badge:(S.mcp||[]).length||""},{v:"skills",label:"Skills",icon:"spark",badge:(S.skills||[]).length||""},{v:"settings",label:"Settings",icon:"gear"},{v:"keys",label:"API keys",icon:"plug",badge:KEYS.filter(k=>k.connected).length?KEYS.filter(k=>k.connected).length+" on":""}]},
-    {id:"insights",label:"Insights",items:[{v:"usage",label:"Usage",icon:"chart"},{v:"network",label:"Network",icon:"globe"},{v:"local",label:"Local AI",icon:"chip",badge:(S.local||[]).filter(x=>x.up).length?(S.local||[]).filter(x=>x.up).length+" up":""}]},
+    {id:"insights",label:"Insights",items:[{v:"search",label:"Search history",icon:"search"},{v:"usage",label:"Usage",icon:"chart"},{v:"network",label:"Network",icon:"globe"},{v:"local",label:"Local AI",icon:"chip",badge:(S.local||[]).filter(x=>x.up).length?(S.local||[]).filter(x=>x.up).length+" up":""}]},
     {id:"prompt",label:"Prompts",items:[{v:"prompt",label:"New prompt",icon:"wand"},{v:"heal",label:"Self-heal",icon:"retry",badge:HEAL.filter(j=>!["passed","failed","stopped"].includes(j.status)).length?"…":""},...(()=>{const out=[],sg={};RUNS.forEach(r=>{if(r.group){if(sg[r.group])return;sg[r.group]=1}out.push(r)});return out.slice(0,5)})().map(r=>({v:"run:"+r.id,label:r.label||r.prompt,dot:colorOf(r.agent),live:r.status==="running",badge:r.status==="running"?"…":r.status==="failed"?"✗":""}))]},
     {id:"collab",label:"Collab",items:[...(S.collab||[]).map(d=>{const run=d.tasks.filter(t=>t.status==="running").length;return {v:"doc:"+d.doc,label:d.name.replace(/\.md$/,""),icon:"doc",badge:run?"✎ "+run:d.tasks.length?d.tasks.filter(t=>t.status==="done").length+"/"+d.tasks.length:""}}),{v:"new",label:"New document",icon:"plus"}]},
   ]}
@@ -857,6 +868,30 @@ window.addEventListener("message",async e=>{
     const it=await post("/api/feedback",{agent:ag,cwd,text:m.text,target:{...m.target,file:f&&f.rel}});fbToast(it)}});
 function fbToast(it){toast(it.status==="copied"?"Copied to clipboard: paste it into the agent":"Sent: the agent gets it after its next step");loadWatch()}
 
+let SR={q:"",agent:"",since:"",res:null,stats:null,busy:false,err:null,t:null,n:0};
+async function doSearch(){
+  const q=SR.q.trim();if(!q){SR.res=null;SR.err=null;return render()}
+  const n=++SR.n;SR.busy=true;render();
+  const since=SR.since?Date.now()/1000-(+SR.since):0;
+  try{const r=await fetch(`/api/search?q=${encodeURIComponent(q)}&agent=${encodeURIComponent(SR.agent)}&since=${since}`,{headers:{"X-Nyra-Token":TOKEN}});const j=await r.json();
+    if(n!==SR.n)return;if(!r.ok){SR.err=j.error||"search failed";SR.res=null}else{SR.err=null;SR.res=j.results;SR.stats=j.stats}}catch(e){SR.err="search failed"}
+  SR.busy=false;render()}
+const snip=t=>esc(t).replace(/\u0002/g,"<mark>").replace(/\u0003/g,"</mark>");
+function vSearch(){
+  const ags=[...new Set((S.agents||[]).filter(a=>a.installed||a.running).map(a=>a.key))];
+  let h=`<div class="ph"><h1>Search history</h1><span class="sub">every prompt, reply, command and file from your past agent sessions</span></div>
+  <div class="panel" data-static data-key="srbar"><div class="row" style="gap:8px;flex-wrap:wrap"><input id="srq" style="flex:1;min-width:220px" placeholder='auth bug · "exact phrase" · a file name · a command'><select id="sra"><option value="">all agents</option>${ags.map(k=>`<option value="${k}">${esc(aname(k))}</option>`).join("")}</select><select id="srs"><option value="">any time</option><option value="86400">last 24h</option><option value="604800">last 7 days</option><option value="2592000">last 30 days</option></select></div>
+  <div class="muted" style="font-size:11.5px;margin-top:6px">Press <b>/</b> anywhere to search. Matches are ranked by relevance, newer sessions first when it's close.</div></div>`;
+  if(SR.err) return h+`<div class="panel"><div style="color:var(--bad)">${esc(SR.err)}</div></div>`;
+  if(SR.res==null) return h+(SR.busy?`<div class="empty">searching…</div>`:"");
+  if(!SR.res.length) return h+`<div class="panel"><div class="muted">Nothing found${SR.stats?` in ${SR.stats.messages.toLocaleString()} messages`:""}.</div></div>`;
+  h+=`<div class="srl">`+SR.res.map((r,i)=>{const a=agent(r.agent);const cwd=(r.cwd||"").replace(HOMERE,"~");
+    return `<div class="panel sr" data-key="sr-${esc(r.agent)}-${esc(r.session)}" style="--c:${a.hex||"var(--other)"}"><div class="hd"><span class="sd" style="background:${a.hex||"var(--other)"}"></span><b>${esc(a.name||r.agent)}</b><span class="tt">${esc(r.title||"")}</span><span class="muted m">${esc(cwd)} · ${ago(r.last)} ago</span></div>
+      ${r.hits.map(x=>`<div class="hit"><span class="who">${x.role==="user"?"you":x.role==="tool"?"ran":"ai"}</span><span>${snip(x.snippet)}</span></div>`).join("")}
+      ${r.turns&&r.turns.length?`<div class="tr">${r.turns.slice(0,4).map(t=>`<span class="chip" title="${esc(t.files.join(", "))}">${t.id} · ${esc((t.prompt||"").slice(0,30))} +${t.added} −${t.removed}${t.undone?" · undone":""}</span>`).join("")}</div>`:""}
+      <div class="row" style="gap:6px;margin-top:8px">${r.resume?`<button class="btn sm" data-act="srcopy" data-i="${i}">⧉ Copy resume command</button>`:""}${r.cwd&&(r.agent==="claude"||r.agent==="codex")?`<button class="btn sm" data-act="watch" data-agent="${r.agent}" data-cwd="${esc(r.cwd)}">👁 Watch / turns</button>`:""}</div></div>`}).join("")+`</div>`;
+  return h}
+
 function vWatch(){
   const {agent:k,cwd}=watchParts();const a=agent(k);const d=W.data;
   const w=(a.work||[]).find(x=>x.cwd===cwd)||{};const t=w.activity||{};
@@ -896,6 +931,7 @@ document.addEventListener("mouseover",e=>{
 document.addEventListener("mouseout",e=>{if(e.target.closest&&e.target.closest(".ln[data-hl]"))clearTimeout(W.ht)});
 document.addEventListener("mousedown",e=>{const b=$("#cbub");if(b.classList.contains("on")&&!b.contains(e.target)&&!(e.target.closest&&e.target.closest("[data-act=line]"))){b.classList.remove("on");W.sel=null;render()}});
 document.addEventListener("keydown",e=>{
+  if(e.key==="/"&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!/^(INPUT|TEXTAREA|SELECT)$/.test((e.target.tagName||""))&&!e.target.isContentEditable){e.preventDefault();if(view!=="search")go("search");else{const q=$("#srq");q&&q.focus()}return}
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();if(view!=="prompt")go("prompt");else{const q=$("#pq");q&&q.focus()}return}
   if((e.ctrlKey||e.metaKey)&&e.key==="Enter"&&e.target.id==="pq"){e.preventDefault();document.querySelector("[data-act=prun]").click();return}
   if((e.ctrlKey||e.metaKey)&&e.key==="Enter"&&e.target.id&&e.target.id.startsWith("fu-")){e.preventDefault();document.querySelector(`[data-act=pfollow][data-id="${e.target.id.slice(3)}"]`).click();return}
@@ -1145,6 +1181,7 @@ function render(){
   else if(view==="settings") html=vSettings();
   else if(view==="heal") html=vHeal();
   else if(view==="phone") html=vPhone();
+  else if(view==="search") html=vSearch();
   else if(view.startsWith("watch:")) html=vWatch();
   else if(view==="prompt") html=vPrompt();
   else if(view.startsWith("run:")) html=vRun(view.slice(4));
@@ -1169,6 +1206,8 @@ function bindView(){
   if(view==="skills")loadSKM();
   if(view==="settings")loadSettings();
   if(view==="phone")loadPhone();
+  if(view==="search"){const q=$("#srq");if(q){q.value=SR.q;q.focus();q.oninput=()=>{SR.q=q.value;clearTimeout(SR.t);SR.t=setTimeout(doSearch,280)};q.onkeydown=e=>{if(e.key==="Enter"){clearTimeout(SR.t);doSearch()}}}
+    const ag=$("#sra");if(ag){ag.value=SR.agent;ag.onchange=()=>{SR.agent=ag.value;doSearch()}}const sn=$("#srs");if(sn){sn.value=SR.since;sn.onchange=()=>{SR.since=sn.value;doSearch()}}}
   if(view==="heal")loadHeal().then(()=>{FORCE=true;render()});
   if(view==="keys")loadKeys().then(()=>{FORCE=true;render()});
   if(view==="prompt"){loadRuns().then(render);setTimeout(()=>{const q=$("#pq");if(q)q.focus()},30)}
@@ -1288,6 +1327,7 @@ document.addEventListener("click",async e=>{
     if(act==="gshide"){localSet("gsdone","1");return render()}
     if(act==="gshooks"){if(!confirm("Add nyrasview's hook to ~/.claude/settings.json? A backup is saved. Restart running Claude sessions once afterwards."))return;await post("/api/hooks",{on:true});if(SET0)SET0._hooks=true;toast("Claude Code connected · restart running sessions once");return render()}
     if(act==="hopen"){return openHandoff(el.dataset.agent,el.dataset.cwd)}
+    if(act==="srcopy"){const r=SR.res&&SR.res[+el.dataset.i];if(r&&r.resume){try{await navigator.clipboard.writeText(r.resume);toast("Copied: paste it in a terminal")}catch(x){prompt("Copy this:",r.resume)}}return}
     if(act==="cpdiff"){const id=el.dataset.id;W.cpd=W.cpd||{};if(W.cpd[id]){delete W.cpd[id];return render()}
       const {cwd}=watchParts();const r=await post("/api/checkpoints/diff",{cwd,id});W.cpd[id]=r.diff||"(no changes)";return render()}
     if(act==="cpundo"){const id=el.dataset.id;const {cwd}=watchParts();const t=((W.data&&W.data.checkpoints||{}).turns||[]).find(x=>x.id===id)||{};
@@ -1320,7 +1360,7 @@ function tick(){
 async function refresh(){try{S=await (await fetch("/api/snapshot")).json();paint(S.agents);setHome(S.home)}catch(e){}}
 async function poll(){await refresh();await loadRuns();await loadEvents();if(view==="heal"||HEAL.some(j=>!["passed","failed","stopped"].includes(j.status)))await loadHeal();if(view.startsWith("run:")){const v=RUNV[view.slice(4)];if(!v||[view.slice(4),...(v.siblings||[])].some(x=>!RUNV[x]||RUNV[x].status==="running"))await loadRun(view.slice(4))}render();if(view.startsWith("doc:"))loadDoc();if(view.startsWith("watch:"))loadWatch();setTimeout(poll,1500)}
 
-{const h=decodeURIComponent(location.hash.slice(1));if(h)view=h}
+{const h=decodeURIComponent(location.hash.slice(1));if(h)view=h;if(view.startsWith("search:")){SR.q=view.slice(7);view="search";setTimeout(doSearch,0)}}
 if(STALE)$("#stale").innerHTML=`<div class="hookbar">⚠ nyrasview was updated since this server started. Restart it to get the new features: press Ctrl+C where <code>nyrasview gui</code> runs, then run it again.</div>`;
 loadRuns().then(()=>{renderNav()});
 getJSON("/api/agents",[]).then(l=>{agentsList=l;paint(agentsList);if(view==="prompt")syncComposer();if(view.startsWith("doc:")){FORCE=true;render()}});

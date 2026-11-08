@@ -240,6 +240,17 @@ def make_handler(collector, token, port, phone=False):
                     v["siblings"] = [r["id"] for r in sorted((r for r in runs.listing(200) if r.get("group") == v["group"]),
                                                              key=lambda r: (r["agent"], r["id"]))]
                 return self._send(200 if v else 404, v or {"error": "no such run"})
+            if u.path == "/api/search":
+                if self.headers.get("X-Nyra-Token") != token:
+                    return self._send(403, {"error": "forbidden"})
+                from . import search
+                try:
+                    since = float(q.get("since", ["0"])[0] or 0) or None
+                    res = search.find(q.get("q", [""])[0], q.get("agent", [""])[0] or None, q.get("dir", [""])[0] or None,
+                                      since, int(q.get("limit", ["30"])[0]), turns=True)
+                except ValueError as e:
+                    return self._send(400, {"error": str(e)})
+                return self._send(200, {"results": res, "stats": search.stats()})
             if u.path == "/api/skills/matrix":
                 from . import skillman
                 return self._send(200, skillman.installed())

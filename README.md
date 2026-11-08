@@ -101,6 +101,7 @@ Every push is tested on Linux, Windows and macOS with Python 3.11 and 3.13.
 | `nyrasview ask <agent> "…"` | prompt one agent, or `claude,codex` to compare, and stream the answer |
 | `nyrasview runs` | prompts started from nyrasview |
 | `nyrasview limits` | usage limit gauges and time left at your pace |
+| `nyrasview find "…"` | search every past agent session: prompts, replies, commands, files (`-a`, `-d`, `--since 7d`) |
 | `nyrasview checkpoints` | every agent turn in this repo and what it changed (`--diff <id>` to see one) |
 | `nyrasview undo <id>` | revert one agent turn and keep everything after it |
 | `nyrasview restore <id>` | rewind the whole repo to just after a turn (`--before` for just before it) |
@@ -204,6 +205,12 @@ Click **👁 Watch** on any Claude Code or Codex session (or a row in the overvi
   - **Claude Code** gets it after its next tool call, through a hook. Turn it on once with `nyrasview hooks install`; a backup of `~/.claude/settings.json` is saved first.
   - **Other agents** get it copied to your clipboard, ready to paste.
 - From the terminal: `nyrasview say "make the header sticky" -f src/Header.tsx`
+
+## Search: find that session again
+
+`nyrasview find "flaky payment test"`, the **Search history** page in the GUI (press `/` anywhere), or `F` in the terminal dashboard searches every Claude Code, Codex, Gemini, Qwen and opencode session on this computer: your prompts, the agents' replies, the commands they ran and the files they edited. Results are grouped by session with the matching lines highlighted, the turns you can undo, and the command to pick the session back up (`claude --resume …`, `codex resume …`).
+
+Quotes search for an exact phrase. The index lives in nyrasview's state folder, updates itself as sessions grow, and never leaves your computer.
 
 ## Checkpoints: undo one agent's turn
 

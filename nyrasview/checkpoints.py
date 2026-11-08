@@ -49,7 +49,7 @@ def snapshot(root):
     os.close(fd)
     try:
         if os.path.exists(idx):
-            shutil.copyfile(idx, tmp)
+            shutil.copy2(idx, tmp)
         else:
             os.unlink(tmp)
         env = {"GIT_INDEX_FILE": tmp}
@@ -236,7 +236,7 @@ def _entries(root, limit):
                 files.append(parts[2])
         out.append({"id": sha[:10], "sha": sha, "agent": m.get("agent"), "prompt": m.get("prompt") or "",
                     "at": m.get("at"), "started": m.get("started"), "files": files, "added": add, "removed": rem,
-                    "scoped": bool(m.get("files")), "undo_of": m.get("undo_of")})
+                    "scoped": bool(m.get("files")), "undo_of": m.get("undo_of"), "turn": m.get("turn")})
         if len(out) >= limit:
             break
     undoers = {}

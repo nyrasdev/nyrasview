@@ -559,6 +559,9 @@ class UI:
         if k == ord("P"):
             tui_extra.phone_screen(self)
             return
+        if k == ord("F"):
+            tui_extra.search_screen(self)
+            return
         if k == ord("?"):
             tui_extra.help_screen(self)
             return

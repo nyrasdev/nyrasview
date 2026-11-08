@@ -197,6 +197,45 @@ def _():
     assert r.returncode == 1 and "Set an image first" in r.stdout, r.stdout + r.stderr
 
 
+@step("search history: claude + codex logs, incremental, filters")
+def _():
+    proj = HOME / ".claude/projects/-work-shop"
+    proj.mkdir(parents=True, exist_ok=True)
+    now = time.time()
+    iso = lambda t: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(t))
+    lines = [
+        {"type": "user", "sessionId": "sess-1", "cwd": str(WORK), "timestamp": iso(now - 100),
+         "message": {"role": "user", "content": "fix the flaky checkout payment test"}},
+        {"type": "assistant", "sessionId": "sess-1", "cwd": str(WORK), "timestamp": iso(now - 90),
+         "message": {"content": [{"type": "text", "text": "The payment test races the webhook."},
+                                 {"type": "tool_use", "id": "t1", "name": "Bash", "input": {"command": "pytest tests/test_payment.py"}}]}},
+    ]
+    f = proj / "sess-1.jsonl"
+    f.write_text("\n".join(json.dumps(x) for x in lines) + "\n", encoding="utf-8")
+    cx = HOME / ".codex/sessions/2026/11/07"
+    cx.mkdir(parents=True, exist_ok=True)
+    (cx / "rollout-2026-11-07T10-00-00-abc.jsonl").write_text("\n".join(json.dumps(x) for x in [
+        {"timestamp": iso(now - 5000), "type": "session_meta", "payload": {"id": "codex-uuid-1", "cwd": str(WORK)}},
+        {"timestamp": iso(now - 4990), "type": "event_msg", "payload": {"type": "user_message", "message": "add dark mode to the settings page"}},
+        {"timestamp": iso(now - 4980), "type": "event_msg", "payload": {"type": "agent_message", "message": "Dark mode toggle added."}},
+    ]) + "\n", encoding="utf-8")
+    d = json.loads(run("find", "payment", "--json"))
+    assert len(d) == 1 and d[0]["agent"] == "claude" and d[0]["session"] == "sess-1", d
+    assert d[0]["resume"].endswith("claude --resume sess-1"), d
+    assert any(h["role"] == "tool" and "pytest" in h["snippet"] for h in d[0]["hits"]) or "payment" in json.dumps(d)
+    d = json.loads(run("find", "dark", "mode", "--json"))
+    assert d and d[0]["agent"] == "codex" and d[0]["resume"].endswith("codex resume codex-uuid-1"), d
+    with open(f, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"type": "user", "sessionId": "sess-1", "cwd": str(WORK), "timestamp": iso(now),
+                             "message": {"role": "user", "content": "now migrate the invoices table"}}) + "\n")
+    d = json.loads(run("find", "invoices", "--json"))
+    assert d and d[0]["session"] == "sess-1", d
+    assert json.loads(run("find", "payment", "-a", "codex", "--json")) == []
+    assert json.loads(run("find", "dark", "--since", "1h", "--json")) == []
+    out = run("find", "zzzznothing")
+    assert "nothing found" in out, out
+
+
 @step("collab with a fake agent (process launch, file locks, utf-8)")
 def _():
     doc = WORK / "plan.md"

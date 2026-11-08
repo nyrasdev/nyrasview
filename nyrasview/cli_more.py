@@ -326,3 +326,52 @@ def cmd_completion(a):
     if a.shell == "zsh":
         script = "autoload -U +X bashcompinit && bashcompinit\n" + script
     print(script + "complete -o default -F _nyrasview nyrasview")
+
+
+def _since(v):
+    if not v:
+        return None
+    import re as _re
+    m = _re.fullmatch(r"(\d+)\s*([hdwm])", v.strip().lower())
+    if not m:
+        raise ValueError("--since takes something like 24h, 7d, 2w or 3m")
+    return time.time() - int(m.group(1)) * {"h": 3600, "d": 86400, "w": 7 * 86400, "m": 30 * 86400}[m.group(2)]
+
+
+def _hl(snippet):
+    from . import search
+    col, _ = _c()
+    out, on = "", False
+    for part in snippet.replace(search.HIT_B, search.HIT_A).split(search.HIT_A):
+        out += col("#f59e0b", part) if on else part
+        on = not on
+    return out
+
+
+def cmd_find(a):
+    from . import search
+    q = " ".join(a.query)
+    res = search.find(q, a.agent, a.dir, _since(a.since), a.limit, turns=True)
+    if a.json:
+        for r in res:
+            for h in r["hits"]:
+                h["snippet"] = h["snippet"].replace(search.HIT_A, "").replace(search.HIT_B, "")
+        return print(json.dumps(res, indent=2))
+    col, dim = _c()
+    if not res:
+        st = search.stats()
+        return print(f"nothing found for {q!r} in {st['messages']:,} messages from " +
+                     ", ".join(f"{n} {k}" for k, n in st["sessions"].items()) + " sessions")
+    home = os.path.expanduser("~")
+    for r in res:
+        g = BY_KEY.get(r["agent"])
+        print(col(g.hex if g else None, f"● {g.name if g else r['agent']}") + "  " + (r["title"] or "")[:70] +
+              dim(f"  · {(r['cwd'] or '?').replace(home, '~')} · {ago(r['last'])} ago"))
+        for h in r["hits"]:
+            who = {"user": "you", "agent": "ai ", "tool": "ran"}.get(h["role"], h["role"])
+            print(f"   {dim(who)} ▸ {_hl(h['snippet'])}")
+        if r.get("turns"):
+            print("   " + dim("turns: " + "  ".join(f"{t['id']} {(t['prompt'] or '')[:24]}" for t in r["turns"][:3])))
+        if r.get("resume"):
+            print("   " + dim("resume: " + r["resume"].replace(home, "~")))
+        print()
