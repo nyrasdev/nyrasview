@@ -456,4 +456,9 @@ def snapshot(usage_records, openrouter=None):
     if ow:
         out["openrouter"] = ow
         META["openrouter"] = om
+    try:
+        from .insights import record_limits
+        record_limits(out)
+    except Exception:
+        pass
     return out

@@ -465,3 +465,41 @@ def cmd_review(a):
             if k == "A":
                 break
     print(dim("\nreview done. Took something back by mistake? nyrasview checkpoints, then nyrasview undo <id>"))
+
+
+def cmd_insights(a):
+    from . import insights, limits, net
+    from .usage import UsageStore
+    col, dim = _c()
+    u = UsageStore()
+    u.refresh()
+    limits.snapshot(u.records, net.openrouter())
+    r = insights.report(u.records, a.days)
+    if a.json:
+        return print(json.dumps(r, indent=2))
+    from .util import hn
+    money = lambda v: "-" if v is None else f"${v:,.2f}"
+    print(col("#e879f9", f"last {a.days} days") + dim("  (tokens = input + output + cache writes; cache reads shown apart)"))
+    print(dim(f"  {'agent':<14}{'prompts':>8}{'tokens':>10}{'per prompt':>12}{'cost':>10}{'at API prices':>15}{'per prompt':>12}"))
+    for k, x in sorted(r["agents"].items(), key=lambda kv: -kv[1]["tokens"]):
+        g = BY_KEY.get(k)
+        name = (g.name if g else k)[:13]
+        print(f"  {col(g.hex if g else None, name.ljust(14))}{x['prompts']:>8}{hn(x['tokens']):>10}{hn(x['tokens_per_prompt']) if x['tokens_per_prompt'] else '-':>12}"
+              f"{money(x['cost']):>10}{money(x['api_cost']):>15}{money(x['cost_per_prompt']):>12}")
+        spark = "".join(" ▁▂▃▄▅▆▇█"[min(8, int(v / max(max(x['daily']), 1) * 8 + 0.999))] if v else "·" for v in x["daily"])
+        print("  " + " " * 14 + dim(spark))
+    print(dim("\n  'at API prices' is what Claude usage would cost on the API (Anthropic list prices); your plan covers it."))
+    if r["limits"]:
+        print("\n" + col("#e879f9", "limit windows, last 7 days"))
+        for l in r["limits"]:
+            pts = l["points"]
+            peak = max(p[1] for p in pts)
+            print(f"  {l['agent']:<10}{l['window'].replace('_', ' '):<12} now {pts[-1][1] * 100:3.0f}%  peak {peak * 100:3.0f}%  {len(pts)} readings")
+    if r["hits"]:
+        print("\n" + col("#ef4444", f"hit a limit {len(r['hits'])} time(s)"))
+        for h in r["hits"][-6:]:
+            print(f"  {time.strftime('%a %H:%M', time.localtime(h['at']))}  {h['agent']}  {h['title']}")
+        busy = sorted(r["hit_hours"].items(), key=lambda kv: -kv[1])[:3]
+        print(dim("  usually around " + ", ".join(f"{h:02d}:00" for h, _ in busy)))
+    else:
+        print(dim("\nno limit hits recorded in the last 7 days (readings are saved while nyrasview runs)"))

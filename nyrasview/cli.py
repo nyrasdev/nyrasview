@@ -1074,6 +1074,9 @@ def build_parser():
     x.add_argument("id", nargs="?", help="one turn (default: every turn with something to review)")
     x.add_argument("-d", "--dir", default=".")
     x.add_argument("-l", "--list", action="store_true", help="only list what's waiting")
+    x = sp.add_parser("insights", help="tokens and cost per agent over time, limit history and when you hit limits")
+    x.add_argument("--days", type=int, default=30)
+    x.add_argument("--json", action="store_true")
     x = sp.add_parser("completion", help="shell tab completion: nyrasview completion fish | source")
     x.add_argument("shell", choices=["fish", "bash", "zsh"])
     return ap
@@ -1090,7 +1093,7 @@ def main():
     from . import cli_more
     a = build_parser().parse_args()
     fn = {"phone": cli_more.cmd_phone, "watch": cli_more.cmd_watch, "settings": cli_more.cmd_settings,
-          "sandbox": cli_more.cmd_sandbox, "find": cli_more.cmd_find, "review": cli_more.cmd_review, "completion": cli_more.cmd_completion,"tui": cmd_tui, "gui": cmd_gui, "status": cmd_status, "ps": cmd_ps, "mcp": cmd_mcp,
+          "sandbox": cli_more.cmd_sandbox, "find": cli_more.cmd_find, "review": cli_more.cmd_review, "insights": cli_more.cmd_insights, "completion": cli_more.cmd_completion,"tui": cmd_tui, "gui": cmd_gui, "status": cmd_status, "ps": cmd_ps, "mcp": cmd_mcp,
           "skills": cmd_skills, "usage": cmd_usage, "agents": cmd_agents, "collab": cmd_collab, "obsidian": cmd_obsidian, "now": cmd_now, "doctor": cmd_doctor, "heal": cmd_heal, "skill": cmd_skill, "keys": cmd_keys, "plan": cmd_plan, "limits": cmd_limits, "checkpoints": cmd_checkpoints, "undo": cmd_undo, "restore": cmd_restore, "inbox": cmd_events, "notify-test": cmd_notify_test,
           "daemon": cmd_daemon, "service": cmd_service, "ask": cmd_ask, "runs": cmd_runs, "hook": cmd_hook, "hooks": cmd_hooks, "say": cmd_say, "handoff": cmd_handoff, "relay": cmd_relay, "local": cmd_local,
           None: cmd_tui}[a.cmd]

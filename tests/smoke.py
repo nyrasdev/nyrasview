@@ -264,6 +264,26 @@ def _():
     assert "nothing found" in out, out
 
 
+@step("insights: tokens per prompt and cost at API prices")
+def _():
+    proj = HOME / ".claude/projects/-work-insights"
+    proj.mkdir(parents=True, exist_ok=True)
+    iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 60))
+    (proj / "ins-1.jsonl").write_text("\n".join(json.dumps(x) for x in [
+        {"type": "user", "sessionId": "ins-1", "cwd": str(WORK), "timestamp": iso, "message": {"role": "user", "content": "price check"}},
+        {"type": "assistant", "sessionId": "ins-1", "cwd": str(WORK), "timestamp": iso, "requestId": "req-ins-1",
+         "message": {"id": "msg-ins-1", "model": "claude-opus-5-5", "content": [{"type": "text", "text": "ok"}],
+                     "usage": {"input_tokens": 1000, "output_tokens": 500, "cache_read_input_tokens": 10000,
+                               "cache_creation_input_tokens": 2000}}},
+    ]) + "\n", encoding="utf-8")
+    d = json.loads(run("insights", "--json"))
+    c = d["agents"]["claude"]
+    assert abs(c["api_cost"] - 0.026) < 1e-6, c
+    assert c["tokens"] == 3500 and c["cache_read"] == 10000 and c["prompts"] >= 1, c
+    assert len(d["days"]) == 30 and len(c["daily"]) == 30 and c["daily"][-1] == 3500, c["daily"][-3:]
+    assert "at API prices" in run("insights")
+
+
 @step("collab with a fake agent (process launch, file locks, utf-8)")
 def _():
     doc = WORK / "plan.md"

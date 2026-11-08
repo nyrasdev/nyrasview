@@ -47,6 +47,7 @@ def open_url(url):
 
 
 _port_cache = {}
+_insight_cache = {}
 PHONE = {"srv": None, "port": None}
 MANIFEST = {"name": "nyrasview", "short_name": "nyrasview", "start_url": "/", "display": "standalone",
             "background_color": "#0b0b0f", "theme_color": "#0b0b0f",
@@ -244,6 +245,16 @@ def make_handler(collector, token, port, phone=False):
                     v["siblings"] = [r["id"] for r in sorted((r for r in runs.listing(200) if r.get("group") == v["group"]),
                                                              key=lambda r: (r["agent"], r["id"]))]
                 return self._send(200 if v else 404, v or {"error": "no such run"})
+            if u.path == "/api/insights":
+                if self.headers.get("X-Nyra-Token") != token:
+                    return self._send(403, {"error": "forbidden"})
+                import time as _t
+                from . import insights
+                hit = _insight_cache.get("r")
+                if not hit or _t.time() - hit[0] > 60:
+                    hit = (_t.time(), insights.report(collector.usage.records))
+                    _insight_cache["r"] = hit
+                return self._send(200, hit[1])
             if u.path == "/api/search":
                 if self.headers.get("X-Nyra-Token") != token:
                     return self._send(403, {"error": "forbidden"})

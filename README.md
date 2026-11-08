@@ -100,6 +100,7 @@ Every push is tested on Linux, Windows and macOS with Python 3.11 and 3.13.
 | `nyrasview agents` | every known agent and how collab calls it |
 | `nyrasview ask <agent> "…"` | prompt one agent, or `claude,codex` to compare, and stream the answer |
 | `nyrasview runs` | prompts started from nyrasview |
+| `nyrasview insights` | tokens and cost per agent for 30 days, tokens per prompt, Claude usage at API prices, limit history and when you hit limits |
 | `nyrasview limits` | usage limit gauges and time left at your pace |
 | `nyrasview find "…"` | search every past agent session: prompts, replies, commands, files (`-a`, `-d`, `--since 7d`) |
 | `nyrasview review` | go through agent changes part by part, like `git add -p`: accept, or reject to take that part back |
@@ -286,6 +287,10 @@ unit = "usd"
 ```
 
 An alert fires when a window gets close, and with relay on the handoff file is ready before you hit the wall.
+
+### Over time
+
+`nyrasview insights` and the top of the **Usage** page show the last 30 days: tokens per day for each agent, prompts and tokens per prompt, real cost where a tool logs it, and what your Claude usage would cost at Anthropic's API list prices (so you can see what the plan is worth). Below that, a line per limit window shows how full it got over the last 7 days, with a strip of the hours you usually hit a limit. Limit readings are saved about every 10 minutes while nyrasview runs.
 
 ## Keep working when the plan runs out
 

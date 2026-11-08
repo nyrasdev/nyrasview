@@ -223,7 +223,7 @@ textarea{width:100%;min-height:70px;resize:vertical}
 .stk .col i{display:block;width:100%;transition:height .8s var(--ease)}
 .stk .col i:last-child{border-radius:4px 4px 0 0}
 .stk .xa{grid-column:2;display:flex;gap:5px;font-size:11px;color:var(--dim);padding-top:5px}
-.stk .xa span{flex:1;text-align:center;min-width:0}
+.stk .xa span{flex:1;text-align:center;min-width:0;white-space:nowrap}
 .rk{display:grid;gap:9px}
 .rk .r{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;align-items:center;font-size:12.5px}
 .rk .r .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;gap:6px;align-items:center}
@@ -289,6 +289,17 @@ textarea{width:100%;min-height:70px;resize:vertical}
 .rv .hkh a{font-size:12px;color:var(--dim);cursor:pointer}
 .rv .cpd{margin:6px 0 0}
 @media (max-width:860px){.rv{margin-left:0}}
+.lgd{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--dim);margin:2px 0 10px}
+.lgd span{display:flex;gap:6px;align-items:center}.lgd i{width:10px;height:10px;border-radius:3px;display:inline-block}.lgd b{color:var(--text);font-weight:600}
+.lw{display:grid;gap:12px}
+.lwh{display:flex;gap:8px;align-items:center;font-size:12.5px;margin-bottom:4px}.lwh .sd{width:8px;height:8px;border-radius:50%;display:inline-block}.lwh .m{font-family:var(--mono);font-size:11.5px;color:var(--dim)}
+.lws{width:100%;height:90px;display:block;overflow:visible}
+.lws .g{stroke:var(--line);stroke-width:1;vector-effect:non-scaling-stroke}
+.lwp{position:relative}
+.lwp .mk{position:absolute;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%}
+.lwp .mk.hit::after{content:"";position:absolute;inset:2px;border-radius:50%;background:var(--bad);box-shadow:0 0 0 2px var(--panel)}
+.hrs{display:grid;grid-template-columns:repeat(24,1fr);gap:2px;height:22px}.hrs i{background:var(--bad);border-radius:3px}
+.hrl{display:flex;justify-content:space-between;font-size:11px;color:var(--dim);margin-top:3px}
 .cpl{display:grid;gap:2px}
 .cpl .t{display:grid;grid-template-columns:52px minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:6px 8px;border-radius:8px;font-size:12.5px}
 .cpl .t:hover{background:var(--panel2)}
@@ -1098,8 +1109,40 @@ function vSkills(){
   <div class="panel"><table><thead><tr><th>agent</th><th>kind</th><th>name</th><th>scope</th><th>description</th></tr></thead><tbody>`+
   it.map(s=>`<tr data-key="${esc(s.path)}" title="${esc(s.path)}"><td style="color:${hex(s.agent)};font-weight:600">${esc(s.agent)}</td><td class="m">${esc(s.kind)}</td><td>${esc(s.name)}</td><td class="muted">${s.scope.startsWith("project")?"project":esc(s.scope)}</td><td class="muted">${esc(s.description)}</td></tr>`).join("")+`</tbody></table>${it.length?"":`<div class="empty">Nothing matches.</div>`}</div>`}
 
+let INS=null,INS_AT=0;
+async function loadInsights(){if(Date.now()-INS_AT<55000&&INS)return;INS_AT=Date.now();INS=await getJSON("/api/insights",INS,{headers:{"X-Nyra-Token":TOKEN}});if(view==="usage")render()}
+const money2=v=>v==null?"–":"$"+(v>=100?v.toFixed(0):v.toFixed(2));
+function vInsights(){
+  const r=INS;if(!r||!r.agents)return `<div class="panel"><h2>Last 30 days</h2><div class="muted">loading…</div></div>`;
+  const ks=Object.keys(r.agents).sort((a,b)=>r.agents[b].tokens-r.agents[a].tokens);if(!ks.length)return "";
+  const days=r.days.map(t=>new Date(t*1000));const tot=days.map((_,i)=>ks.reduce((s,k)=>s+r.agents[k].daily[i],0));const mx=Math.max(...tot,1);
+  const dl=d=>d.toLocaleDateString(undefined,{month:"short",day:"numeric"});
+  let h=`<div class="panel"><div class="hd2"><h2>Last 30 days</h2><span class="muted" style="font-size:12px">tokens per day · input + output + cache writes</span></div>
+    <div class="lgd">${ks.map(k=>`<span><i style="background:${colorOf(k)}"></i>${esc(aname(k))} <b>${hn(r.agents[k].tokens)}</b></span>`).join("")}</div>
+    <div class="stk"><div class="ya"><span>${hn(mx)}</span><span>${hn(mx/2)}</span><span>0</span></div>
+    <div class="plot">${days.map((d,i)=>`<div class="col" data-key="id${i}">${ks.filter(k=>r.agents[k].daily[i]).map(k=>`<i style="height:calc(${(r.agents[k].daily[i]/mx*100).toFixed(2)}% - 2px);background:${colorOf(k)}" data-tip="${tip(`<b>${aname(k)}</b> · ${dl(d)}: ${hn(r.agents[k].daily[i])} tokens${r.agents[k].daily_cost[i]?" · "+money2(r.agents[k].daily_cost[i]):""}`)}"></i>`).join("")}</div>`).join("")}</div>
+    <div class="xa">${days.map((d,i)=>`<span>${i%5===0||i===days.length-1?dl(d):""}</span>`).join("")}</div></div>
+    <table style="margin-top:14px"><thead><tr><th>agent</th><th class="r">prompts</th><th class="r">tokens</th><th class="r">per prompt</th><th class="r">cost</th><th class="r" title="what this usage would cost on the API at Anthropic list prices">at API prices</th><th class="r">per prompt</th></tr></thead><tbody>`+
+    ks.map(k=>{const a=r.agents[k];return `<tr data-key="ins-${k}"><td><span class="sd" style="background:${colorOf(k)};display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px"></span>${esc(aname(k))}</td><td class="r m">${a.prompts||"–"}</td><td class="r m">${hn(a.tokens)}</td><td class="r m">${a.tokens_per_prompt?hn(a.tokens_per_prompt):"–"}</td><td class="r m">${money2(a.cost)}</td><td class="r m">${money2(a.api_cost)}</td><td class="r m">${money2(a.cost_per_prompt)}</td></tr>`}).join("")+`</tbody></table>
+    <div class="muted" style="font-size:11.5px;margin-top:6px">"At API prices" is what the Claude usage would cost on the API at Anthropic's list prices; your plan already covers it. Cost shows only where the tool logs it.</div></div>`;
+  const L=r.limits||[];const t1=r.generated,t0=t1-7*86400,W=700,H=90;
+  h+=`<div class="panel"><div class="hd2"><h2>Limit windows · 7 days</h2><span class="muted" style="font-size:12px">how full each window got, from readings nyrasview saves while it runs</span></div>`;
+  if(!L.length) h+=`<div class="muted" style="font-size:12.5px">No readings yet. They build up while nyrasview is open.</div>`;
+  else h+=`<div class="lw">`+L.map(l=>{const pts=l.points.filter(p=>p[0]>=t0);const x=t=>((t-t0)/(t1-t0)*W).toFixed(1),y=u=>(H-4-Math.min(1,u)*(H-8)).toFixed(1);
+    const last=pts[pts.length-1]||[t1,0],peak=Math.max(...pts.map(p=>p[1]),0);const c=colorOf(l.agent);const lab=({five_hour:"5-hour",seven_day:"weekly"})[l.window]||l.window.replace(/_/g," ");
+    const path=pts.length>1?pts.map((p,i)=>(i?"L":"M")+x(p[0])+" "+y(p[1])).join(" "):"";
+    return `<div class="lwr" data-key="lw-${l.agent}-${l.window}"><div class="lwh"><span class="sd" style="background:${c}"></span><b>${esc(aname(l.agent))}</b><span class="muted">${esc(lab)}</span><span class="grow"></span><span class="m">now ${(last[1]*100).toFixed(0)}% · peak ${(peak*100).toFixed(0)}%</span></div>
+      <div class="lwp"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="lws"><line x1="0" x2="${W}" y1="${y(1)}" y2="${y(1)}" class="g"/><line x1="0" x2="${W}" y1="${y(.5)}" y2="${y(.5)}" class="g"/>${path?`<path d="${path}" style="fill:none;stroke:${c};stroke-width:2;stroke-linejoin:round" vector-effect="non-scaling-stroke"/>`:""}</svg>
+      ${pts.map((p,i)=>{const hit=p[1]>=.995&&!(i&&pts[i-1][1]>=.995);return `<i class="mk ${hit?"hit":""}" style="left:${(x(p[0])/W*100).toFixed(2)}%;top:${(y(p[1])/H*100).toFixed(2)}%" data-tip="${tip(`<b>${aname(l.agent)} ${lab}</b> · ${new Date(p[0]*1000).toLocaleString(undefined,{weekday:"short",hour:"2-digit",minute:"2-digit"})}: ${(p[1]*100).toFixed(0)}%${hit?" · limit hit":""}`)}"></i>`}).join("")}</div>
+      ${pts.length<2?`<div class="muted" style="font-size:11.5px">collecting readings: one is saved about every 10 minutes while nyrasview runs</div>`:""}</div>`}).join("")+`</div>`;
+  const hits=r.hits||[];const hh=r.hit_hours||{};const hm=Math.max(1,...Object.values(hh));
+  h+=`<h3 style="margin-top:14px">When you hit limits</h3>`+(hits.length?`<div class="hrs">${Array.from({length:24},(_,i)=>`<i style="opacity:${hh[i]?(.25+.75*hh[i]/hm).toFixed(2):.08}" data-tip="${tip(`${String(i).padStart(2,"0")}:00 · ${hh[i]||0} limit hit(s)`)}"></i>`).join("")}</div><div class="hrl"><span>00</span><span>06</span><span>12</span><span>18</span><span>23</span></div>
+    <div class="muted" style="font-size:12px;margin-top:6px">${hits.length} hit(s) in 7 days · last: ${esc(aname(hits[hits.length-1].agent))} ${new Date(hits[hits.length-1].at*1000).toLocaleString(undefined,{weekday:"short",hour:"2-digit",minute:"2-digit"})}</div>`
+    :`<div class="muted" style="font-size:12.5px">No limit hits in the last 7 days.</div>`)+`</div>`;
+  return h}
+
 function vUsage(){
-  const ag=S.agents.filter(a=>a.usage&&a.usage.total);let h=`<div class="ph"><h1>Usage</h1><span class="sub">from each tool's local logs</span></div>`;
+  const ag=S.agents.filter(a=>a.usage&&a.usage.total);let h=`<div class="ph"><h1>Usage</h1><span class="sub">from each tool's local logs</span></div>`+vInsights();
   const o=S.openrouter;
   if(o&&o.configured) h+=`<div class="panel">${o.error?`<span style="color:var(--bad)">OpenRouter: ${esc(o.error)}</span>`:`<b>OpenRouter</b> <span class="muted">${esc(o.label||"")}</span> · ${money(+o.usage||0)} used${o.limit?` of $${o.limit}`:""} · today ${money(+o.daily||0)} · week ${money(+o.weekly||0)} · month ${money(+o.monthly||0)}`}</div>`;
   if(!ag.length) return h+`<div class="empty">No local usage logs found yet.</div>`;
@@ -1219,6 +1262,7 @@ function bindView(){
   if(view==="skills")loadSKM();
   if(view==="settings")loadSettings();
   if(view==="phone")loadPhone();
+  if(view==="usage")loadInsights();
   if(view==="search"){const q=$("#srq");if(q){q.value=SR.q;q.focus();q.oninput=()=>{SR.q=q.value;clearTimeout(SR.t);SR.t=setTimeout(doSearch,280)};q.onkeydown=e=>{if(e.key==="Enter"){clearTimeout(SR.t);doSearch()}}}
     const ag=$("#sra");if(ag){ag.value=SR.agent;ag.onchange=()=>{SR.agent=ag.value;doSearch()}}const sn=$("#srs");if(sn){sn.value=SR.since;sn.onchange=()=>{SR.since=sn.value;doSearch()}}}
   if(view==="heal")loadHeal().then(()=>{FORCE=true;render()});
