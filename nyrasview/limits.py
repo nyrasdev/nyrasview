@@ -310,12 +310,24 @@ def budgets():
     return out
 
 
+MONEY = {"cny": "¥", "eur": "€", "gbp": "£", "jpy": "¥"}
+
+
+def left_for(s):
+    s = max(0, int(s or 0))
+    return f"{s / 86400:.0f} days" if s >= 2 * 86400 else dur(s)
+
+
 def amount(v, unit):
     v = v or 0
     if unit == "usd":
         return f"${v:.2f}"
+    if unit in MONEY:
+        return f"{MONEY[unit]}{v:.2f}"
     if unit == "requests":
         return f"{v:,.0f} req"
+    if unit == "credits":
+        return f"{v:,.1f} credits"
     from .util import hn
     return f"{hn(v)} tok"
 
@@ -427,7 +439,7 @@ def openrouter_windows(o, now=None):
 META = {}
 
 
-def snapshot(usage_records, openrouter=None):
+def snapshot(usage_records, openrouter=None, deepseek=None):
     global META
     scan_runs()
     out = {}
@@ -456,6 +468,18 @@ def snapshot(usage_records, openrouter=None):
     if ow:
         out["openrouter"] = ow
         META["openrouter"] = om
+    try:
+        from . import codexbar
+        cw, cm = codexbar.windows(META)
+        out.update(cw)
+        META.update(cm)
+    except Exception:
+        pass
+    from .deepseek import windows as deepseek_windows
+    dw, dm = deepseek_windows(deepseek)
+    if dm:
+        out["deepseek"] = dw
+        META["deepseek"] = dm
     try:
         from .insights import record_limits
         record_limits(out)

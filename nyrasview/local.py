@@ -1,5 +1,8 @@
 import json
 import os
+import threading
+import time
+import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
@@ -39,14 +42,124 @@ def server(key):
     return next((s for s in servers() if s["key"] == key), None)
 
 
-def _req(url, payload=None, key=None, timeout=1.0):
+PULLS = {}
+
+
+def _req(url, payload=None, key=None, timeout=1.0, method=None):
     headers = {"Content-Type": "application/json"}
     if key:
         headers["Authorization"] = f"Bearer {key}"
     data = json.dumps(payload).encode() if payload is not None else None
-    r = urllib.request.Request(url, data=data, headers=headers)
+    r = urllib.request.Request(url, data=data, headers=headers, method=method)
     with urllib.request.urlopen(r, timeout=timeout) as resp:
-        return json.loads(resp.read().decode())
+        raw = resp.read().decode()
+        return json.loads(raw) if raw.strip() else {}
+
+
+def _ollama(key):
+    s = server(key)
+    if not s:
+        raise RuntimeError(f"unknown local server {key}")
+    if s["api"] != "ollama":
+        raise RuntimeError(f"{s['name']} can't do this: only Ollama servers manage models through nyrasview")
+    return s, s["url"].rstrip("/")
+
+
+def _fail(e, s):
+    if isinstance(e, urllib.error.HTTPError):
+        try:
+            return json.loads(e.read().decode()).get("error") or f"{s['name']} error {e.code}"
+        except Exception:
+            return f"{s['name']} error {e.code}"
+    return f"{s['name']} is not running at {s['url']}"
+
+
+def pull_iter(key, model):
+    s, base = _ollama(key)
+    r = urllib.request.Request(f"{base}/api/pull", data=json.dumps({"model": model, "stream": True}).encode(),
+                               headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(r, timeout=60) as resp:
+            for line in resp:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    o = json.loads(line)
+                except ValueError:
+                    continue
+                if o.get("error"):
+                    raise RuntimeError(o["error"])
+                yield {"status": o.get("status") or "", "completed": o.get("completed"), "total": o.get("total")}
+    except (urllib.error.URLError, OSError) as e:
+        raise RuntimeError(_fail(e, s))
+
+
+def _pull_thread(key, model):
+    st = PULLS[(key, model)]
+    try:
+        for p in pull_iter(key, model):
+            st.update(status=p["status"])
+            if p.get("total"):
+                st.update(completed=p.get("completed") or 0, total=p["total"])
+        st.update(done=True, status="done", finished=time.time())
+    except Exception as e:
+        st.update(done=True, error=str(e)[:300], finished=time.time())
+    try:
+        from . import notify
+        from .registry import BY_KEY
+        name = BY_KEY[key].name if key in BY_KEY else key
+        if st.get("error"):
+            notify.emit("failed", key, f"{name} couldn't download {model}", st["error"], f"pull|{model}|{st['started']}")
+        else:
+            notify.emit("done", key, f"{name} downloaded {model}", "Ready to use.", f"pull|{model}|{st['started']}")
+    except Exception:
+        pass
+
+
+def pull(key, model):
+    model = (model or "").strip()
+    if not model:
+        raise ValueError("name a model, e.g. qwen3:8b")
+    _ollama(key)
+    cur = PULLS.get((key, model))
+    if cur and not cur.get("done"):
+        return cur
+    PULLS[(key, model)] = {"model": model, "status": "starting", "completed": 0, "total": 0, "done": False,
+                           "error": None, "started": time.time()}
+    threading.Thread(target=_pull_thread, args=(key, model), daemon=True).start()
+    return PULLS[(key, model)]
+
+
+def pulls(key):
+    now = time.time()
+    return [v for (k, _), v in PULLS.items() if k == key and (not v.get("done") or now - v.get("finished", now) < 30)]
+
+
+def delete(key, model):
+    s, base = _ollama(key)
+    try:
+        _req(f"{base}/api/delete", {"model": model}, timeout=30, method="DELETE")
+    except (urllib.error.URLError, OSError) as e:
+        raise RuntimeError(_fail(e, s))
+    return True
+
+
+def load(key, model, unload=False, keep=None):
+    s, base = _ollama(key)
+    body = {"model": model, "keep_alive": 0} if unload else {"model": model}
+    if keep and not unload:
+        body["keep_alive"] = keep
+    try:
+        _req(f"{base}/api/generate", body, timeout=300)
+    except (urllib.error.URLError, OSError) as e:
+        raise RuntimeError(_fail(e, s))
+    return True
+
+
+def run_command(key, model):
+    _ollama(key)
+    return ["ollama", "run", model]
 
 
 def probe(s):
@@ -62,14 +175,18 @@ def probe(s):
                        "params": (m.get("details") or {}).get("parameter_size"),
                        "quant": (m.get("details") or {}).get("quantization_level")} for m in tags.get("models", [])]
             loaded = [{"id": m.get("name"), "size": m.get("size"), "vram": m.get("size_vram"),
-                       "until": m.get("expires_at")} for m in ps.get("models", [])]
+                       "until": m.get("expires_at"), "context": m.get("context_length"),
+                       "params": (m.get("details") or {}).get("parameter_size"),
+                       "quant": (m.get("details") or {}).get("quantization_level")} for m in ps.get("models", [])]
         else:
             d = _req(f"{base}/v1/models", key=s.get("api_key"), timeout=0.8)
             models = [{"id": m.get("id")} for m in d.get("data", [])]
             loaded = [{"id": m.get("id")} for m in d.get("data", []) if m.get("state") == "loaded"]
-        return {**{k: v for k, v in s.items() if k != "api_key"}, "up": True, "models": models, "loaded": loaded}
+        return {**{k: v for k, v in s.items() if k != "api_key"}, "up": True, "models": models, "loaded": loaded,
+                "pulls": pulls(s["key"])}
     except Exception:
-        return {**{k: v for k, v in s.items() if k != "api_key"}, "up": False, "models": [], "loaded": []}
+        return {**{k: v for k, v in s.items() if k != "api_key"}, "up": False, "models": [], "loaded": [],
+                "pulls": pulls(s["key"])}
 
 
 def scan():

@@ -556,3 +556,104 @@ def cmd_notes(a):
         g = BY_KEY.get(f["agent"])
         print(f"  {col(c, '●')} {f['path']}  " + dim(f"{g.name if g else f['agent']} · {f['state']}"))
     print(dim("\nnyrasview notes add \"…\" · notes edit · notes sync · -g for notes every project shares"))
+
+
+def _queue_when(it, now):
+    from .limits import dur
+    if it["status"] == "running":
+        return f"running · run {it['run']}" + (f" on {BY_KEY[it['ran_on']].name}" if it.get("ran_on") and it["ran_on"] != it["agent"] and it["ran_on"] in BY_KEY else "")
+    if it["status"] == "failed":
+        return "failed: " + (it.get("error") or "")
+    w = it.get("why") or "starts as soon as a running nyrasview checks"
+    if it.get("until") and it["until"] > now:
+        w += f" (in {dur(it['until'] - now)})"
+    return w
+
+
+def _queue_table(items):
+    from .cli import col, dim, table
+    now = time.time()
+    rows = []
+    for it in items:
+        g = BY_KEY.get(it["agent"])
+        st = it["status"]
+        sc = {"running": "#22c55e", "failed": "#ef4444"}.get(st)
+        rows.append([dim(it["id"]), col(g.hex if g else None, g.name if g else it["agent"]) + (dim(" +any") if it.get("fallback") else ""),
+                     col(sc, st) if sc else st, _queue_when(it, now), it["cwd"].replace(os.path.expanduser("~"), "~"),
+                     it["prompt"].replace("\n", " ")])
+    table(["ID", "AGENT", "STATUS", "WHEN", "FOLDER", "PROMPT"], rows)
+
+
+def _queue_nobody():
+    _, dim = _c()
+    print(dim("Nothing is checking the queue right now. Keep nyrasview open (gui or tui), run `nyrasview daemon`,\n"
+              "or `nyrasview queue run` in a terminal. `nyrasview service install` starts the daemon at login."))
+
+
+def queue_add(agents, prompt, cwd, mode, model, at, fallback, api, sandbox):
+    from . import runqueue
+    col, dim = _c()
+    group = os.urandom(3).hex() if len(agents) > 1 else None
+    made = [runqueue.add(g, prompt, cwd, mode, model, at, fallback, api, sandbox, group) for g in agents]
+    runqueue.tick(heartbeat=False)
+    for it in made:
+        it = runqueue.load(it["id"]) or it
+        g = BY_KEY[it["agent"]]
+        if it["status"] == "running":
+            who = BY_KEY.get(it.get("ran_on"), g).name
+            print(f"{col(g.hex, g.name)}: had room, started now as run {it['run']}" + (f" on {who}" if who != g.name else ""))
+            print(dim(f"  follow it:  nyrasview runs   ·   nyrasview ask {it.get('ran_on') or g.key} \"…\" -c {it['run']}"))
+        elif it["status"] == "failed":
+            print(col("#ef4444", f"{g.name}: couldn't start: {it.get('error')}"))
+        else:
+            print(f"{col(g.hex, g.name)}: queued as {it['id']} · {_queue_when(it, time.time())}")
+    if any(runqueue.load(it["id"]) and runqueue.load(it["id"])["status"] == "waiting" for it in made) and not runqueue.alive():
+        _queue_nobody()
+
+
+def cmd_queue(a):
+    from . import runqueue
+    col, dim = _c()
+    sub = getattr(a, "queue_cmd", None)
+    if sub == "add":
+        ags = [x.strip() for x in a.agent.split(",") if x.strip()]
+        for g in ags:
+            if g not in BY_KEY:
+                sys.exit(f"unknown agent {g}; see: nyrasview agents")
+        return queue_add(ags, a.prompt, a.dir, a.mode, a.model, a.at, a.any, a.api, True if a.sandbox else None)
+    if sub == "rm":
+        if not runqueue.remove(a.id):
+            sys.exit(f"no queued prompt {a.id}")
+        return print(f"removed {a.id}")
+    if sub == "now":
+        it = runqueue.start_now(a.id)
+        if it["status"] == "failed":
+            sys.exit(f"couldn't start: {it.get('error')}")
+        return print(f"started as run {it['run']}")
+    if sub == "run":
+        if not a.once:
+            print(dim(f"checking the queue every {a.every:g}s; starts prompts as limits reset · ctrl+c to stop"), flush=True)
+        seen = {}
+        while True:
+            items = runqueue.tick(heartbeat=not a.once)
+            for it in items:
+                key = (it["status"], it.get("run"), it.get("why"))
+                if seen.get(it["id"]) != key:
+                    seen[it["id"]] = key
+                    g = BY_KEY.get(it["agent"])
+                    print(f"{time.strftime('%H:%M')}  {col(g.hex if g else None, g.name if g else it['agent'])}  "
+                          f"{it['prompt'][:50].replace(chr(10), ' ')}  {dim(_queue_when(it, time.time()))}", flush=True)
+            if not any(it["status"] in ("waiting", "running") for it in items):
+                return print("queue is empty")
+            if a.once:
+                return
+            time.sleep(max(1.0, a.every))
+    items = runqueue.listing()
+    if a.json:
+        return print(json.dumps({"items": items, "alive": runqueue.alive()}, indent=2))
+    if not items:
+        return print('nothing queued. Add one: nyrasview queue add claude "fix the failing tests" -d ~/project')
+    _queue_table(items)
+    if any(it["status"] == "waiting" for it in items) and not runqueue.alive():
+        print()
+        _queue_nobody()

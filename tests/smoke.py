@@ -524,6 +524,198 @@ def _state_dir():
     return HOME / ".local/state/nyrasview"
 
 
+@step("queue: waits for the limit reset, start time, start now")
+def _():
+    st = _state_dir()
+    st.mkdir(parents=True, exist_ok=True)
+    now = time.time()
+    (st / "limits.json").write_text(json.dumps({"claude": {"five_hour": {"utilization": 1.0, "resets": now + 3600, "seen": now - 5}}}))
+    out = run("queue", "add", "claude", "do it later", "-d", str(WORK))
+    assert "queued as" in out and "5-hour limit is full" in out and "Nothing is checking the queue" in out, out
+    d = json.loads(run("queue", "--json"))
+    first = d["items"][0]
+    assert first["status"] == "waiting" and first["until"] > now + 3000 and not d["alive"], d
+    out = run("ask", "echoer", "second in line", "-d", str(WORK), "--later")
+    assert "waits for the prompt before it" in out, out
+    run("queue", "rm", first["id"])
+    run("queue", "run", "--every", "1", timeout=90)
+    done = [r for r in json.loads(run("status", "--json")).get("queue", [])]
+    assert not done, done
+    assert "second in line" in run("runs"), run("runs")
+    out = run("queue", "add", "echoer", "not yet", "-d", str(WORK), "--at", "+2h")
+    assert "starts at" in out, out
+    qid = json.loads(run("queue", "--json"))["items"][0]["id"]
+    assert "started as run" in run("queue", "now", qid)
+    run("queue", "run", "--every", "1", timeout=90)
+    assert not json.loads(run("queue", "--json"))["items"]
+    (st / "limits.json").unlink()
+
+
+@step("deepseek: balance, burn rate, low-balance alert, prompt")
+def _():
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    wallet = {"v": "12.50"}
+
+    class H(BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def _reply(self, code, body):
+            data = json.dumps(body).encode()
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def do_GET(self):
+            if self.headers.get("Authorization") != "Bearer sk-deepseek-smoke-123456":
+                return self._reply(401, {"error": {"message": "bad key"}})
+            self._reply(200, {"is_available": True, "balance_infos": [{"currency": "USD", "total_balance": wallet["v"],
+                                                                      "granted_balance": "0.00", "topped_up_balance": wallet["v"]}]})
+
+        def do_POST(self):
+            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)))
+            self._reply(200, {"choices": [{"message": {"content": "deepseek says hi to " + body["model"]}}]})
+
+    srv = HTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        with open(cfg / "config.toml", "a", encoding="utf-8") as f:
+            f.write(f'\n[deepseek]\nbase_url = "http://127.0.0.1:{srv.server_address[1]}"\nlow_balance = 2\n')
+        assert "deepseek" not in json.loads(run("limits", "--json"))["limits"]
+        run("keys", "deepseek", "sk-wrong-key-000000000")
+        assert "API key is not valid" in run("limits")
+        run("keys", "deepseek", "sk-deepseek-smoke-123456")
+        w = json.loads(run("limits", "--json"))["limits"]["deepseek"]["balance"]
+        assert w["balance"] == 12.5 and w["unit"] == "usd" and not w["low"], w
+        out = run("limits")
+        assert "DeepSeek" in out and "$12.50 left" in out, out
+        hist = _state_dir() / "deepseek_balance.json"
+        hist.write_text(json.dumps([[time.time() - 7200, 14.5, "USD"]]))
+        wallet["v"] = "1.50"
+        w = json.loads(run("limits", "--json"))["limits"]["deepseek"]["balance"]
+        assert w["low"] and 6.4 < w["burn_per_hour"] < 6.6 and 700 < w["eta"] < 900, w
+        assert "DeepSeek balance is low" in run("inbox")
+        out = run("ask", "deepseek", "hello", "-d", str(WORK), timeout=60)
+        assert "deepseek says hi to deepseek-chat" in out, out
+    finally:
+        srv.shutdown()
+        run("keys", "deepseek", "")
+
+
+@step("codexbar: extra limits from the codexbar CLI, without overriding live ones")
+def _():
+    soon = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + 7200))
+    payload = {"providers": [
+        {"provider": "copilot", "usage": {"primary": {"usedPercent": 40, "windowMinutes": 43200, "resetsAt": soon, "title": "Premium requests"},
+                                          "loginMethod": "pro"}},
+        {"provider": "kilo", "usage": {"primary": {"usedPercent": 99, "windowMinutes": 300, "resetsAt": soon}}, "credits": {"remaining": 12.5}},
+        {"provider": "cursor", "error": {"message": "not signed in"}},
+        {"provider": "gemini", "usage": {"primary": {"usedPercent": 10, "windowMinutes": 1440, "resetsAt": soon}}}]}
+    fake = ROOT / "codexbar_fake.py"
+    fake.write_text("import sys\nassert sys.argv[1:] == ['usage', '--format', 'json', '--json-only'], sys.argv\nprint(" + repr(json.dumps(payload)) + ")\n", encoding="utf-8")
+    if os.name == "nt":
+        exe = ROOT / "codexbar_fake.cmd"
+        exe.write_text(f'@"{PY}" "{fake}" %*\r\n', encoding="utf-8")
+    else:
+        exe = ROOT / "codexbar_fake"
+        exe.write_text(f"#!{PY}\n" + fake.read_text(encoding="utf-8"), encoding="utf-8")
+        exe.chmod(0o755)
+    assert "copilot" not in json.loads(run("limits", "--json"))["limits"]
+    run("settings", "set", "codexbar.path", str(exe))
+    try:
+        d = json.loads(run("limits", "--json"))
+        lim, meta = d["limits"], d["meta"]
+        w = lim["copilot"]["43200m"]
+        assert w["utilization"] == 0.4 and w["label"] == "Premium requests" and w["resets"] > time.time(), w
+        assert meta["copilot"]["source"] == "codexbar" and meta["copilot"]["plan"] == "pro", meta
+        assert lim["kilo"]["five_hour"]["utilization"] == 0.99 and lim["kilo"]["credits"]["balance"] == 12.5, lim["kilo"]
+        assert meta["cursor"]["error"] == "not signed in", meta
+        assert lim["gemini"]["day"]["source"] == "codexbar", lim["gemini"]
+        out = run("limits")
+        assert "Premium requests" in out and "Kilo" in out and "12.5 credits left" in out and "not signed in" in out, out
+        out = run("queue", "add", "copilot", "wait for kilo", "-d", str(WORK), check=False)
+        run("settings", "set", "codexbar.enabled", "false")
+        assert "copilot" not in json.loads(run("limits", "--json"))["limits"]
+    finally:
+        run("settings", "unset", "codexbar.path")
+        run("settings", "unset", "codexbar.enabled")
+        for q in json.loads(run("queue", "--json"))["items"]:
+            run("queue", "rm", q["id"])
+        (_state_dir() / "codexbar.json").unlink(missing_ok=True)
+
+
+@step("ollama: list, download with progress, load, unload, delete")
+def _():
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    have, loaded = {"tiny:1b"}, set()
+
+    class H(BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def _reply(self, code, body):
+            data = body if isinstance(body, bytes) else json.dumps(body).encode()
+            self.send_response(code)
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def _body(self):
+            return json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+
+        def do_GET(self):
+            if self.path == "/api/tags":
+                return self._reply(200, {"models": [{"name": m, "size": 1000, "details": {"parameter_size": "1B"}} for m in sorted(have)]})
+            if self.path == "/api/ps":
+                return self._reply(200, {"models": [{"name": m, "size": 1000, "size_vram": 800, "context_length": 4096} for m in sorted(loaded)]})
+            self._reply(404, {})
+
+        def do_POST(self):
+            b = self._body()
+            if self.path == "/api/pull":
+                if b["model"] == "nope":
+                    return self._reply(200, json.dumps({"error": "pull model manifest: file does not exist"}).encode() + b"\n")
+                have.add(b["model"])
+                lines = [{"status": "pulling manifest"}, {"status": "pulling abc", "total": 2000, "completed": 1000}, {"status": "success"}]
+                return self._reply(200, "".join(json.dumps(x) + "\n" for x in lines).encode())
+            if self.path == "/api/generate":
+                if b["model"] not in have:
+                    return self._reply(404, {"error": f"model '{b['model']}' not found"})
+                loaded.discard(b["model"]) if b.get("keep_alive") == 0 else loaded.add(b["model"])
+                return self._reply(200, {"done": True})
+            self._reply(404, {})
+
+        def do_DELETE(self):
+            b = self._body()
+            if b["model"] not in have:
+                return self._reply(404, {"error": f"model '{b['model']}' not found"})
+            have.discard(b["model"])
+            self._reply(200, b"")
+
+    srv = HTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    ENV["OLLAMA_HOST"] = f"127.0.0.1:{srv.server_address[1]}"
+    try:
+        out = run("local", "pull", "new:2b")
+        assert "downloaded new:2b" in out and "pulling manifest" in out, out
+        assert "new:2b" in run("local")
+        bad = run("local", "pull", "nope", check=False)
+        assert "file does not exist" in bad, bad
+        assert "is loaded" in run("local", "load", "new:2b")
+        assert "vram" in run("local"), run("local")
+        assert "unloaded" in run("local", "unload", "new:2b") and not loaded
+        assert "deleted new:2b" in run("local", "rm", "new:2b") and "new:2b" not in have
+        assert "not found" in run("local", "rm", "new:2b", check=False)
+        assert "only Ollama" in run("local", "rm", "x", "-s", "lmstudio", check=False)
+    finally:
+        srv.shutdown()
+        ENV.pop("OLLAMA_HOST", None)
+
+
 @step("gui api: settings, keys, hand-off options, phone login")
 def _():
     import http.client
@@ -571,6 +763,13 @@ def _():
         assert "soon_pct = 77" in v["raw"] and "agents.echoer" in v["raw"], v["raw"]
         st, _, data = api("POST", "/api/keys", {"provider": "openai", "key": "sk-openai-smoke"})
         assert any(k["provider"] == "openai" and k["connected"] for k in json.loads(data)["status"]), data
+        st, _, data = api("POST", "/api/queue/add", {"agents": ["echoer"], "prompt": "queued from the gui", "cwd": str(WORK), "at": "+3h"})
+        made = json.loads(data)["items"]
+        assert st == 200 and made[0]["status"] == "waiting" and "starts at" in made[0]["why"], data
+        st, _, data = api("GET", "/api/queue")
+        assert any(q["id"] == made[0]["id"] for q in json.loads(data)["items"]), data
+        st, _, data = api("POST", "/api/queue/remove", {"id": made[0]["id"]})
+        assert st == 200 and not json.loads(api("GET", "/api/queue")[2])["items"], data
         st, _, data = api("GET", f"/api/handoff/options?agent=claude&cwd={urllib.parse.quote(str(WORK))}")
         opts = json.loads(data)
         assert any(t["key"] == "codex" and t["ok"] for t in opts["targets"]), opts

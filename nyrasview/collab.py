@@ -288,6 +288,9 @@ def call(agent_key, prompt, model=None, cwd=None, on_pid=None, timeout=None, san
         if "error" in d:
             raise RuntimeError(str(d["error"])[:300])
         return d["choices"][0]["message"]["content"] or ""
+    if h.get("http") == "deepseek":
+        from . import deepseek
+        return deepseek.chat(prompt, model, timeout)
     if h.get("http") == "local":
         from . import local
         m = model or cfg.get(h["server"], {}).get("model")

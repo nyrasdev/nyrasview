@@ -24,7 +24,7 @@ class Collector:
         self.resolver = net.Resolver()
         self.hist = defaultdict(lambda: deque(maxlen=90))
         self.slow = {"mcp": [], "skills": [], "usage": {}, "openrouter": {"configured": False},
-                     "local": [], "collab": [], "limits": {}}
+                     "local": [], "collab": [], "limits": {}, "deepseek": {"configured": False}}
         self.watcher = notify.Watcher(relay=relay) if watch else None
         self.cwds = set()
         self.snap = None
@@ -49,7 +49,7 @@ class Collector:
 
     def _slow_loop(self):
         last = defaultdict(float)
-        periods = {"usage": 12, "cfg": 20, "openrouter": 90, "local": 6, "collab": 2, "limits": 10, "watch": 2}
+        periods = {"usage": 12, "cfg": 20, "openrouter": 90, "local": 6, "collab": 2, "limits": 10, "watch": 2, "queue": 10, "deepseek": 60, "codexbar": 15}
         while True:
             now = time.time()
             for k, p in periods.items():
@@ -75,11 +75,24 @@ class Collector:
                 pass
         if what in ("openrouter", "all"):
             self.slow["openrouter"] = net.openrouter()
+        if what in ("codexbar", "all"):
+            from . import codexbar
+            codexbar.refresh_async()
+        if what in ("deepseek", "all"):
+            from . import deepseek
+            cur = self.slow.get("deepseek") or {}
+            fresh = time.time() - cur.get("at", 0) < deepseek.settings()["refresh_minutes"] * 60
+            if what == "all" or not fresh or bool(deepseek.key()) != bool(cur.get("configured")):
+                self.slow["deepseek"] = deepseek.fetch()
         if what in ("local", "all"):
             self.slow["local"] = local.scan()
         if what in ("limits", "all"):
-            self.slow["limits"] = limits.snapshot(self.usage.records, self.slow.get("openrouter"))
+            self.slow["limits"] = limits.snapshot(self.usage.records, self.slow.get("openrouter"), self.slow.get("deepseek"))
             self.slow["limits_meta"] = dict(limits.META)
+            self.slow["limits_at"] = time.time()
+        if what == "queue" and self.slow.get("limits_at"):
+            from . import runqueue
+            self.slow["queue"] = runqueue.tick(self.slow["limits"])
         if what == "watch" and self.watcher:
             self.watcher.tick(self.snapshot())
         if what in ("collab", "all"):
@@ -229,6 +242,8 @@ class Collector:
             visible = bool(procs or installed or amcp or usage or nskills)
             if a.key == "openrouter":
                 visible = bool(self.slow["openrouter"].get("configured") or prov)
+            if a.key == "deepseek":
+                visible = installed = bool(self.slow["deepseek"].get("configured"))
             lsrv = next((s for s in self.slow["local"] if a.headless and s["key"] == a.headless.get("server")), None)
             if lsrv and lsrv["up"]:
                 visible = installed = True
@@ -253,8 +268,9 @@ class Collector:
             "system": {"cpu": psutil.cpu_percent(), "ncpu": ncpu, "mem_used": vm.total - vm.available,
                        "mem_total": vm.total},
             "agents": agents_out, "mcp": cfg_mcp, "skills": self.slow["skills"],
-            "openrouter": self.slow["openrouter"], "local": self.slow["local"],
+            "openrouter": self.slow["openrouter"], "deepseek": self.slow["deepseek"], "local": self.slow["local"],
             "collab": self.slow["collab"], "limits": self.slow["limits"], "limits_meta": self.slow.get("limits_meta", {}),
+            "queue": self.slow.get("queue", []),
         }
 
 

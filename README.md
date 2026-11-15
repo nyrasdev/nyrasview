@@ -111,6 +111,7 @@ Every push is tested on Linux, Windows and macOS with Python 3.11 and 3.13.
 | `nyrasview notes` | one set of notes every agent reads; `notes add "use pnpm"`, `notes edit`, `-g` for every project |
 | `nyrasview insights` | tokens and cost per agent for 30 days, tokens per prompt, Claude usage at API prices, limit history and when you hit limits |
 | `nyrasview limits` | usage limit gauges and time left at your pace |
+| `nyrasview queue add claude "…"` | queue a prompt: it starts when the agent's usage limit resets |
 | `nyrasview find "…"` | search every past agent session: prompts, replies, commands, files (`-a`, `-d`, `--since 7d`) |
 | `nyrasview review` | go through agent changes part by part, like `git add -p`: accept, or reject to take that part back |
 | `nyrasview checkpoints` | every agent turn in this repo and what it changed (`--diff <id>` to see one) |
@@ -307,6 +308,46 @@ An alert fires when a window gets close, and with relay on the handoff file is r
 
 `nyrasview insights` and the top of the **Usage** page show the last 30 days: tokens per day for each agent, prompts and tokens per prompt, real cost where a tool logs it, and what your Claude and Codex usage would cost at Anthropic and OpenAI API list prices (so you can see what the plan is worth). Below that, a line per limit window shows how full it got over the last 7 days, with a strip of the hours you usually hit a limit. Limit readings are saved about every 10 minutes while nyrasview runs.
 
+## Queue: run it when the limit resets
+
+Out of usage until 3 am? Queue the prompt and go to bed. nyrasview knows when each limit window resets and starts
+the prompt then. If the agent still has room, it starts right away.
+
+```
+nyrasview queue add claude "fix the failing tests" -d ~/project --mode edit
+nyrasview ask claude "fix the failing tests" --later      # same thing
+nyrasview queue add claude "…" --any                      # still out? give it to another agent with room
+nyrasview queue add codex "…" --at 03:00                  # not before a time: 03:00, 7pm, +2h, 30m
+nyrasview queue                                           # what's waiting and why
+nyrasview queue now <id>     nyrasview queue rm <id>
+```
+
+In the GUI, the Prompt page has a **Queue** button next to Run and shows what's waiting; the composer tells you
+when a picked agent is at its limit. In the terminal dashboard, `p` asks "Now or Queue it" and queued prompts sit
+at the top of the Runs tab (`enter` starts one now, `s` removes it).
+
+- Prompts for the same folder run one after another, in the order you added them, so two agents never edit the
+  same files at once. If one fails, the ones behind it wait for you.
+- If an agent hits a limit mid-run, the prompt goes back on the queue and continues the same session after the reset.
+- Something has to be running to start them: the GUI, the terminal dashboard, `nyrasview daemon`
+  (`nyrasview service install` starts it at login) or `nyrasview queue run`.
+- You get an alert when a queued prompt starts. Tune it under `[queue]` in Settings.
+
+## More limits through CodexBar
+
+If the [`codexbar`](https://github.com/steipete/CodexBar) CLI is installed (`yay -S codexbar-cli`, or
+`brew install steipete/tap/codexbar`), nyrasview reads its usage report and adds those limits to `nyrasview limits`,
+the Limits panel and the queue: Copilot, Cursor, Gemini, Antigravity, Kilo and whatever else you enabled there.
+nyrasview's own live sources (Claude, Codex, OpenRouter, DeepSeek) are kept; CodexBar replaces the guessed ones.
+Nothing to set up in nyrasview. Turn it off with `[codexbar] enabled = false`.
+
+## DeepSeek: balance and prompts
+
+Connect a key with `nyrasview keys deepseek` (or the API keys page). `nyrasview limits` and the Limits panel then
+show your wallet balance, what you've been spending per day and roughly how long it lasts at that rate. You get an
+alert when it drops below `[deepseek] low_balance` (default 2). DeepSeek also becomes an agent you can prompt and
+use in collab: `nyrasview ask deepseek "…"`.
+
 ## Keep working when the plan runs out
 
 Connect an API key in the GUI (**API keys**) or with `nyrasview keys anthropic` (`openai`, `openrouter`). Then:
@@ -409,6 +450,19 @@ model = "qwen3-32b"
 ```
 
 Local models can be assigned collab sections like any other agent (`collab assign doc.md Intro ollama "..."`), and you can try them from the GUI's Local AI page.
+
+### Manage Ollama models
+
+```
+nyrasview local pull qwen3:8b       # download, with progress
+nyrasview local load qwen3:8b       # into memory now (--keep 2h to hold it there)
+nyrasview local unload qwen3:8b     # free the memory
+nyrasview local run qwen3:8b        # chat in a new terminal
+nyrasview local rm qwen3:8b         # delete from disk
+```
+
+The Local AI page in the GUI has the same buttons per model, a download box with a progress bar, and shows what's
+loaded: size, VRAM, context length and when it unloads.
 
 ## Collab: several AIs, one document
 

@@ -20,11 +20,17 @@ SCHEMA = [
         ("soon_pct", "int", 90, "Warn when a limit window passes this %"),
         ("soon_minutes", "int", 15, "…or when this many minutes are left at the current pace"),
         ("finished_after", "int", 30, "Only alert 'finished' if the agent worked at least this many seconds"),
-        ("events", "list", ["approval", "finished", "limit", "limit_soon", "failed", "done"], "Which alerts to send"),
+        ("events", "list", ["approval", "finished", "limit", "limit_soon", "failed", "done", "queue"], "Which alerts to send"),
     ]},
     {"id": "limits", "title": "Limits", "fields": [
         ("claude_api", "bool", True, "Read real Claude limits from Anthropic's usage API"),
         ("refresh_seconds", "int", 120, "How often to ask Anthropic (seconds)"),
+    ]},
+    {"id": "queue", "title": "Queue", "fields": [
+        ("full_pct", "int", 98, "Treat a limit as full from this % (queued prompts wait for the reset)"),
+        ("grace_seconds", "int", 60, "Wait this long after a reset before starting"),
+        ("retry_minutes", "int", 30, "When an agent hits a limit nyrasview can't see, try again after this many minutes"),
+        ("max_tries", "int", 4, "Give up after hitting the limit this many times in a row"),
     ]},
     {"id": "checkpoints", "title": "Checkpoints", "fields": [
         ("enabled", "bool", True, "Snapshot git repos before and after every agent turn so you can undo a turn"),
@@ -38,6 +44,7 @@ SCHEMA = [
         ("anthropic_api_key", "secret", "", "Anthropic key: Claude Code continues on API billing"),
         ("openai_api_key", "secret", "", "OpenAI key: Codex continues on API billing"),
         ("openrouter_api_key", "secret", "", "OpenRouter key: opencode, prompts and collab"),
+        ("deepseek_api_key", "secret", "", "DeepSeek key: balance, prompts and collab"),
         ("auto_retry", "bool", True, "Retry prompt runs that hit a plan limit on the API key"),
         ("openrouter_model", "str", "moonshotai/kimi-k2", "Model opencode uses through OpenRouter"),
     ]},
@@ -72,6 +79,17 @@ SCHEMA = [
     ]},
     {"id": "openrouter", "title": "OpenRouter", "fields": [
         ("model", "str", "openrouter/auto", "Default model when you prompt OpenRouter"),
+    ]},
+    {"id": "codexbar", "title": "CodexBar (extra limits)", "fields": [
+        ("enabled", "bool", True, "Read limits from the codexbar CLI when it's installed (Copilot, Cursor, Gemini and more)"),
+        ("path", "str", "codexbar", "Where the codexbar program is"),
+        ("refresh_seconds", "int", 120, "How often to ask it"),
+    ]},
+    {"id": "deepseek", "title": "DeepSeek", "fields": [
+        ("model", "str", "deepseek-chat", "Default model when you prompt DeepSeek"),
+        ("low_balance", "float", 2.0, "Alert when the balance drops below this"),
+        ("refresh_minutes", "int", 5, "How often to read the balance"),
+        ("base_url", "str", "https://api.deepseek.com", "API address"),
     ]},
     {"id": "ollama", "title": "Ollama", "fields": [
         ("model", "str", "", "Default Ollama model for collab and prompts"),

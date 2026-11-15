@@ -251,15 +251,36 @@ def cmd_local(a):
         text, model = local.chat(a.server, a.prompt, a.model)
         print(dim(f"[{a.server} · {model}]"))
         return print(text)
+    if a.local_cmd == "pull":
+        last = None
+        for p in local.pull_iter(a.server, a.model):
+            pct = f" {p['completed'] / p['total'] * 100:3.0f}%  {hb(p['completed'])} of {hb(p['total'])}" if p.get("total") else ""
+            line = f"{p['status']}{pct}"
+            if C:
+                print("\r\033[K" + line, end="", flush=True)
+            elif p["status"] != last:
+                print(p["status"], flush=True)
+            last = p["status"]
+        return print(("\r\033[K" if C else "") + f"downloaded {a.model}")
+    if a.local_cmd == "rm":
+        local.delete(a.server, a.model)
+        return print(f"deleted {a.model}")
+    if a.local_cmd in ("load", "unload"):
+        local.load(a.server, a.model, unload=a.local_cmd == "unload", keep=getattr(a, "keep", None))
+        return print(f"{a.model} is loaded" if a.local_cmd == "load" else f"{a.model} unloaded, memory freed")
+    if a.local_cmd == "run":
+        from . import handoff
+        return print(f"opened in {handoff.terminal(os.getcwd(), local.run_command(a.server, a.model))}")
     rows = []
     for srv in local.scan():
         rows.append([col(BY_KEY[srv["key"]].hex if srv["key"] in BY_KEY else "#afd7af", srv["name"]),
                      "up" if srv["up"] else dim("down"), srv["url"], len(srv["models"]) or "",
-                     ", ".join(m["id"] for m in srv["loaded"]) or "",
+                     ", ".join(m["id"] + (f" ({hb(m['vram'])} vram)" if m.get("vram") else "") for m in srv["loaded"]) or "",
                      ", ".join(m["id"] for m in srv["models"][:5])])
     table(["SERVER", "STATE", "URL", "MODELS", "LOADED", "AVAILABLE"], rows)
     print(dim("\nadd any OpenAI-compatible server in config.toml under [[local]] (name, url, model, api_key)"))
     print(dim("try one:  nyrasview local ask ollama 'hello'   ·   use in collab:  collab assign doc.md Intro ollama '...'"))
+    print(dim("Ollama models:  nyrasview local pull qwen3:8b  ·  local load / unload / rm / run <model>"))
 
 
 def cmd_handoff(a):
@@ -337,6 +358,9 @@ def cmd_ask(a):
     for g in ags:
         if g not in BY_KEY:
             sys.exit(f"unknown agent {g}; see: nyrasview agents")
+    if a.later:
+        from .cli_more import queue_add
+        return queue_add(ags, a.prompt, a.dir, a.mode, a.model, None, False, False, True if a.sandbox else None)
     group = os.urandom(3).hex() if len(ags) > 1 else None
     started = [runs.start(g, a.prompt, a.dir, a.mode, a.model, group, a.cont, sandboxed=True if a.sandbox else None) for g in ags]
     seen = {m["id"]: 0 for m in started}
@@ -415,18 +439,21 @@ def cmd_limits(a):
     u = UsageStore()
     u.refresh()
     from . import net
-    snap = limits.snapshot(u.records, net.openrouter())
+    from . import codexbar, deepseek
+    codexbar.fetch()
+    snap = limits.snapshot(u.records, net.openrouter(), deepseek.fetch())
     meta = limits.META
     if a.json:
         return print(json.dumps({"limits": snap, "meta": meta}, indent=2))
     if not snap:
         return print("no limit data yet. Run any prompt from nyrasview (nyrasview ask claude \"hi\") to calibrate Claude.")
     src = {"anthropic": "live from Anthropic", "codex": "from Codex's own logs", "openrouter": "live from OpenRouter",
-           "budget": "counted locally against the plan", "tracked": "no known limit, tracked locally"}
+           "budget": "counted locally against the plan", "tracked": "no known limit, tracked locally",
+           "deepseek": "live from DeepSeek", "codexbar": "from CodexBar"}
     for agent, wins in snap.items():
         g = BY_KEY.get(agent)
         m = meta.get(agent) or {}
-        head = col(g.hex if g else None, g.name if g else agent)
+        head = col(g.hex if g else None, g.name if g else m.get("name") or agent.title())
         if m.get("plan"):
             head += dim(f"  {m['plan']}")
         s = src.get(m.get("source")) or ("estimated" if agent == "claude" else "")
@@ -439,7 +466,15 @@ def cmd_limits(a):
             ut = w.get("utilization")
             line = f"  {label:<13} "
             un = w.get("unit")
-            if ut is None and un:
+            if w.get("balance") is not None:
+                line += col("#ef4444" if w.get("low") else "#22c55e", f"{limits.amount(w['balance'], un)} left")
+                if w.get("burn_per_hour"):
+                    line += dim(f" · {limits.amount(w['burn_per_hour'] * 24, un)}/day lately")
+                if w.get("eta"):
+                    line += col("#f59e0b", f"  ~{limits.left_for(w['eta'])} left at this rate")
+                if w.get("empty"):
+                    line += col("#ef4444", "  out of credit" + (": top up at platform.deepseek.com/top_up" if agent == "deepseek" else ""))
+            elif ut is None and un:
                 line += f"{limits.amount(w.get('used'), un)} used" + dim(f" · {limits.amount(w.get('burn_per_hour'), un)}/h now")
                 if w.get("projected") and w.get("resets"):
                     line += col("#f59e0b", f"  ~{limits.amount(w.get('projected'), un)} by {time.strftime('%a %H:%M', time.localtime(w['resets']))} at this rate")
@@ -971,7 +1006,7 @@ def build_parser():
     x.add_argument("--to", default="", help="agents to remove it from (default: all)")
     sks.add_parser("list")
     x = sp.add_parser("keys", help="connect API keys to keep working when plan limits run out")
-    x.add_argument("provider", nargs="?", choices=["anthropic", "openai", "openrouter"])
+    x.add_argument("provider", nargs="?", choices=["anthropic", "openai", "openrouter", "deepseek"])
     x.add_argument("value", nargs="?")
     x = sp.add_parser("plan", help="let the cheapest model split a goal into tasks for your agents")
     x.add_argument("goal")
@@ -1001,6 +1036,27 @@ def build_parser():
     x.add_argument("-m", "--model")
     x.add_argument("-c", "--continue", dest="cont", metavar="RUN", help="follow up on an earlier run")
     x.add_argument("--sandbox", action="store_true", help="run inside your Docker sandbox image")
+    x.add_argument("--later", action="store_true", help="queue it: starts when the agent's usage limit resets")
+    q = sp.add_parser("queue", help="prompts that start when an agent's usage limit resets")
+    q.add_argument("--json", action="store_true")
+    qs = q.add_subparsers(dest="queue_cmd")
+    x = qs.add_parser("add", help="queue a prompt for one agent (or several: claude,codex)")
+    x.add_argument("agent")
+    x.add_argument("prompt")
+    x.add_argument("-d", "--dir", default=".")
+    x.add_argument("--mode", choices=["ask", "edit", "auto"], default="ask")
+    x.add_argument("-m", "--model")
+    x.add_argument("--at", help="not before this time: 03:00, 7pm, +2h, 30m, 2026-11-15 03:00")
+    x.add_argument("--any", action="store_true", help="if the agent is still out, give it to another agent with room")
+    x.add_argument("--api", action="store_true", help="run on your connected API key")
+    x.add_argument("--sandbox", action="store_true", help="run inside your Docker sandbox image")
+    x = qs.add_parser("rm", help="take a prompt off the queue")
+    x.add_argument("id")
+    x = qs.add_parser("now", help="start a queued prompt right away, limit or not")
+    x.add_argument("id")
+    x = qs.add_parser("run", help="keep checking and start prompts as limits reset, until the queue is empty")
+    x.add_argument("--every", type=float, default=15, help="seconds between checks")
+    x.add_argument("--once", action="store_true", help="check once and exit (for cron)")
     x = sp.add_parser("runs", help="recent prompts started from nyrasview")
     x.add_argument("-n", "--limit", type=int, default=20)
     sp.add_parser("hook", help=argparse.SUPPRESS)
@@ -1039,6 +1095,14 @@ def build_parser():
     x.add_argument("server")
     x.add_argument("prompt")
     x.add_argument("-m", "--model")
+    for name, hlp in (("pull", "download an Ollama model, with progress"), ("rm", "delete an Ollama model from disk"),
+                      ("load", "load a model into memory"), ("unload", "free a model's memory now"),
+                      ("run", "chat with a model in a new terminal")):
+        x = ls.add_parser(name, help=hlp)
+        x.add_argument("model")
+        x.add_argument("-s", "--server", default="ollama")
+        if name == "load":
+            x.add_argument("--keep", help="how long it stays loaded, e.g. 30m, 2h, -1 for always")
     x = sp.add_parser("phone", help="use nyrasview from your phone: prints a QR code to scan")
     x.add_argument("--tunnel", action="store_true", help="also reachable from anywhere through a Cloudflare tunnel")
     x.add_argument("--rotate", action="store_true", help="new login key; old phone links stop working")
@@ -1104,7 +1168,7 @@ def main():
     from . import cli_more
     a = build_parser().parse_args()
     fn = {"phone": cli_more.cmd_phone, "watch": cli_more.cmd_watch, "settings": cli_more.cmd_settings,
-          "sandbox": cli_more.cmd_sandbox, "find": cli_more.cmd_find, "review": cli_more.cmd_review, "insights": cli_more.cmd_insights, "notes": cli_more.cmd_notes, "completion": cli_more.cmd_completion,"tui": cmd_tui, "gui": cmd_gui, "status": cmd_status, "ps": cmd_ps, "mcp": cmd_mcp,
+          "sandbox": cli_more.cmd_sandbox, "find": cli_more.cmd_find, "review": cli_more.cmd_review, "insights": cli_more.cmd_insights, "notes": cli_more.cmd_notes, "queue": cli_more.cmd_queue, "completion": cli_more.cmd_completion,"tui": cmd_tui, "gui": cmd_gui, "status": cmd_status, "ps": cmd_ps, "mcp": cmd_mcp,
           "skills": cmd_skills, "usage": cmd_usage, "agents": cmd_agents, "collab": cmd_collab, "obsidian": cmd_obsidian, "now": cmd_now, "doctor": cmd_doctor, "heal": cmd_heal, "skill": cmd_skill, "keys": cmd_keys, "plan": cmd_plan, "limits": cmd_limits, "checkpoints": cmd_checkpoints, "undo": cmd_undo, "restore": cmd_restore, "inbox": cmd_events, "notify-test": cmd_notify_test,
           "daemon": cmd_daemon, "service": cmd_service, "ask": cmd_ask, "runs": cmd_runs, "hook": cmd_hook, "hooks": cmd_hooks, "say": cmd_say, "handoff": cmd_handoff, "relay": cmd_relay, "local": cmd_local,
           None: cmd_tui}[a.cmd]

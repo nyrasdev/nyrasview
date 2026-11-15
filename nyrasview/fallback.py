@@ -9,6 +9,7 @@ PROVIDERS = {
     "anthropic": {"env": "ANTHROPIC_API_KEY", "name": "Anthropic", "for": "Claude Code", "url": "https://console.anthropic.com/settings/keys"},
     "openai": {"env": "OPENAI_API_KEY", "name": "OpenAI", "for": "Codex", "url": "https://platform.openai.com/api-keys"},
     "openrouter": {"env": "OPENROUTER_API_KEY", "name": "OpenRouter", "for": "opencode, collab and prompts", "url": "https://openrouter.ai/keys"},
+    "deepseek": {"env": "DEEPSEEK_API_KEY", "name": "DeepSeek", "for": "DeepSeek balance, prompts and collab", "url": "https://platform.deepseek.com/api_keys"},
 }
 AGENT_PROVIDER = {"claude": "anthropic", "codex": "openai", "opencode": "openrouter"}
 TARGETS = {

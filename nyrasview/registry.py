@@ -105,6 +105,8 @@ AGENTS = [
           headless={"http": "local", "server": "koboldcpp"}),
     Agent("openrouter", "OpenRouter", 167, "#6467f2", kind="api",
           headless={"http": "openrouter"}),
+    Agent("deepseek", "DeepSeek", 69, "#4d6bfe", kind="api",
+          headless={"http": "deepseek"}),
 ]
 
 BY_KEY = {a.key: a for a in AGENTS}

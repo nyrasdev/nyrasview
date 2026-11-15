@@ -245,6 +245,11 @@ def make_handler(collector, token, port, phone=False):
                     v["siblings"] = [r["id"] for r in sorted((r for r in runs.listing(200) if r.get("group") == v["group"]),
                                                              key=lambda r: (r["agent"], r["id"]))]
                 return self._send(200 if v else 404, v or {"error": "no such run"})
+            if u.path == "/api/queue":
+                if self.headers.get("X-Nyra-Token") != token:
+                    return self._send(403, {"error": "forbidden"})
+                from . import runqueue
+                return self._send(200, {"items": runqueue.listing(), "alive": runqueue.alive()})
             if u.path == "/api/notes":
                 if self.headers.get("X-Nyra-Token") != token:
                     return self._send(403, {"error": "forbidden"})
@@ -316,7 +321,7 @@ def make_handler(collector, token, port, phone=False):
                 snap = collector.snapshot() or {}
                 vis = {x["key"]: x for x in snap.get("agents", [])}
                 return self._send(200, [{"key": a.key, "name": a.name, "hex": a.hex, "kind": a.kind,
-                                         "installed": a.kind == "api" or bool(vis.get(a.key, {}).get("installed"))}
+                                         "installed": (a.kind == "api" and a.key != "deepseek") or bool(vis.get(a.key, {}).get("installed"))}
                                         for a in BY_KEY.values() if a.headless])
             return self._send(404, {"error": "not found"})
 
@@ -401,6 +406,31 @@ def make_handler(collector, token, port, phone=False):
                 collector.refresh("collab")
                 return {"runs": [{"id": m["id"], "agent": m["agent"], "status": m["status"], "error": m.get("error")} for m in out],
                         "group": group}
+            if p == "/api/queue/add":
+                from . import runqueue
+                import secrets as _s
+                ags = [a for a in (b.get("agents") or [b.get("agent")]) if a]
+                if not ags or not (b.get("prompt") or "").strip():
+                    raise ValueError("pick at least one agent and write a prompt")
+                group = _s.token_hex(3) if len(ags) > 1 else None
+                out = [runqueue.add(a, b["prompt"], b.get("cwd") or "~", b.get("mode") or "ask", b.get("model") or None,
+                                    b.get("at") or None, bool(b.get("fallback")), bool(b.get("api")),
+                                    None if b.get("sandbox") is None else bool(b.get("sandbox")), group) for a in ags]
+                collector.refresh("queue")
+                collector.slow["queue"] = runqueue.listing()
+                collector.wake.set()
+                made = [runqueue.load(it["id"]) or it for it in out]
+                return {"items": [{k: it.get(k) for k in ("id", "agent", "status", "run", "why", "until", "error")} for it in made]}
+            if p == "/api/queue/remove":
+                from . import runqueue
+                runqueue.remove(b["id"])
+                collector.slow["queue"] = runqueue.listing()
+                return {"ok": True}
+            if p == "/api/queue/now":
+                from . import runqueue
+                it = runqueue.start_now(b["id"])
+                collector.slow["queue"] = runqueue.listing()
+                return {"run": it.get("run"), "status": it["status"], "error": it.get("error")}
             if p == "/api/runs/stop":
                 from . import runs
                 return {"ok": runs.stop(b["id"])}
@@ -534,7 +564,12 @@ def make_handler(collector, token, port, phone=False):
             if p == "/api/keys":
                 from . import fallback
                 fallback.save(b["provider"], b.get("key") or "")
-                collector.refresh("openrouter")
+                if b["provider"] == "deepseek":
+                    collector.slow["deepseek"] = {}
+                    collector.refresh("deepseek")
+                    collector.refresh("limits")
+                else:
+                    collector.refresh("openrouter")
                 return {"ok": True, "status": fallback.status()}
             if p == "/api/preview":
                 from . import proxy
@@ -577,6 +612,22 @@ def make_handler(collector, token, port, phone=False):
                     return {"to": h["to"], "path": h["path"], "terminal": None}
                 res = handoff.launch(h)
                 return {"to": h["to"], "path": h["path"], "terminal": res["terminal"]}
+            if p in ("/api/local/pull", "/api/local/delete", "/api/local/load", "/api/local/run"):
+                from . import local
+                srv, model = b.get("server") or "ollama", (b.get("model") or "").strip()
+                if not model:
+                    raise ValueError("name a model")
+                if p.endswith("/pull"):
+                    out = local.pull(srv, model)
+                elif p.endswith("/delete"):
+                    out = {"ok": local.delete(srv, model)}
+                elif p.endswith("/load"):
+                    out = {"ok": local.load(srv, model, unload=bool(b.get("unload")))}
+                else:
+                    from . import handoff
+                    return {"terminal": handoff.terminal(os.path.expanduser("~"), local.run_command(srv, model))}
+                collector.refresh("local")
+                return out
             if p == "/api/local/chat":
                 from . import local
                 text, model = local.chat(b["server"], b.get("prompt") or "", b.get("model") or None, timeout=300)

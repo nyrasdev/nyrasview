@@ -71,13 +71,22 @@ def limit_lines(ui, s, key, y, W):
     meta = (s.get("limits_meta") or {}).get(key) or {}
     from .limits import amount, dur
     src = {"anthropic": "live from Anthropic", "codex": "from Codex logs", "openrouter": "live from OpenRouter",
-           "budget": "counted locally", "tracked": "tracked locally"}
+           "budget": "counted locally", "tracked": "tracked locally", "deepseek": "live from DeepSeek", "codexbar": "from CodexBar"}
     head = "LIMITS " + (meta.get("plan") or "") + "  " + (src.get(meta.get("source")) or ("estimated" if key == "claude" else ""))
     ui.put(y, 0, head, ui.A("dim", True))
     y += 1
     for name, w in wins.items():
         u = w.get("utilization")
         un = w.get("unit")
+        if w.get("balance") is not None:
+            from .limits import left_for
+            x = ui.put(y, 2, f"{(w.get('label') or name):<14}", ui.A("dim"))
+            x = ui.put(y, x, f"{amount(w['balance'], un)} left", ui.A("bad" if w.get("low") else "good", True))
+            txt = (f" · {amount(w['burn_per_hour'] * 24, un)}/day lately" if w.get("burn_per_hour") else "") + \
+                  (f" · ~{left_for(w['eta'])} left at this rate" if w.get("eta") else "")
+            ui.put(y, x, txt, ui.A("warn") if w.get("eta") else 0)
+            y += 1
+            continue
         if u is None and un:
             x = ui.put(y, 2, f"{(w.get('label') or name):<14}", ui.A("dim"))
             txt = f"{amount(w.get('used'), un)} used · {amount(w.get('burn_per_hour'), un)}/h now"
@@ -110,12 +119,13 @@ def limit_lines(ui, s, key, y, W):
 
 
 def runs_rows(ui):
-    from . import heal, runs
+    from . import heal, runqueue, runs
     rs = ui.cache.get("runs", lambda: runs.listing(30), 1.0) or []
     hs = ui.cache.get("heal", lambda: heal.listing(15), 1.0) or []
+    qs = ui.cache.get("queue", runqueue.listing, 1.0) or []
     rows = [("heal", j["created"], j) for j in hs] + [("run", r["created"], r) for r in rs]
     rows.sort(key=lambda r: -r[1])
-    return rows[:40]
+    return [("queue", q["created"], q) for q in qs if q["status"] != "running"] + rows[:40]
 
 
 def t_runs(ui, s):
@@ -132,10 +142,10 @@ def t_runs(ui, s):
     for kind, _, r in rows:
         st = r["status"]
         live = st in ("running", "checking", "fixing", "queued")
-        label = f"{ui.spin()} {st}" if live else ("✓ " + st if st in ("done", "passed") else "✗ " + st if st in ("failed", "stopped") else st)
+        label = f"{ui.spin()} {st}" if live else ("✓ " + st if st in ("done", "passed") else "✗ " + st if st in ("failed", "stopped") else "⏱ " + st if st == "waiting" else st)
         what = (r.get("cmd") if kind == "heal" else (r.get("label") or r.get("prompt"))) or ""
         a = BY_KEY.get(r["agent"])
-        data.append([kind if kind == "heal" else "prompt", (label, ui.A("good" if st in ("done", "passed") else "bad" if st in ("failed", "stopped") else "warn")),
+        data.append([kind if kind in ("heal", "queue") else "prompt", (label, ui.A("good" if st in ("done", "passed") else "bad" if st in ("failed", "stopped") else "warn")),
                      (a.name if a else r["agent"], ui.A("a:" + r["agent"], True)), ago(r["created"]), what.replace("\n", " ")])
         attrs.append(0)
     ui.table(2, 2 + top, cols, data, sel, off, attrs)
@@ -156,6 +166,12 @@ def t_runs(ui, s):
                 lines.append((f"  ⚙ fix ({at.get('fix') or 'running'}): {(at.get('said') or 'working on it…')}", ui.A("cyan")))
         if r.get("error"):
             lines.append((r["error"], ui.A("bad")))
+    elif kind == "queue":
+        from .cli_more import _queue_when
+        lines.append((f"queued · {r['mode']} · {r['cwd'].replace(os.path.expanduser('~'), '~')}" + (" · or any agent with room" if r.get("fallback") else ""), ui.A("dim")))
+        lines.append(("you ▸ " + r["prompt"], ui.A("accent", True)))
+        lines.append((_queue_when(r, time.time()), ui.A("bad" if r["status"] == "failed" else "warn")))
+        lines.append(("enter start it now · s take it off the queue", ui.A("dim")))
     else:
         v = ui.cache.get("run:" + r["id"], lambda: runs.view(r["id"]), 0.8) or {}
         lines.append((f"{v.get('mode', '')} · {(v.get('cwd') or '').replace(os.path.expanduser('~'), '~')}" + (" · on API key" if v.get("api") else "") + (" · sandbox" if v.get("sandbox") else ""), ui.A("dim")))
@@ -208,6 +224,16 @@ def runs_key(ui, k, s):
     if not rows:
         return
     kind, _, r = rows[max(0, min(ui.sel[6], len(rows) - 1))]
+    if kind == "queue":
+        from . import runqueue
+        if k == ord("s"):
+            runqueue.remove(r["id"])
+            ui.flash("taken off the queue")
+        elif k in (10, 13, curses.KEY_ENTER):
+            it = runqueue.start_now(r["id"])
+            ui.flash(f"run {it['run']} started" if it["status"] == "running" else f"failed: {it.get('error')}")
+        ui.cache.data.pop("queue", None)
+        return
     if k == ord("s"):
         (heal.stop if kind == "heal" else runs.stop)(r["id"])
         ui.flash("stopped")
@@ -239,6 +265,20 @@ def prompt_menu(ui, s, agent=None, cwd=None):
                           {"label": "Auto", "note": "runs commands without asking"}])
     if j is None:
         return
+    lim = (s.get("limits") or {}) if isinstance(s, dict) else {}
+    from . import runqueue
+    ok, until, why = runqueue.room(agent, lim)
+    w = menu(ui, "When", [{"label": "Now", "note": why if not ok else ""},
+                          {"label": "Queue it", "note": "starts when it has room" + (f", ~{time.strftime('%H:%M', time.localtime(until))}" if until else "")}])
+    if w is None:
+        return
+    if w == 1:
+        it = runqueue.add(agent, text, cwd, ["ask", "edit", "auto"][j])
+        runqueue.tick(lim or None, heartbeat=False)
+        it = runqueue.load(it["id"]) or it
+        ui.tab, ui.sel[6] = 6, 0
+        ui.cache.data.clear()
+        return ui.flash(f"run {it['run']} started" if it["status"] == "running" else "queued · " + (it.get("why") or "waiting"))
     m = runs.start(agent, text, cwd, ["ask", "edit", "auto"][j])
     ui.tab, ui.sel[6] = 6, 0
     ui.flash(f"run {m['id']} started" if m["status"] == "running" else f"failed: {m.get('error')}")
