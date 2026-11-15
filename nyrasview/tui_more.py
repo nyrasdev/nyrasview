@@ -237,12 +237,46 @@ def runs_key(ui, k, s):
     if k == ord("s"):
         (heal.stop if kind == "heal" else runs.stop)(r["id"])
         ui.flash("stopped")
-    elif k in (10, 13, curses.KEY_ENTER) and kind == "run" and r["status"] != "running":
+    elif k in (10, 13, curses.KEY_ENTER, ord("m")) and kind == "run" and r["status"] != "running":
+        model = r.get("model")
+        if k == ord("m"):
+            model = pick_model(ui, s, r["agent"], r.get("model"))
+            if model is False:
+                return
         text = ui.ask(f"follow up with {BY_KEY[r['agent']].name if r['agent'] in BY_KEY else r['agent']}: ")
         if text:
-            m = runs.start(r["agent"], text, r["cwd"], r["mode"], r.get("model"), None, r["id"])
+            m = runs.start(r["agent"], text, r["cwd"], r["mode"], model, None, r["id"])
             ui.flash(f"run {m['id']} started")
             ui.sel[6] = 0
+
+
+def pick_model(ui, s, agent, current=None):
+    from . import runs
+    choices = runs.model_choices(agent, s if isinstance(s, dict) else None)
+    a = BY_KEY.get(agent)
+    h = (a.headless or {}) if a else {}
+    if not choices and not (h.get("http") or h.get("model") or (runs.STREAM.get(agent) or {}).get("model")):
+        return None
+    opts = [{"label": "Default", "note": "whatever the agent is set to"}] + \
+           [{"label": m, "note": "current" if m == current else ""} for m in choices] + [{"label": "Type a name…", "note": ""}]
+    i = menu(ui, f"Model for {a.name if a else agent}", opts)
+    if i is None:
+        return False
+    if i == 0:
+        return None
+    if i == len(opts) - 1:
+        return (ui.ask("model: ") or "").strip() or None
+    return choices[i - 1]
+
+
+def open_usage(ui, a):
+    from . import plat
+    from .limits import USAGE_URL
+    url = USAGE_URL.get(a["key"])
+    if not url:
+        return ui.flash(f"no usage page known for {a['name']}")
+    plat.open_url(url)
+    ui.flash(f"opened {a['name']}'s usage page · apply a reset there if one is on offer")
 
 
 def prompt_menu(ui, s, agent=None, cwd=None):
@@ -265,6 +299,9 @@ def prompt_menu(ui, s, agent=None, cwd=None):
                           {"label": "Auto", "note": "runs commands without asking"}])
     if j is None:
         return
+    model = pick_model(ui, s, agent)
+    if model is False:
+        return
     lim = (s.get("limits") or {}) if isinstance(s, dict) else {}
     from . import runqueue
     ok, until, why = runqueue.room(agent, lim)
@@ -273,13 +310,13 @@ def prompt_menu(ui, s, agent=None, cwd=None):
     if w is None:
         return
     if w == 1:
-        it = runqueue.add(agent, text, cwd, ["ask", "edit", "auto"][j])
+        it = runqueue.add(agent, text, cwd, ["ask", "edit", "auto"][j], model)
         runqueue.tick(lim or None, heartbeat=False)
         it = runqueue.load(it["id"]) or it
         ui.tab, ui.sel[6] = 6, 0
         ui.cache.data.clear()
         return ui.flash(f"run {it['run']} started" if it["status"] == "running" else "queued · " + (it.get("why") or "waiting"))
-    m = runs.start(agent, text, cwd, ["ask", "edit", "auto"][j])
+    m = runs.start(agent, text, cwd, ["ask", "edit", "auto"][j], model)
     ui.tab, ui.sel[6] = 6, 0
     ui.flash(f"run {m['id']} started" if m["status"] == "running" else f"failed: {m.get('error')}")
 

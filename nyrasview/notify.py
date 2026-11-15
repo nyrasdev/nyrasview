@@ -12,7 +12,7 @@ from .util import HOME, STATE, config
 
 EVENTS = STATE / "events.jsonl"
 SEEN = STATE / "notified.json"
-KINDS = ("approval", "finished", "limit", "limit_soon", "failed", "done", "queue")
+KINDS = ("approval", "finished", "limit", "limit_soon", "failed", "done", "queue", "reset")
 _mem = threading.Lock()
 
 

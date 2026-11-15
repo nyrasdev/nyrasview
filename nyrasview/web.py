@@ -320,7 +320,8 @@ def make_handler(collector, token, port, phone=False):
             if u.path == "/api/agents":
                 snap = collector.snapshot() or {}
                 vis = {x["key"]: x for x in snap.get("agents", [])}
-                return self._send(200, [{"key": a.key, "name": a.name, "hex": a.hex, "kind": a.kind,
+                from . import runs as _r
+                return self._send(200, [{"key": a.key, "name": a.name, "hex": a.hex, "kind": a.kind, "models": _r.model_choices(a.key, snap),
                                          "installed": (a.kind == "api" and a.key != "deepseek") or bool(vis.get(a.key, {}).get("installed"))}
                                         for a in BY_KEY.values() if a.headless])
             return self._send(404, {"error": "not found"})

@@ -193,13 +193,13 @@ class UI:
             foot = msg
         else:
             foot = {
-                0: "↑↓ agent  enter/→ processes  p prompt  t turns  h hand off  f self-heal  k kill  a show all  P phone  ? keys  q quit",
+                0: "↑↓ agent  enter/→ processes  p prompt  t turns  h hand off  f self-heal  u usage page  k kill  a show all  P phone  ? keys  q quit",
                 1: "↑↓ scroll  g gui  P phone  ? keys  q quit",
                 2: "↑↓ scroll  / filter  esc clear  g gui  P phone  ? keys  q quit",
                 3: "↑↓ agent  g gui  P phone  ? keys  q quit",
                 4: "↑↓ scroll  g gui  P phone  ? keys  q quit",
                 5: "↑↓ doc  n new  a assign  w whole-doc task  r run  x reset  u undo  g gui  q quit",
-                6: "↑↓ item  enter follow up  p new prompt  f self-heal  s stop  g gui  q quit",
+                6: "↑↓ item  enter follow up  m follow up with another model  p new prompt  f self-heal  s stop  g gui  q quit",
             }[self.tab]
         self.put(H - 1, 0, foot, self.A("dim"))
 
@@ -594,6 +594,10 @@ class UI:
             self.sel[t] = 0
         elif t == 0 and k in (10, 13, curses.KEY_ENTER, curses.KEY_RIGHT):
             self.focus, self.psel, self.poff = 1, 0, 0
+        elif t == 0 and k == ord("u"):
+            ag = self.agents(s)
+            if ag:
+                tui_more.open_usage(self, ag[max(0, min(self.sel[0], len(ag) - 1))])
         elif t == 0 and k in (ord("p"), ord("h"), ord("f")):
             ag = self.agents(s)
             a = ag[max(0, min(self.sel[0], len(ag) - 1))] if ag else None

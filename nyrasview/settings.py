@@ -20,7 +20,7 @@ SCHEMA = [
         ("soon_pct", "int", 90, "Warn when a limit window passes this %"),
         ("soon_minutes", "int", 15, "…or when this many minutes are left at the current pace"),
         ("finished_after", "int", 30, "Only alert 'finished' if the agent worked at least this many seconds"),
-        ("events", "list", ["approval", "finished", "limit", "limit_soon", "failed", "done", "queue"], "Which alerts to send"),
+        ("events", "list", ["approval", "finished", "limit", "limit_soon", "failed", "done", "queue", "reset"], "Which alerts to send"),
     ]},
     {"id": "limits", "title": "Limits", "fields": [
         ("claude_api", "bool", True, "Read real Claude limits from Anthropic's usage API"),

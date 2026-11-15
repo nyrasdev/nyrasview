@@ -36,6 +36,37 @@ STREAM = {
 }
 
 
+PRESETS = {"claude": ["opus", "sonnet", "haiku"], "gemini": ["gemini-2.5-pro", "gemini-2.5-flash"],
+           "deepseek": ["deepseek-chat", "deepseek-reasoner"], "qwen": ["qwen3-coder-plus"]}
+
+
+def model_choices(agent, snap=None):
+    a = BY_KEY.get(agent)
+    if not a or not a.headless:
+        return []
+    h = a.headless
+    spec = STREAM.get(agent) or {}
+    if not (h.get("http") or h.get("model") or spec.get("model")):
+        return []
+    out = list(PRESETS.get(agent, []))
+    snap = snap or {}
+    if h.get("http") == "local":
+        srv = next((s for s in snap.get("local") or [] if s.get("key") == h.get("server")), None)
+        out = [m["id"] for m in (srv or {}).get("loaded", [])] + [m["id"] for m in (srv or {}).get("models", [])]
+    else:
+        info = next((x for x in snap.get("agents") or [] if x.get("key") == agent), None)
+        seen = sorted(((info or {}).get("usage") or {}).get("models") or [], key=lambda m: -(m.get("tokens") or 0))
+        out += [m["model"] for m in seen if m.get("model") and not str(m["model"]).startswith("<")]
+        for r in listing(60) if DIR.is_dir() else []:
+            if r["agent"] == agent and r.get("model"):
+                out.append(r["model"])
+    uniq = []
+    for m in out:
+        if m and m not in uniq:
+            uniq.append(m)
+    return uniq[:12]
+
+
 def _meta_path(rid):
     return DIR / rid / "meta.json"
 

@@ -550,6 +550,13 @@ def _():
     run("queue", "run", "--every", "1", timeout=90)
     assert not json.loads(run("queue", "--json"))["items"]
     (st / "limits.json").unlink()
+    code = ("import json, time; from nyrasview import limits, runs; now = time.time();"
+            "w = lambda u: {'claude': {'five_hour': {'utilization': u, 'resets': now + 7200, 'label': 'Session (5h)', 'calibrated': True}}};"
+            "a = limits.detect_resets(w(0.97)); b = limits.detect_resets(w(0.02)); c = limits.detect_resets(w(0.03));"
+            "print(json.dumps([len(a), len(b), len(c), runs.model_choices('claude')[:3], runs.model_choices('goose')]))")
+    r = subprocess.run([PY, "-c", code], capture_output=True, text=True, env=ENV, cwd=str(Path(__file__).resolve().parent.parent))
+    assert json.loads(r.stdout) == [0, 1, 0, ["opus", "sonnet", "haiku"], []], r.stdout + r.stderr
+    assert "limit was reset early" in run("inbox")
 
 
 @step("deepseek: balance, burn rate, low-balance alert, prompt")

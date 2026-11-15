@@ -145,7 +145,8 @@ Press `?` anywhere in `nyrasview` for the full list. The ones that open screens:
 
 - **`P`**: the phone QR code (it reuses your running GUI if there is one), `t` inside it for reach-from-anywhere
 - **`t`** on an agent: its turns, with `enter` for the diff, `u` to undo one and `R` to rewind the repo
-- **`p`** prompt, **`h`** hand off, **`f`** self-heal, **`k`** stop a process
+- **`p`** prompt (asks for the model and Now / Queue it), **`h`** hand off, **`f`** self-heal, **`k`** stop a process
+- **`u`** on an agent: open its usage page in the browser; **`m`** on a finished run: follow up with another model
 
 ### What it tracks per agent
 

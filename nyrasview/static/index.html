@@ -537,7 +537,7 @@ function limitBlock(agentKey,wins){
     if(w.source!=="api"&&w.measured!=null&&Math.abs(w.measured-u)>.005)bits.push(`measured ${(w.measured*100).toFixed(0)}% ${ago(w.measured_at)} ago`);
     return `<div class="w" data-key="lw-${agentKey}-${n}"><span class="lb">${lab}</span><span class="gb"><i style="width:${pct.toFixed(1)}%;background:${col}"></i></span><span class="pc">${pct.toFixed(0)}%</span><span class="ft">${bits.join(" · ")}</span></div>`}).join("");
   const unc=Object.values(wins).some(w=>w.utilization==null);
-  return `<div data-key="lb-${agentKey}"><div class="ag"><span class="sd" style="background:${colorOf(agentKey)}"></span>${esc(agent(agentKey).name||meta.name||agentKey[0].toUpperCase()+agentKey.slice(1))}${meta.stale?` <span class="muted" style="font-weight:400;font-size:11.5px">last known</span>`:""}${meta.plan?`<span class="muted" style="font-weight:400;font-size:12px">${esc(meta.plan)}</span>`:""}${meta.source&&LSRC[meta.source]?`<span class="chip" style="margin-left:auto" title="${LSRC[meta.source][1]}">${LSRC[meta.source][0]}</span>`:""}${unc&&agentKey==="claude"?`<button class="btn sm" style="margin-left:auto" data-act="calib" title="one tiny Haiku call reads your real limits">Calibrate</button>`:""}</div>${meta.error?`<div class="muted" style="font-size:11.5px;color:var(--warn)">${esc(meta.error)}</div>`:""}${rows}</div>`}
+  return `<div data-key="lb-${agentKey}"><div class="ag"><span class="sd" style="background:${colorOf(agentKey)}"></span>${esc(agent(agentKey).name||meta.name||agentKey[0].toUpperCase()+agentKey.slice(1))}${meta.stale?` <span class="muted" style="font-weight:400;font-size:11.5px">last known</span>`:""}${meta.plan?`<span class="muted" style="font-weight:400;font-size:12px">${esc(meta.plan)}</span>`:""}${meta.source&&LSRC[meta.source]?`<span class="chip" style="margin-left:auto" title="${LSRC[meta.source][1]}">${LSRC[meta.source][0]}</span>`:""}${USAGEURL[agentKey]?`<a class="muted" style="font-size:11.5px;font-weight:400;${meta.source&&LSRC[meta.source]?"":"margin-left:auto"}" href="${USAGEURL[agentKey]}" target="_blank" rel="noopener" title="open the provider's usage page: if it's offering a usage reset, you apply it there">usage page ↗</a>`:""}${unc&&agentKey==="claude"?`<button class="btn sm" style="margin-left:auto" data-act="calib" title="one tiny Haiku call reads your real limits">Calibrate</button>`:""}</div>${meta.error?`<div class="muted" style="font-size:11.5px;color:var(--warn)">${esc(meta.error)}</div>`:""}${rows}</div>`}
 let RUNS=[],RUNV={},P=(()=>{try{return JSON.parse(localStorage.getItem("nyra.p"))||{}}catch(e){return {}}})();
 P.agents=P.agents||["claude"];P.mode=P.mode||"ask";P.cwd=P.cwd||"";
 const saveP=()=>localSet("p",JSON.stringify(P));
@@ -551,6 +551,8 @@ function promptable(){return agentsList.filter(a=>a.installed||(S.local||[]).som
 function knownDirs(){const d=new Set();(S.agents||[]).forEach(a=>(a.work||[]).forEach(w=>w.cwd&&d.add(w.cwd)));RUNS.forEach(r=>d.add(r.cwd));(S.collab||[]).forEach(c=>d.add(c.doc.replace(/\/[^/]+$/,"")));return [...d].slice(0,20)}
 function runIcon(st){return st==="running"?`<svg class="spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">${I.loader}</svg>`:st==="done"?`<span style="color:var(--good)">${ic("check",14)}</span>`:st==="stopped"?`<span class="muted">■</span>`:`<span style="color:var(--bad)">${ic("x",14)}</span>`}
 
+function modelOpts(keys){const seen=new Set();return keys.flatMap(k=>((agentsList.find(a=>a.key===k)||{}).models||[])).filter(m=>!seen.has(m)&&seen.add(m)).map(m=>`<option value="${esc(m)}">`).join("")}
+const USAGEURL={claude:"https://claude.ai/settings/usage",codex:"https://chatgpt.com/codex/settings/usage",gemini:"https://aistudio.google.com/usage",copilot:"https://github.com/settings/copilot",cursor:"https://cursor.com/dashboard",openrouter:"https://openrouter.ai/activity",deepseek:"https://platform.deepseek.com/usage",devin:"https://app.devin.ai/settings/usage"};
 function qWhen(q){if(q.status==="running")return "running"+(q.ran_on&&q.ran_on!==q.agent?" on "+aname(q.ran_on):"");if(q.status==="failed")return "failed: "+(q.error||"");
   const left=q.until?q.until-Date.now()/1000:0;return (q.why||"starting soon")+(left>0?` (in ${fmtIn(left)})`:"")}
 function fullWin(k){const full=((SET0&&SET0.queue&&SET0.queue.full_pct)||98)/100,now=Date.now()/1000;let hit=null;
@@ -563,7 +565,7 @@ function vPrompt(){
     <div class="agc" id="pag"></div>
     <div class="row"><input id="pcwd" list="pdirs" placeholder="folder (default: home)" style="flex:1;min-width:220px"><datalist id="pdirs"></datalist>
       <div class="seg2" id="pmode">${["ask","edit","auto"].map(m=>`<button data-act="pmode" data-m="${m}" class="${m}">${m[0].toUpperCase()+m.slice(1)}</button>`).join("")}</div>
-      <input id="pmodel" placeholder="model (optional)" style="width:160px"><label id="papi" class="muted" style="font-size:12.5px;display:none;gap:6px;align-items:center" title="bill this run to your connected API key instead of the plan"><input type="checkbox" id="papic"> on API key</label><label id="psb" class="muted" style="font-size:12.5px;display:none;gap:6px;align-items:center" title="run inside your Docker sandbox image"><input type="checkbox" id="psbc"> in sandbox</label></div>
+      <input id="pmodel" list="pmodels" placeholder="model (default)" title="pick one from the list or type any model name; empty uses the agent's default" style="width:180px"><datalist id="pmodels"></datalist><label id="papi" class="muted" style="font-size:12.5px;display:none;gap:6px;align-items:center" title="bill this run to your connected API key instead of the plan"><input type="checkbox" id="papic"> on API key</label><label id="psb" class="muted" style="font-size:12.5px;display:none;gap:6px;align-items:center" title="run inside your Docker sandbox image"><input type="checkbox" id="psbc"> in sandbox</label></div>
     <div class="row" style="margin-top:10px"><span class="muted" id="pdesc" style="font-size:12px;flex:1"></span>
       <span id="plim" style="font-size:12px;color:var(--warn);display:flex;gap:8px;align-items:center"></span><span id="plive"></span><button class="btn" data-act="pqueue" title="start it when the agent's usage limit resets (or right away if it has room)">⏱ Queue</button><button class="btn" data-act="pterm" title="open the first selected agent in a terminal with this prompt">${ic("term",14)} Terminal</button><button class="btn pri" data-act="prun">${ic("play",13)} Run</button></div></div>`;
   const Q=(S.queue||[]);
@@ -590,6 +592,7 @@ function syncComposer(){
   const sb=$("#psb");if(sb){const on=!!(SET0&&SET0.sandbox&&SET0.sandbox.image);sb.style.display=on?"flex":"none";if(on&&!sb._i){$("#psbc").checked=!!SET0.sandbox.default;sb._i=1}}
   const pa=$("#papi");if(pa){const can=P.agents.some(k=>(k==="claude"&&KEYS.some(x=>x.provider==="anthropic"&&x.connected))||(k==="codex"&&KEYS.some(x=>x.provider==="openai"&&x.connected))||(k==="opencode"&&KEYS.some(x=>x.provider==="openrouter"&&x.connected)));pa.style.display=can?"flex":"none"}
   const d=$("#pdesc");if(d)d.textContent=(P.agents.length>1?`Compare · ${P.agents.length} agents in parallel · `:"")+MODEDESC[P.mode];
+  const ml=$("#pmodels");if(ml){const o=modelOpts(P.agents);if(ml._h!==o){ml.innerHTML=o;ml._h=o}}
   const dl=$("#pdirs");if(dl){const o=knownDirs().map(x=>`<option value="${esc(x)}">`).join("");if(dl._h!==o){dl.innerHTML=o;dl._h=o}}
   const cw=$("#pcwd");if(cw&&!cw._init){cw.value=P.cwd;cw._init=1;cw.oninput=()=>{P.cwd=cw.value;saveP()}}
   const pl=$("#plim");if(pl){const hits=P.agents.map(k=>[k,fullWin(k)]).filter(x=>x[1]);
@@ -632,7 +635,7 @@ function vRun(id){
     return `<div class="tr" data-key="col-${x}" style="--c:${c}"><div class="th"><span class="dot ${r.status==="running"?"live":""}" style="--c:${c}"></span><b>${esc(aname(r.agent))}</b>${r.model?`<span class="chip">${esc(r.model)}</span>`:""}<div class="grow"></div><span class="muted" style="font-size:12px">${r.status==="running"?(r.elapsed).toFixed(0)+"s":esc(r.status)}</span>${r.cwd&&(r.agent==="claude"||r.agent==="codex")?`<button class="btn sm" data-act="watch" data-agent="${r.agent}" data-cwd="${esc(r.cwd)}">👁</button>`:""}</div>
       <div class="tb" id="tb-${x}">${transcript(r)}</div>
       ${r.retried_as?`<div class="fu"><span class="muted" style="font-size:12.5px;flex:1">Hit the plan limit · retried on your API key</span><button class="btn sm" data-act="go" data-v="run:${r.retried_as}">Open retry →</button></div>`:""}
-      ${r.status!=="running"?`<div class="fu" data-static data-key="fu-${x}"><textarea id="fu-${x}" placeholder="Follow up with ${esc(aname(r.agent))}…"></textarea><button class="btn pri sm" data-act="pfollow" data-id="${x}">Send</button></div>`:""}</div>`}).join("")+`</div>`;
+      ${r.status!=="running"?`<div class="fu" data-static data-key="fu-${x}"><textarea id="fu-${x}" placeholder="Follow up with ${esc(aname(r.agent))}…"></textarea>${((agentsList.find(a=>a.key===r.agent)||{}).models||[]).length||r.model?`<input id="fum-${x}" list="fuml-${x}" value="${esc(r.model||"")}" placeholder="model (default)" title="switch model for the next message" style="width:150px"><datalist id="fuml-${x}">${modelOpts([r.agent])}</datalist>`:""}<button class="btn pri sm" data-act="pfollow" data-id="${x}">Send</button></div>`:""}</div>`}).join("")+`</div>`;
   return h}
 
 function visible(){return (S&&S.agents||[]).filter(a=>a.visible)}
@@ -754,7 +757,7 @@ function vOverview(){
   if(o.configured&&o.error) alerts.push(["warn","▲","OpenRouter key check failed",esc(o.error),""]);
   else if(o.configured&&o.limit&&o.remaining!=null&&o.remaining/o.limit<.1) alerts.push(["warn","▲","OpenRouter credit low",`${money(+o.remaining)} left of $${o.limit}`,""]);
   const bn="Notification" in window&&!(Notification.permission==="granted"&&localGet("bnotify")==="1");
-  const EI={approval:"⚠",limit:"⛔",limit_soon:"▲",failed:"✗",finished:"✓",done:"✓",queue:"⏱"};
+  const EI={approval:"⚠",limit:"⛔",limit_soon:"▲",failed:"✗",finished:"✓",done:"✓",queue:"⏱",reset:"↻"};
   h+=`<div class="panel c4"><div class="hd2"><h2>Alerts</h2><span class="muted" style="font-size:12px">${alerts.length||""}</span>${bn?`<a data-act="bnotify">🔔 browser alerts</a>`:""}</div>`+
     (alerts.length?alerts.map(([k,i,t,sm,btn],n)=>`<div class="al ${k}" data-key="al-${n}"><span class="i">${i}</span><div class="b">${t}<small>${sm}</small></div>${btn}</div>`).join("")
      :`<div class="al good"><span class="i">✓</span><div class="b">All clear<small>No usage limits, failed tasks or memory hogs.</small></div></div>`)+
@@ -1407,7 +1410,7 @@ document.addEventListener("click",async e=>{
       const it=await post("/api/feedback",{agent:a.key,cwd:w.cwd,text});$("#pq").value="";return toast(it.status==="copied"?"Copied to clipboard: paste it into the session":"Sent: it arrives after its next step")}
     if(act==="pstop"){for(const id of el.dataset.ids.split(","))await post("/api/runs/stop",{id});toast("Stopped");return loadRun(view.slice(4))}
     if(act==="pfollow"){const id=el.dataset.id,ta=$("#fu-"+id),text=ta.value.trim();if(!text)return;const v=RUNV[id];
-      const r=await post("/api/runs",{agents:[v.agent],prompt:text,cwd:v.cwd,mode:v.mode,model:v.model,parent:id});ta.value="";await loadRuns();return go("run:"+r.runs[0].id)}
+      const r=await post("/api/runs",{agents:[v.agent],prompt:text,cwd:v.cwd,mode:v.mode,model:$("#fum-"+id)?$("#fum-"+id).value.trim():v.model,parent:id});ta.value="";await loadRuns();return go("run:"+r.runs[0].id)}
     if(act==="pfor"){P.agents=[el.dataset.agent];if(el.dataset.cwd)P.cwd=el.dataset.cwd;saveP();go("prompt");const cw=$("#pcwd");if(cw){cw.value=P.cwd}return}
     if(act==="tcx"){el.classList.toggle("open");return}
     if(act==="watch") return go("watch:"+el.dataset.agent+":"+el.dataset.cwd);

@@ -437,6 +437,43 @@ def openrouter_windows(o, now=None):
 
 
 META = {}
+USAGE_URL = {"claude": "https://claude.ai/settings/usage", "codex": "https://chatgpt.com/codex/settings/usage",
+             "gemini": "https://aistudio.google.com/usage", "copilot": "https://github.com/settings/copilot",
+             "cursor": "https://cursor.com/dashboard", "openrouter": "https://openrouter.ai/activity",
+             "deepseek": "https://platform.deepseek.com/usage", "devin": "https://app.devin.ai/settings/usage"}
+LAST = STATE / "limits_last.json"
+
+
+def detect_resets(snap, now=None):
+    now = now or time.time()
+    try:
+        prev = json.loads(LAST.read_text())
+    except (OSError, ValueError):
+        prev = {}
+    cur, hits = {}, []
+    for agent, wins in (snap or {}).items():
+        for name, w in (wins or {}).items():
+            u = w.get("utilization")
+            if u is None or w.get("source") in ("budget", "tracked") or not w.get("calibrated", True):
+                continue
+            cur.setdefault(agent, {})[name] = [u, w.get("resets")]
+            old = (prev.get(agent) or {}).get(name)
+            if old and old[0] >= 0.5 and u <= old[0] - 0.3 and old[1] and old[1] > now + 600:
+                hits.append((agent, name, w.get("label") or name, old[0], u))
+    if cur != prev:
+        LAST.parent.mkdir(parents=True, exist_ok=True)
+        tmp = LAST.with_suffix(".tmp")
+        tmp.write_text(json.dumps(cur))
+        plat.replace(tmp, LAST)
+    if hits:
+        from . import notify
+        from .registry import BY_KEY
+        for agent, name, label, was, u in hits:
+            who = BY_KEY[agent].name if agent in BY_KEY else agent
+            notify.emit("reset", agent, f"{who}'s {label.lower()} limit was reset early",
+                        f"It went from {was * 100:.0f}% to {u * 100:.0f}% used before its normal reset. Queued prompts can start now.",
+                        f"{agent}|{name}|{int(now // 600)}")
+    return hits
 
 
 def snapshot(usage_records, openrouter=None, deepseek=None):

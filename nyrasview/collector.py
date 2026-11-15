@@ -90,6 +90,10 @@ class Collector:
             self.slow["limits"] = limits.snapshot(self.usage.records, self.slow.get("openrouter"), self.slow.get("deepseek"))
             self.slow["limits_meta"] = dict(limits.META)
             self.slow["limits_at"] = time.time()
+            try:
+                limits.detect_resets(self.slow["limits"])
+            except Exception:
+                pass
         if what == "queue" and self.slow.get("limits_at"):
             from . import runqueue
             self.slow["queue"] = runqueue.tick(self.slow["limits"])
