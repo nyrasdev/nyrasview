@@ -1,5 +1,5 @@
 pkgname=nyrasview
-pkgver=2.1.0
+pkgver=2.2.0
 pkgrel=1
 pkgdesc="Control center for AI-driven development: see, steer and coordinate your AI coding agents"
 arch=('any')
@@ -10,7 +10,7 @@ makedepends=('python-build' 'python-installer' 'python-setuptools' 'python-wheel
 optdepends=('git: checkpoints, review and the watch view'
             'cloudflared: reach nyrasview from your phone anywhere')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('1f4148d41cf6c34869b6dc24e0029bdc2ca47fc914f81b810006b507ba9abb8f')
+sha256sums=('f4d5df6ab98585f48ea48893a89fb627c25095e6a69dfff061a713ae1f3b21e0')
 
 build() {
   cd "$pkgname-$pkgver"
