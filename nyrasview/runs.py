@@ -28,6 +28,11 @@ STREAM = {
                "mode": {"ask": [], "edit": ["--approval-mode", "auto_edit"], "auto": ["--yolo"]}},
     "qwen": {"cmd": ["qwen", "--output-format", "stream-json"], "prompt_flag": "-p", "model": "-m",
              "mode": {"ask": [], "edit": ["--approval-mode", "auto_edit"], "auto": ["--yolo"]}},
+    "hermes": {"cmd": ["hermes", "chat", "--format", "stream-json"], "prompt_flag": "-q", "model": "-m",
+               "mode": {"ask": [], "edit": [], "auto": ["--yolo"]}},
+    "devin": {"cmd": ["devin", "--respect-workspace-trust", "false"], "prompt_flag": "-p", "model": "--model", "text": True,
+              "mode": {"ask": ["--permission-mode", "normal"], "edit": ["--permission-mode", "accept-edits"],
+                       "auto": ["--permission-mode", "dangerous"]}},
 }
 
 
@@ -65,7 +70,7 @@ def _argv(agent, prompt, mode, model, session, cwd):
             argv += [spec["resume"], session]
         if spec.get("prompt_flag"):
             argv += [spec["prompt_flag"], prompt]
-            return argv, None, "stream"
+            return argv, None, "text" if spec.get("text") else "stream"
         if spec.get("stdin_arg"):
             argv.append(spec["stdin_arg"])
         return argv, prompt, "stream"
@@ -333,7 +338,30 @@ def _parse_gemini(o, out):
                     "dur": (st.get("duration_ms") or 0) / 1000 or None})
 
 
-PARSERS = {"claude": _parse_claude, "codex": _parse_codex, "gemini": _parse_gemini, "qwen": _parse_gemini}
+def _parse_hermes(o, out):
+    t = o.get("type")
+    if t == "system":
+        out.append({"k": "meta", "session": o.get("session_id"), "model": o.get("model")})
+    elif t == "text":
+        out.append({"k": "text", "text": o.get("text") or o.get("content") or "", "delta": bool(o.get("delta"))})
+    elif t == "tool_use":
+        inp = o.get("input") if o.get("input") is not None else o.get("args") or o.get("arguments") or {}
+        name = o.get("name") or o.get("tool") or "tool"
+        out.append({"k": "tool", "id": o.get("id") or o.get("tool_use_id"), "name": name, "detail": _tool_detail(name, inp)})
+    elif t == "tool_result":
+        res = o.get("output") if o.get("output") is not None else o.get("content") or o.get("result") or ""
+        out.append({"k": "result", "id": o.get("id") or o.get("tool_use_id"), "ok": not (o.get("is_error") or o.get("error")),
+                    "out": str(res)[:600]})
+    elif t == "result":
+        tok = o.get("tokens") or {}
+        ok = (o.get("exit_code") or 0) == 0
+        if o.get("text") and not any(e["k"] == "text" for e in out):
+            out.append({"k": "text", "text": o["text"]})
+        out.append({"k": "done", "ok": ok, "tokens": tok.get("total") or ((tok.get("input") or 0) + (tok.get("output") or 0)) or None,
+                    "dur": (o.get("duration_ms") or 0) / 1000 or None, "text": None if ok else o.get("text") or "failed"})
+
+
+PARSERS = {"hermes": _parse_hermes, "claude": _parse_claude, "codex": _parse_codex, "gemini": _parse_gemini, "qwen": _parse_gemini}
 
 
 def events(m):

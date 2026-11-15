@@ -528,6 +528,7 @@ def _state_dir():
 def _():
     st = _state_dir()
     st.mkdir(parents=True, exist_ok=True)
+    (st / "queue" / ".alive").unlink(missing_ok=True)
     now = time.time()
     (st / "limits.json").write_text(json.dumps({"claude": {"five_hour": {"utilization": 1.0, "resets": now + 3600, "seen": now - 5}}}))
     out = run("queue", "add", "claude", "do it later", "-d", str(WORK))
@@ -645,6 +646,61 @@ def _():
         for q in json.loads(run("queue", "--json"))["items"]:
             run("queue", "rm", q["id"])
         (_state_dir() / "codexbar.json").unlink(missing_ok=True)
+
+
+@step("more agents: Devin, Hermes, OpenHands, Agent Zero")
+def _():
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    out = run("agents")
+    for name in ("Devin", "Hermes Agent", "OpenHands", "Agent Zero"):
+        assert name in out, out
+    lines = [{"type": "system", "subtype": "init", "model": "hermes-4", "session_id": "s1"},
+             {"type": "tool_use", "id": "t1", "name": "terminal", "input": {"command": "ls"}},
+             {"type": "tool_result", "id": "t1", "output": "README.md"},
+             {"type": "text", "text": "hermes did it"},
+             {"type": "result", "session_id": "s1", "exit_code": 0, "text": "hermes did it", "tokens": {"input": 10, "output": 5, "total": 15}, "duration_ms": 1200}]
+    fake = ROOT / "hermes_fake.py"
+    fake.write_text("import sys\nassert sys.argv[1:5] == ['chat', '--format', 'stream-json', '--yolo'] and sys.argv[5] == '-q', sys.argv\n"
+                    + "".join(f"print({json.dumps(l)!r})\n" for l in lines), encoding="utf-8")
+    hb = ROOT / "hermesbin"
+    hb.mkdir(exist_ok=True)
+    if os.name == "nt":
+        (hb / "hermes.cmd").write_text(f'@"{PY}" "{fake}" %*\r\n', encoding="utf-8")
+    else:
+        (hb / "hermes").write_text(f"#!{PY}\n" + fake.read_text(encoding="utf-8"), encoding="utf-8")
+        (hb / "hermes").chmod(0o755)
+    seen = {}
+
+    class H(BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def do_POST(self):
+            b = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)))
+            seen.update(path=self.path, key=self.headers.get("X-API-KEY"), body=b)
+            data = json.dumps({"context_id": "ctx1", "response": "agent zero heard: " + b["message"]}).encode()
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+    srv = HTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    old = ENV["PATH"]
+    ENV["PATH"] = str(hb) + os.pathsep + old
+    try:
+        out = run("ask", "hermes", "do the thing", "-d", str(WORK), "--mode", "auto", timeout=60)
+        assert "hermes did it" in out and "terminal" in out and "15 tok" in out, out
+        run("settings", "set", "agentzero.url", f"http://127.0.0.1:{srv.server_address[1]}")
+        run("settings", "set", "agentzero.api_key", "a0-smoke-key")
+        out = run("ask", "agentzero", "ping", "-d", str(WORK), timeout=60)
+        assert "agent zero heard: ping" in out and seen["path"] == "/api_message" and seen["key"] == "a0-smoke-key", (out, seen)
+    finally:
+        ENV["PATH"] = old
+        srv.shutdown()
+        run("settings", "unset", "agentzero.url")
+        run("settings", "unset", "agentzero.api_key")
 
 
 @step("ollama: list, download with progress, load, unload, delete")

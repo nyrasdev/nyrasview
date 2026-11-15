@@ -30,6 +30,10 @@ INTERACTIVE = {
     "cursor": ["cursor-agent", "{prompt}"],
     "copilot": ["copilot", "-i", "{prompt}"],
     "droid": ["droid", "{prompt}"],
+    "devin": ["devin", "--", "{prompt}"],
+    "hermes": ["hermes", "chat", "-q", "{prompt}"],
+    "openhands": ["openhands", "-t", "{prompt}"],
+    "agentzero": ["a0"],
     "kimi": ["kimi"],
     "crush": ["crush"],
     "amp": ["amp"],
@@ -37,7 +41,7 @@ INTERACTIVE = {
     "aider": ["aider"],
 }
 CHAIN = ["codex", "claude", "gemini", "opencode", "cursor", "qwen", "copilot", "kimi", "droid", "crush", "amp",
-         "goose", "aider"]
+         "goose", "devin", "hermes", "openhands", "aider"]
 
 
 def _lines(path):

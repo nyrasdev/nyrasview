@@ -10,7 +10,7 @@ The control center for **AI-driven development**: one place to see, steer and co
 
 <sub>[Full-quality MP4](docs/media/demo.mp4) · the demo uses fake agents and data from <code>tools/demo.py</code></sub>
 
-Works with Claude Code, Codex, Gemini CLI, opencode, Kimi CLI, Antigravity, Cursor, Qwen Code, Copilot CLI, Crush, Amp, Factory Droid, Goose, Aider, Windsurf, Ollama, LM Studio and OpenRouter. You can add more in a config file.
+Works with Claude Code, Codex, Gemini CLI, opencode, Kimi CLI, Antigravity, Cursor, Qwen Code, Copilot CLI, Crush, Amp, Factory Droid, Goose, Devin, Hermes Agent, OpenHands, Agent Zero, Aider, Windsurf, Ollama, LM Studio, OpenRouter and DeepSeek. You can add more in a config file.
 
 ## A look around
 
@@ -340,6 +340,17 @@ If the [`codexbar`](https://github.com/steipete/CodexBar) CLI is installed (`yay
 the Limits panel and the queue: Copilot, Cursor, Gemini, Antigravity, Kilo and whatever else you enabled there.
 nyrasview's own live sources (Claude, Codex, OpenRouter, DeepSeek) are kept; CodexBar replaces the guessed ones.
 Nothing to set up in nyrasview. Turn it off with `[codexbar] enabled = false`.
+
+## Agent Zero
+
+Agent Zero runs in Docker and is prompted over its own API. Copy the token from Agent Zero's
+Settings > External Services, then:
+
+```
+nyrasview settings set agentzero.api_key <token>
+nyrasview settings set agentzero.url http://localhost:5080     # only if yours is somewhere else
+nyrasview ask agentzero "…"
+```
 
 ## DeepSeek: balance and prompts
 

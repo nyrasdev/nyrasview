@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 import threading
 import time
+import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
@@ -288,6 +289,22 @@ def call(agent_key, prompt, model=None, cwd=None, on_pid=None, timeout=None, san
         if "error" in d:
             raise RuntimeError(str(d["error"])[:300])
         return d["choices"][0]["message"]["content"] or ""
+    if h.get("http") == "agentzero":
+        c = cfg.get("agentzero", {})
+        key = os.environ.get("AGENT_ZERO_API_KEY") or c.get("api_key")
+        if not key:
+            raise RuntimeError("Agent Zero needs its API token: copy it from Agent Zero's Settings > External Services, "
+                               "then run: nyrasview settings set agentzero.api_key <token>")
+        base = (os.environ.get("AGENT_ZERO_HOST") or c.get("url") or "http://localhost:5080").rstrip("/")
+        try:
+            d = _http_json(base + "/api_message", {"message": prompt}, {"X-API-KEY": key}, timeout)
+        except urllib.error.HTTPError as e:
+            raise RuntimeError("Agent Zero refused the API token" if e.code in (401, 403) else f"Agent Zero error {e.code}")
+        except (urllib.error.URLError, OSError):
+            raise RuntimeError(f"Agent Zero is not answering at {base}")
+        if d.get("error"):
+            raise RuntimeError(str(d["error"])[:300])
+        return d.get("response") or d.get("message") or ""
     if h.get("http") == "deepseek":
         from . import deepseek
         return deepseek.chat(prompt, model, timeout)

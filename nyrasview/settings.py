@@ -85,6 +85,10 @@ SCHEMA = [
         ("path", "str", "codexbar", "Where the codexbar program is"),
         ("refresh_seconds", "int", 120, "How often to ask it"),
     ]},
+    {"id": "agentzero", "title": "Agent Zero", "fields": [
+        ("url", "str", "http://localhost:5080", "Where Agent Zero's web page is"),
+        ("api_key", "secret", "", "API token from Agent Zero: Settings > External Services"),
+    ]},
     {"id": "deepseek", "title": "DeepSeek", "fields": [
         ("model", "str", "deepseek-chat", "Default model when you prompt DeepSeek"),
         ("low_balance", "float", 2.0, "Alert when the balance drops below this"),

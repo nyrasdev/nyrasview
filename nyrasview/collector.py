@@ -242,6 +242,10 @@ class Collector:
             visible = bool(procs or installed or amcp or usage or nskills)
             if a.key == "openrouter":
                 visible = bool(self.slow["openrouter"].get("configured") or prov)
+            if a.key == "agentzero":
+                from .util import config as _cfg
+                if _cfg().get("agentzero", {}).get("api_key"):
+                    visible = installed = True
             if a.key == "deepseek":
                 visible = installed = bool(self.slow["deepseek"].get("configured"))
             lsrv = next((s for s in self.slow["local"] if a.headless and s["key"] == a.headless.get("server")), None)
