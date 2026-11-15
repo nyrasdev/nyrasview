@@ -384,7 +384,7 @@ def _():
     s.bind(("127.0.0.1", 0))
     port = s.getsockname()[1]
     s.close()
-    p = subprocess.Popen([PY, "-m", "nyrasview", "gui", "--no-open", "-p", str(port)], env=ENV, cwd=str(WORK),
+    p = subprocess.Popen([PY, "-m", "nyrasview", "gui", "--no-open", "-p", str(port)], env=dict(ENV, PYTHONUTF8="1"), cwd=str(WORK),
                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     try:
         snap = None
@@ -779,7 +779,7 @@ def _():
     s.bind(("127.0.0.1", 0))
     port = s.getsockname()[1]
     s.close()
-    p = subprocess.Popen([PY, "-m", "nyrasview", "gui", "--no-open", "-p", str(port)], env=ENV, cwd=str(WORK),
+    p = subprocess.Popen([PY, "-m", "nyrasview", "gui", "--no-open", "-p", str(port)], env=dict(ENV, PYTHONUTF8="1"), cwd=str(WORK),
                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     try:
         html = None
